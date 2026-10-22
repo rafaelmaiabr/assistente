@@ -86,13 +86,13 @@ class BackendRuntime {
     let existing;
     try {existing=await this.readJson(BASE_URL+'/api/health');}catch{}
     if(existing) {
-      if(existing.app!=='assistente'||existing.version!==2)throw new Error('A porta 8765 está ocupada por outra versão. Encerre o servidor anterior antes de continuar.');
+      if(existing.app!=='assistente'||existing.version!==3)throw new Error('A porta 8765 está ocupada por outra versão. Encerre o servidor anterior antes de continuar.');
       this.progress('ready','Assistente pronto. Servidor local existente reutilizado.');return {borrowed:true};
     }
     const python=await this.preparePython();
     this.progress('starting','Iniciando o assistente local…');
     await this.run(python,[path.join(this.root,'web_server.py')],{ASSISTENTE_DATA_DIR:this.dataDir},true);
-    await this.waitFor(BASE_URL+'/api/health',value=>value.app==='assistente'&&value.version===2);
+    await this.waitFor(BASE_URL+'/api/health',value=>value.app==='assistente'&&value.version===3);
     this.progress('ready','Assistente pronto.');return {borrowed:false};
   }
   async stop() {

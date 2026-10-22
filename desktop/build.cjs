@@ -1,5 +1,5 @@
 const fs=require('node:fs/promises'),path=require('node:path'),{spawnSync}=require('node:child_process');
-const BACKEND_FILES=['agent.py','assistant_core.py','browser_agent.py','web_server.py','speech_service.py','local_audio.py','settings.py','demo_mcp.py','config.example.json','requirements.txt'];
+const BACKEND_FILES=['agent.py','assistant_core.py','browser_agent.py','web_server.py','speech_service.py','voice_profiles.py','voice_engine.py','local_audio.py','settings.py','demo_mcp.py','config.example.json','requirements.txt'];
 const DESKTOP_FILES=['main.cjs','runtime.cjs','policy.cjs','preload.cjs','avatar.html','avatar.css','avatar.js','startup.html','startup.js','offline.css'];
 async function build() {
   if(process.platform!=='win32')throw new Error('Crie o pacote Windows em um host Windows.');

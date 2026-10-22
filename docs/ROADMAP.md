@@ -10,6 +10,7 @@ Cada etapa começa em uma issue e termina em uma entrega verificável. Uma etapa
 | 3 — [#4](https://github.com/rafaelmaiabr/assistente/issues/4) | Voz na interface | Escolher dispositivos, ligar/desligar microfone, transcrição e estados reais; sem captura antes da ação do usuário |
 | 4 — [#5](https://github.com/rafaelmaiabr/assistente/issues/5) | Avatar desktop | Janela Electron arrastável e sempre no topo; estados sincronizados; abrir chat e silenciar |
 | 5 — [#6](https://github.com/rafaelmaiabr/assistente/issues/6) | Distribuição Windows | Iniciador amigável, diagnóstico e instruções de instalação; validação de reinício/reconexão |
+| 5.1 — [#12](https://github.com/rafaelmaiabr/assistente/issues/12) | Perfis de voz | Kokoro local, seleção/prévia na interface e credenciais ElevenLabs no cofre do Windows |
 | 6 | Modelos e integrações | Roteamento entre modelos e email real autorizado, cada integração com issue própria |
 
 ## Direção técnica

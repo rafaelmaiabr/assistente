@@ -19,3 +19,6 @@ A conexão com a LLM permite até 90 segundos para a primeira resposta, para aco
 ## Verificar
 
 `npm test --prefix frontend` testa segmentação, interrupção, silêncio, limite de duração, permissão ausente/negada, cancelamento durante permissão e liberação tardia. `python -m unittest discover -s tests -v` valida formato, tamanho, transcrição, resposta em áudio e recuperação após falha de síntese. Com Ollama e servidor ativos: `.venv\Scripts\python.exe scripts/smoke_voice.py` gera uma frase sintética local e verifica WAV → Whisper → agente → MCP → texto e WAV de resposta. Esse teste não substitui avaliar voz humana e acústica real.
+## Perfis de voz neural
+
+O chat web e desktop permitem configurar vozes Windows, Kokoro local e ElevenLabs opcional em **Configurar voz**. Consulte [provedores, perfis e chaves seguras](VOICE-PROVIDERS.md).

@@ -13,7 +13,7 @@ async function fixture(t,readJson) {
   return new BackendRuntime({root,dataDir:root,uvPath:'uv',readJson});
 }
 test('reuse of a running server never spawns or kills it',async t=>{
-  const runtime=await fixture(t,async url=>url.includes('tags')?{models:[{name:'demo'}]}:{app:'assistente',version:2});
+  const runtime=await fixture(t,async url=>url.includes('tags')?{models:[{name:'demo'}]}:{app:'assistente',version:3});
   runtime.spawnProcess=()=>{throw new Error('must not spawn');};
   assert.deepEqual(await runtime.start(),{borrowed:true});
   await runtime.stop();assert.equal(runtime.children.size,0);

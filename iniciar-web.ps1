@@ -5,9 +5,9 @@ if (-not (Test-Path $python)) { throw 'Execute setup.ps1 antes de abrir o chat.'
 $ready = $false
 try {
     $health = Invoke-RestMethod 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
-    $ready = $health.app -eq 'assistente' -and $health.version -eq 2
+    $ready = $health.app -eq 'assistente' -and $health.version -eq 3
 } catch {}
-if ($health -and $health.app -eq 'assistente' -and $health.version -ne 2) {
+if ($health -and $health.app -eq 'assistente' -and $health.version -ne 3) {
     throw 'Servidor de uma versao anterior ativo. Execute encerrar-web.cmd e abra iniciar-web.cmd novamente.'
 }
 if (-not $ready) {
@@ -40,7 +40,7 @@ if (-not $ready) {
         if ($server.HasExited) { throw 'O servidor encerrou. Consulte web-server-error.log.' }
         try {
             $health = Invoke-RestMethod 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
-            if ($health.app -eq 'assistente' -and $health.version -eq 2) { $ready = $true; break }
+            if ($health.app -eq 'assistente' -and $health.version -eq 3) { $ready = $true; break }
         } catch {}
     }
     if (-not $ready) {
