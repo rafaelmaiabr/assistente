@@ -685,3 +685,21 @@ h1{
     padding-bottom:14px
   }
 }
+/* Voice controls stay visible independently of conversation scrolling. */
+.voice-controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.voice-controls button, .voice-controls select, .audio-response button { background:#252c27; color:#d7e8cf; border:1px solid #4e5e47; border-radius:8px; padding:8px 10px; font-size:11px; }
+.mic-button { display:flex; align-items:center; gap:8px; }
+.mic-button.listening { background:#3f5939; border-color:#b8d8b0; }
+.voice-controls label { font-size:10px; color:#a8b1a2; display:flex; align-items:center; gap:8px; }
+.voice-controls summary { cursor:pointer; font-size:11px; color:#a8b1a2; }
+.voice-controls details { position:relative; }
+.device-options { position:absolute; bottom:28px; right:0; width:310px; max-width:80vw; padding:16px; background:#242730; border:1px solid #4e5e47; border-radius:10px; z-index:3; box-shadow:0 8px 24px #0008; }
+.device-options label { display:block; margin-bottom:12px; }
+.device-options select { display:block; width:100%; margin-top:6px; }
+.device-options small { color:#a1a4ae; line-height:1.5; font-size:10px; }
+.mic-level { display:flex; align-items:center; gap:10px; margin-bottom:10px; color:#a8b1a2; font-size:10px; }
+.mic-level meter { width:100px; flex-shrink:0; }
+.audio-response { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+.audio-response[hidden] { display:none; }
+.audio-response audio { height:32px; max-width:100%; flex:1; min-width:0; }
+@media(max-width:680px) { .voice-controls{gap:9px}.voice-controls details{margin-left:auto}.device-options{right:0}.mic-level span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} }

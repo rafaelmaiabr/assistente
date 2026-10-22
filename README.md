@@ -1,12 +1,12 @@
 # Assistente — validação local
 
-> Produto em desenvolvimento: chat no navegador disponível em texto. Voz no navegador e avatar desktop são as próximas entregas. Consulte [roadmap](docs/ROADMAP.md) e [fluxo de contribuição](CONTRIBUTING.md). Toda implementação começa por uma issue.
+> Produto em desenvolvimento: chat com texto e voz no navegador. Avatar desktop é a próxima entrega. Consulte [roadmap](docs/ROADMAP.md) e [fluxo de contribuição](CONTRIBUTING.md). Toda implementação começa por uma issue.
 
 Protótipo de um assistente que conversa por texto ou voz e consulta ferramentas MCP. Base: LiveKit Agents, Ollama, faster-whisper e voz SAPI do Windows. Não requer conta LiveKit Cloud nem chave de API paga.
 
 ## Experimentar neste computador
 
-**Interface amigável:** abra `iniciar-web.cmd`. Ele compila a interface na primeira execução, inicia o backend em segundo plano e abre **http://127.0.0.1:8765** no navegador. É necessário Node.js 22+ para compilar. Na tela, envie uma mensagem ou clique em **Consultar meus e-mails**. Nenhum microfone é ativado nesta entrega.
+**Interface amigável:** abra `iniciar-web.cmd`. Ele compila a interface na primeira execução, inicia o backend em segundo plano e abre **http://127.0.0.1:8765** no navegador. É necessário Node.js 22+ para compilar. Clique em **Ligar microfone**, autorize no navegador e fale; selecione o dispositivo em **Dispositivos de áudio**. **Resposta** alterna entre texto e texto com áudio. Consulte [voz](docs/VOICE.md). Para encerrar o servidor, use `encerrar-web.cmd`.
 
 O chat tem contexto por aba, estados de processamento e execução de ferramenta, bloqueio de envios simultâneos e ação **Nova conversa**. Atualizar a página, fechar a aba ou iniciar outra conversa descarta o contexto. O servidor permanece ativo ao fechar a aba; para execução e encerramento pelo terminal, use `.venv\Scripts\python.exe web_server.py` e Ctrl+C. Detalhes em [chat web](docs/WEB.md).
 
@@ -33,7 +33,7 @@ O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. A s�
 ## Escopo
 
 - Implementado: chat React no navegador com Ollama/MCP reais e contexto da sessão; voz/texto no console; detecção de fala com Silero; LLM configurável.
-- Ainda não implementado: voz no navegador, avatar desktop, persistência de conversas, integração de email real, seleção independente de modalidade de entrada/saída e roteamento automático entre LLMs.
+- Ainda não implementado: avatar desktop, persistência de conversas, integração de email real e roteamento automático entre LLMs.
 - A fluidez, interrupções e latência precisam ser avaliadas falando no microfone. A síntese Windows e transcrição por trechos priorizam simplicidade e custo zero, não qualidade final.
 
 ## Reproduzir a instalação no Windows

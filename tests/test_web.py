@@ -3,6 +3,16 @@ import unittest
 from unittest.mock import patch
 from aiohttp import web, ClientSession, WSServerHandshakeError
 from web_server import create_app, ALLOWED_HOSTS
+from speech_service import encode_wav
+
+
+class FakeSpeech:
+    def __init__(self): self.transcript = 'fala transcrita'; self.spoken = []; self.fail = False
+    async def transcribe(self, data): return self.transcript
+    async def synthesize(self, text):
+        if self.fail: raise RuntimeError('tts unavailable')
+        self.spoken.append(text)
+        return encode_wav(b'\0\0' * 16000, 16000, 1)
 
 
 class FakeAgent:
@@ -31,7 +41,8 @@ class FakeAgent:
 class WebTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         FakeAgent.instances = []
-        self.runner = web.AppRunner(create_app(FakeAgent, {'model': 'test'}))
+        self.speech = FakeSpeech()
+        self.runner = web.AppRunner(create_app(FakeAgent, {'model': 'test'}, self.speech))
         await self.runner.setup()
         site = web.TCPSite(self.runner, '127.0.0.1', 0)
         await site.start()
@@ -128,3 +139,33 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
                 break
             await asyncio.sleep(.01)
         self.assertTrue(FakeAgent.instances[0].closed)
+
+    async def test_audio_transcribes_into_same_session_and_returns_speech(self):
+        ws = await self.connect()
+        FakeAgent.instances[0].gate.set()
+        await ws.send_json({'type': 'audio', 'wav': encode_wav(b'\0\0'*16000,16000,1), 'speak': True})
+        await self.until(ws, lambda e: e.get('state') == 'transcribing')
+        item = await self.until(ws, lambda e: e.get('role') == 'user')
+        self.assertEqual(item['text'], 'fala transcrita')
+        audio = await self.until(ws, lambda e: e['type'] == 'audio')
+        self.assertTrue(audio['wav'])
+        await self.until(ws, lambda e: e.get('state') == 'ready')
+        self.assertEqual(self.speech.spoken, ['fala transcrita'])
+        await ws.close()
+
+    async def test_audio_validation_silence_and_tts_failure(self):
+        ws = await self.connect()
+        FakeAgent.instances[0].gate.set()
+        await ws.send_json({'type': 'audio', 'wav': 'bad'})
+        await self.until(ws, lambda e: e['type'] == 'rejected')
+        self.assertEqual(FakeAgent.instances[0].inputs, [])
+        self.speech.transcript = ''
+        await ws.send_json({'type': 'audio', 'wav': encode_wav(b'\0\0'*16000,16000,1)})
+        await self.until(ws, lambda e: e.get('state') == 'ready')
+        self.assertEqual(FakeAgent.instances[0].inputs, [])
+        self.speech.fail = True
+        await ws.send_json({'type': 'message', 'text': 'teste', 'speak': True})
+        await self.until(ws, lambda e: e.get('role') == 'assistant')
+        await self.until(ws, lambda e: e['type'] == 'warning')
+        await self.until(ws, lambda e: e.get('state') == 'ready')
+        await ws.close()
