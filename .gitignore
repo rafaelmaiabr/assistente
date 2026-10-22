@@ -1,0 +1,12 @@
+.venv/
+.models/
+__pycache__/
+*.log
+.env*
+config.json
+validacao.json
+node_modules/
+dist/
+.graphify-venv/
+graphify-out/
+.tmp/

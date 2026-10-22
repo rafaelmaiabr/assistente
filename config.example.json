@@ -1,0 +1,9 @@
+{
+  "ollama_url": "http://127.0.0.1:11435/v1",
+  "model": "qwen2.5:7b",
+  "whisper_model": "base",
+  "language": "pt",
+  "input_device": "",
+  "output_device": "",
+  "mcp_servers": []
+}
