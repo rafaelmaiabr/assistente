@@ -10,3 +10,5 @@ dist/
 .graphify-venv/
 graphify-out/
 .tmp/
+.runtime/
+release/
