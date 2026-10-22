@@ -703,3 +703,11 @@ h1{
 .audio-response[hidden] { display:none; }
 .audio-response audio { height:32px; max-width:100%; flex:1; min-width:0; }
 @media(max-width:680px) { .voice-controls{gap:9px}.voice-controls details{margin-left:auto}.device-options{right:0}.mic-level span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} }
+.voice-settings::backdrop{background:#000b}
+.voice-settings{width:min(560px,100%);max-height:90vh;overflow:auto;background:#17221f;color:#e6ede9;border:1px solid #42554d;border-radius:18px;padding:24px;box-shadow:0 20px 80px #0008}
+.voice-settings-title{display:flex;justify-content:space-between;align-items:center;gap:12px}.voice-settings h2{margin:0;font-size:22px}
+.voice-settings p,.voice-settings small{color:#adbbb5;font-size:13px;line-height:1.6}.voice-settings fieldset{border:0;padding:0;margin:0;min-width:0}
+.voice-settings label{display:flex;flex-direction:column;align-items:stretch;gap:6px;font-size:13px;margin:14px 0;flex:1;min-width:0;text-align:left}
+.voice-settings input:not([type=checkbox]):not([type=range]),.voice-settings select{width:100%;min-width:0;border:1px solid #42554d;border-radius:8px;background:#101a16;color:#edf2ef;padding:10px;font:inherit}
+.voice-settings button,.voice-settings-button{border:1px solid #42554d;border-radius:8px;background:#23382e;color:#edf2ef;padding:9px 12px;cursor:pointer;font:inherit;font-size:13px}.voice-settings button:disabled{opacity:.45;cursor:default}
+.voice-settings-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.voice-settings .voice-consent{flex-direction:row;align-items:center;line-height:1.5}.voice-settings input[type=range]{width:100%;accent-color:#9ac6ac}.voice-settings input[type=checkbox]{accent-color:#9ac6ac}

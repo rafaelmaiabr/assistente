@@ -1,4 +1,4 @@
-"""Bounded local audio conversion. No browser speech service or cloud API."""
+"""Bounded audio conversion; local STT and configurable TTS."""
 import asyncio
 import base64
 import binascii
@@ -39,11 +39,17 @@ def encode_wav(pcm, rate, channels):
 
 
 class SpeechService:
-    def __init__(self, config):
+    def __init__(self, config, voices=None):
         self.config = config
         self.model = None
         # Lock remains held even if the awaiting coroutine is cancelled.
         self.lock = threading.Lock()
+        if voices is None:
+            from voice_profiles import VoiceProfiles
+            voices = VoiceProfiles()
+        from voice_engine import VoiceEngine
+        self.voices = voices
+        self.engine = VoiceEngine(voices)
 
     def _transcribe(self, data):
         from faster_whisper import WhisperModel
@@ -56,9 +62,8 @@ class SpeechService:
     async def transcribe(self, data):
         return await asyncio.to_thread(self._transcribe, data)
 
-    async def synthesize(self, text):
+    async def synthesize(self, text, profile_id=None):
         if len(text) > 4000:
             raise ValueError('Resposta longa demais para síntese nesta versão.')
-        from local_audio import windows_wav
-        pcm, rate, channels = await asyncio.to_thread(windows_wav, text)
+        pcm, rate, channels = await self.engine.synthesize(text, profile_id)
         return encode_wav(pcm, rate, channels)

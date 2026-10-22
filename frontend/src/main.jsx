@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './style.css';
 import {useVoice} from './useVoice.js';
+import {VoiceSettings} from './VoiceSettings.jsx';
 
 function Icon({name, ...props}) {
   const paths = {
@@ -147,6 +148,7 @@ function App() {
       <div className="composer-area">
         {error && <div className="error" role="alert"><span>{error}</span>{fatal && <button onClick={reset}>Nova conversa</button>}</div>}
         <div className="voice-controls">
+          <VoiceSettings onPlay={wav => voice.play(wav)} onOpen={() => voice.stopAll()}/>
           <button className={`mic-button ${voice.enabled ? 'listening' : ''}`} disabled={state === 'offline' || state === 'connecting'} aria-pressed={voice.enabled} onClick={() => {setError(''); voice.toggle();}}><Icon name="mic"/>{voice.starting ? 'Cancelar ativação' : voice.enabled ? 'Silenciar microfone' : 'Ligar microfone'}</button>
           <label>Resposta<select aria-label="Formato da resposta" value={speak ? 'audio' : 'text'} onChange={e => {const value = e.target.value === 'audio'; setSpeak(value); speakRef.current = value; if (!value) voice.stopPlayback();}}><option value="audio">Texto e áudio</option><option value="text">Somente texto</option></select></label>
           <details><summary>Dispositivos de áudio</summary><div className="device-options">

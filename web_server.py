@@ -14,6 +14,7 @@ CLIENTS = web.AppKey("clients", set)
 CONFIG = web.AppKey("config", dict)
 FACTORY = web.AppKey("factory", object)
 SPEECH = web.AppKey("speech", object)
+VOICE_OPERATION = web.AppKey('voice_operation', object)
 MAX_TEXT = 8000
 TURN_TIMEOUT = 120
 
@@ -22,6 +23,12 @@ TURN_TIMEOUT = 120
 async def local_only(request, handler):
     if request.host not in ALLOWED_HOSTS:
         raise web.HTTPForbidden(text="Host não permitido")
+    if request.path.startswith('/api/voices'):
+        # Includes GET: another origin must not inspect local configuration.
+        if request.headers.get('Origin') != f'http://{request.host}':
+            raise web.HTTPForbidden(text='Origem não permitida')
+        if request.method == 'POST' and request.content_type != 'application/json':
+            raise web.HTTPUnsupportedMediaType()
     response = await handler(request)
     if not response.prepared:
         response.headers.update({
@@ -33,7 +40,7 @@ async def local_only(request, handler):
 
 
 async def health(request):
-    return web.json_response({"app": "assistente", "version": 2})
+    return web.json_response({"app": "assistente", "version": 3})
 
 
 async def index(request):
@@ -41,6 +48,56 @@ async def index(request):
     if not path.exists():
         raise web.HTTPServiceUnavailable(text="Interface não compilada. Execute npm ci e npm run build na pasta frontend.")
     return web.FileResponse(path)
+
+
+async def voices(request):
+    speech = request.app[SPEECH]
+    operation = request.match_info.get('operation', '')
+    try:
+        if request.method == 'POST':
+            if request.content_length is None or request.content_length > 20000:
+                raise ValueError('Configuração excede o limite permitido.')
+            data = await request.json()
+            if not isinstance(data, dict):
+                raise ValueError('Configuração inválida.')
+            if operation == 'status':
+                pass
+            elif operation == 'settings':
+                await asyncio.to_thread(speech.voices.save, data)
+            elif operation == 'credential':
+                if set(data) != {'key'}:
+                    raise ValueError('Informe apenas a chave.')
+                if data['key'] is None:
+                    await asyncio.to_thread(speech.voices.secrets.delete)
+                else:
+                    await asyncio.to_thread(speech.voices.secrets.set, data['key'])
+            elif operation in {'preview', 'prepare'}:
+                lock = request.app[VOICE_OPERATION]
+                if lock.locked():
+                    return web.json_response({'error': 'Já existe uma operação de voz em andamento.'}, status=409)
+                async with lock:
+                    if operation == 'prepare':
+                        await asyncio.to_thread(speech.engine.prepare)
+                    else:
+                        profile_id = data.get('profile')
+                        if not isinstance(profile_id, str):
+                            raise ValueError('Selecione um perfil salvo.')
+                        profile = speech.voices.profile(profile_id)
+                        if profile['provider'] == 'elevenlabs' and data.get('allow_cloud') is not True:
+                            raise ValueError('Autorize a prévia externa, que pode consumir créditos.')
+                        wav = await asyncio.wait_for(speech.synthesize(
+                            'Olá! Sou seu assistente. Posso responder suas perguntas e ajudar nas tarefas do dia a dia.',
+                            profile_id), timeout=90)
+                        return web.json_response({'wav': wav})
+            else:
+                raise web.HTTPNotFound()
+        key = await asyncio.to_thread(speech.voices.secrets.get)
+        return web.json_response({'settings': speech.voices.snapshot(), 'key_configured': bool(key),
+                                  'kokoro_ready': speech.engine.ready()})
+    except (ValueError, json.JSONDecodeError) as error:
+        return web.json_response({'error': str(error)}, status=400)
+    except Exception:
+        return web.json_response({'error': 'Não foi possível concluir. Confira a instalação e tente novamente.'}, status=503)
 
 
 async def chat(request):
@@ -174,8 +231,11 @@ def create_app(factory=None, config=None, speech=None):
     app[CONFIG] = config or load_config()
     app[FACTORY] = factory
     app[SPEECH] = speech or SpeechService(app[CONFIG])
+    app[VOICE_OPERATION] = asyncio.Lock()
     app.router.add_get("/", index)
     app.router.add_get("/api/health", health)
+    app.router.add_get('/api/voices', voices)
+    app.router.add_post('/api/voices/{operation}', voices)
     app.router.add_get("/ws", chat)
     async def worklet(request):
         return web.FileResponse(ROOT / 'frontend/dist/microphone-worklet.js')

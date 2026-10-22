@@ -28,7 +28,7 @@ class LocalSTT(stt.STT):
                                alternatives=[stt.SpeechData(language=self.language, text=text)])
 
 
-def windows_wav(text):
+def windows_wav(text, speed=1.0):
     import pythoncom
     import win32com.client
     pythoncom.CoInitialize()
@@ -36,6 +36,7 @@ def windows_wav(text):
     stream = None
     try:
         voice = win32com.client.Dispatch("SAPI.SpVoice")
+        voice.Rate = max(-10, min(10, round((speed - 1) * 10)))
         for token in voice.GetVoices():
             if "416" in token.GetAttribute("Language").lower():
                 voice.Voice = token

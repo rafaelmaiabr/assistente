@@ -12,3 +12,5 @@ graphify-out/
 .tmp/
 .runtime/
 release/
+voice-settings.json
+voice-settings.json.tmp

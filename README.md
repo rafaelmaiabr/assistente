@@ -2,7 +2,7 @@
 
 > Produto em desenvolvimento: chat com texto e voz e avatar desktop flutuante. Consulte [roadmap](docs/ROADMAP.md) e [fluxo de contribuição](CONTRIBUTING.md). Toda implementação começa por uma issue.
 
-Protótipo de um assistente que conversa por texto ou voz e consulta ferramentas MCP. Base: LiveKit Agents, Ollama, faster-whisper e voz SAPI do Windows. Não requer conta LiveKit Cloud nem chave de API paga.
+Protótipo de um assistente que conversa por texto ou voz e consulta ferramentas MCP. Base: LiveKit Agents, Ollama e faster-whisper, com vozes Windows e Kokoro local. Não requer conta LiveKit Cloud nem chave de API paga. ElevenLabs é opcional.
 
 ## Experimentar neste computador
 
@@ -28,7 +28,7 @@ O iniciador seleciona explicitamente o microfone físico Intel e a saída Realte
 
 Edite `config.json` para selecionar outro modelo já instalado no Ollama. O padrão é `qwen2.5:7b`, encontrado neste computador. O iniciador usa uma instância Ollama em `127.0.0.1:11435`, com modelos em `%USERPROFILE%\.ollama\models`, sem alterar variáveis globais. O processo Ollama permanece ativo depois de fechar o assistente.
 
-O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. A síntese usa a voz portuguesa do Windows quando disponível; caso contrário, usa a voz padrão instalada. Downloads iniciais exigem internet; inferência e demonstração MCP são locais, sem cobrança de API (há consumo de recursos e energia).
+O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. Em **Configurar voz**, selecione Dora, Alex ou Santa, prepare o Kokoro, marque **Usar este perfil nas respostas** e salve. **Ouvir prévia** permite comparar sem conversar com a LLM. O padrão inicial continua sendo a voz Windows. Downloads iniciais exigem internet; Kokoro, Windows e demonstração MCP funcionam sem cobrança de API (há consumo de recursos e energia). Perfis ficam em `voice-settings.json`, ignorado pelo Git. Consulte [perfis e credenciais](docs/VOICE-PROVIDERS.md).
 
 `mcp_servers` aceita servidores HTTP sem autenticação, por exemplo `[{"url":"http://127.0.0.1:8000/mcp"}]`. Conecte apenas servidores conhecidos. OAuth e contas reais não estão implementados nesta validação.
 
@@ -36,7 +36,7 @@ O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. A s�
 
 - Implementado: chat React no navegador com Ollama/MCP reais e contexto da sessão; voz/texto no console; detecção de fala com Silero; LLM configurável.
 - Ainda não implementado: persistência de conversas, integração de email real e roteamento automático entre LLMs.
-- A fluidez, interrupções e latência precisam ser avaliadas falando no microfone. A síntese Windows e transcrição por trechos priorizam simplicidade e custo zero, não qualidade final.
+- A fluidez, interrupções e latência precisam ser avaliadas falando no microfone. Kokoro permite avaliar vozes neurais locais; esta entrega ainda gera o áudio completo antes de reproduzir. O console legado continua usando SAPI.
 
 ## Reproduzir a instalação no Windows
 
