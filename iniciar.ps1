@@ -1,6 +1,8 @@
 param([switch]$Texto)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
+if (-not (Test-Path '.venv\Scripts\python.exe')) { throw 'Execute setup.ps1 primeiro.' }
+if (-not (Test-Path config.json)) { Copy-Item config.example.json config.json }
 $env:OLLAMA_MODELS = Join-Path $env:USERPROFILE '.ollama\models'
 $env:OLLAMA_HOST = '127.0.0.1:11435'
 Remove-Item Env:OLLAMA_NO_GPU -ErrorAction SilentlyContinue

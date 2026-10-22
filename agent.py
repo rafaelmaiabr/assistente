@@ -1,13 +1,11 @@
 import asyncio
-import json
 import sys
-from pathlib import Path
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli, mcp
 from livekit.plugins import openai, silero
 from local_audio import LocalSTT, LocalTTS
+from settings import ROOT, load_config
 
-ROOT = Path(__file__).resolve().parent
-CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+CONFIG = load_config()
 
 def make_agent():
     tools = [mcp.MCPToolset(id="email-demo", mcp_server=mcp.MCPServerStdio(

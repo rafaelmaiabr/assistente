@@ -9,12 +9,13 @@ from pathlib import Path
 from livekit import rtc
 from livekit.agents import stt, tts, DEFAULT_API_CONNECT_OPTIONS
 from faster_whisper import WhisperModel
+from settings import ROOT
 
 
 class LocalSTT(stt.STT):
     def __init__(self, model="base", language="pt"):
         super().__init__(capabilities=stt.STTCapabilities(streaming=False, interim_results=False))
-        self._whisper = WhisperModel(model, device="cpu", compute_type="int8", download_root=".models")
+        self._whisper = WhisperModel(model, device="cpu", compute_type="int8", download_root=str(ROOT / ".models"))
         self.language = language
 
     async def _recognize_impl(self, buffer, *, language=None, conn_options=None):

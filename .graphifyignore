@@ -1,0 +1,13 @@
+.venv/
+.graphify-venv/
+.models/
+.git/
+.tmp/
+__pycache__/
+node_modules/
+dist/
+graphify-out/
+config.json
+validacao.json
+*.log
+.env*
