@@ -4,12 +4,12 @@ Cada etapa começa em uma issue e termina em uma entrega verificável. Uma etapa
 
 | Etapa | Entrega | Aceite principal |
 |---|---|---|
-| 0 | Baseline público | Protótipo documentado sem dados locais publicados |
-| 1 | Base reproduzível e Graphify | Configuração local separada, bootstrap, mapa consultável e instruções para agentes |
-| 2 | Chat no navegador | Enviar texto, receber resposta real do Ollama via backend e executar MCP; erros e processamento visíveis |
-| 3 | Voz na interface | Escolher dispositivos, ligar/desligar microfone, transcrição e estados reais; sem captura antes da ação do usuário |
-| 4 | Avatar desktop | Janela Electron arrastável e sempre no topo; estados sincronizados; abrir chat e silenciar |
-| 5 | Distribuição Windows | Iniciador amigável, diagnóstico e instruções de instalação; validação de reinício/reconexão |
+| 0 — [#1](https://github.com/rafaelmaiabr/assistente/issues/1) | Baseline público | Protótipo documentado sem dados locais publicados |
+| 1 — [#2](https://github.com/rafaelmaiabr/assistente/issues/2) | Base reproduzível e Graphify | Configuração local separada, bootstrap, mapa consultável e instruções para agentes |
+| 2 — [#3](https://github.com/rafaelmaiabr/assistente/issues/3) | Chat no navegador | Enviar texto, receber resposta real do Ollama via backend e executar MCP; erros e processamento visíveis |
+| 3 — [#4](https://github.com/rafaelmaiabr/assistente/issues/4) | Voz na interface | Escolher dispositivos, ligar/desligar microfone, transcrição e estados reais; sem captura antes da ação do usuário |
+| 4 — [#5](https://github.com/rafaelmaiabr/assistente/issues/5) | Avatar desktop | Janela Electron arrastável e sempre no topo; estados sincronizados; abrir chat e silenciar |
+| 5 — [#6](https://github.com/rafaelmaiabr/assistente/issues/6) | Distribuição Windows | Iniciador amigável, diagnóstico e instruções de instalação; validação de reinício/reconexão |
 | 6 | Modelos e integrações | Roteamento entre modelos e email real autorizado, cada integração com issue própria |
 
 ## Direção técnica

@@ -32,6 +32,8 @@ O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. A s�
 
 ## Reproduzir a instalação no Windows
 
+Instalação assistida: `powershell -ExecutionPolicy Bypass -File .\setup.ps1`. Acrescente `-Graphify` para instalar e gerar o mapa de código para agentes. O script preserva `config.json` existente. A aplicação usa os valores de `config.example.json` quando não há configuração local; overrides locais podem ser parciais. Consulte [Graphify](docs/GRAPHIFY.md).
+
 Requer Python 3.13, uv e Ollama. Execute na pasta do projeto:
 
 ```powershell
