@@ -1,6 +1,6 @@
 # Avatar desktop — issue #5
 
-Com o backend web ativo, abra `iniciar-desktop.cmd`. A primeira execução instala Electron pelo lockfile. O aplicativo abre o chat completo e uma janela menor de avatar, arrastável pela região do personagem/cabeçalho e sempre acima das janelas comuns.
+Abra `iniciar-desktop.cmd` no checkout, ou `Assistente.exe` no [pacote portable](DISTRIBUTION.md). A inicialização mostra progresso, verifica o Ollama/modelo, prepara dependências e inicia o backend quando necessário. O aplicativo abre o chat completo e uma janela menor de avatar, arrastável pela região do personagem/cabeçalho e sempre acima das janelas comuns.
 
 O avatar mostra os estados reais de conexão, captura, transcrição, pensamento, ferramentas e reprodução. **Ligar mic/Silenciar mic** atua na mesma captura do chat; **Abrir chat** restaura a conversa. Fechar a janela do chat apenas a oculta, preservando a sessão e o áudio; o avatar continua indicando a captura. O botão **×** do avatar encerra o aplicativo; **−** minimiza o avatar na barra de tarefas. O microfone começa desligado em toda inicialização.
 
@@ -16,4 +16,4 @@ O chat conserva a única AgentSession; o avatar não abre outra conexão MCP nem
 
 `npm test --prefix desktop` valida origem, permissões e sanitização. Com o servidor ativo, `desktop\node_modules\electron\dist\electron.exe desktop --smoke-test` verifica propriedades reais de always-on-top, sandbox, isolamento de contexto e ausência de Node no renderer, e encerra.
 
-Inicialização/diagnóstico automáticos do backend, distribuição e encerramento de processos pertencem à issue #6.
+Ao encerrar pelo avatar, captura e reprodução param e os processos criados pelo aplicativo são encerrados. Servidores já existentes são preservados. Veja [distribuição e diagnóstico](DISTRIBUTION.md).

@@ -6,10 +6,12 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
+    "package": "node build.cjs",
     "postinstall": "node node_modules/electron/install.js",
     "test": "node --test tests/*.test.cjs"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "^44.9.3"
   }
 }

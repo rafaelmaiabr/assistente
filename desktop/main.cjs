@@ -1,16 +1,33 @@
-const {app, BrowserWindow, ipcMain, session, screen} = require('electron');
+const {app, BrowserWindow, ipcMain, session, screen, shell} = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 const {pathToFileURL} = require('node:url');
 const {BASE_URL, trustedChat, sanitizeStatus, audioPermission} = require('./policy.cjs');
+const {BackendRuntime}=require('./runtime.cjs');
 if(!app.isPackaged) app.setPath('userData',path.join(__dirname,'..','.runtime','desktop'));
 // Small 2D windows do not need to compete with local inference for GPU memory.
 app.disableHardwareAcceleration();
 if(process.argv.includes('--smoke-test')) setTimeout(()=>{console.error('Desktop smoke test timed out.'); app.exit(1);},45000).unref();
 
-let chat, avatar, quitting = false;
+let chat, avatar, quitting = false, runtime, starting=false, cleaned=false;
 let status = {state:'connecting', micEnabled:false, level:0};
+let runtimeStatus={stage:'starting',message:'Verificando a instalação…'};
 const avatarPage = pathToFileURL(path.join(__dirname,'avatar.html')).href;
+const startupPage=pathToFileURL(path.join(__dirname,'startup.html')).href;
 const showChat = () => {if(chat && !chat.isDestroyed()) {chat.show(); chat.restore(); chat.focus();}};
+
+async function bootstrap() {
+  if(starting||quitting)return;
+  starting=true;
+  try {
+    await runtime.start();
+    if(!quitting)await chat.loadURL(BASE_URL);
+  }catch(error){
+    await runtime.stop();
+    runtimeStatus={stage:'error',message:error.message};
+    if(!quitting){chat.webContents.send('runtime:status',runtimeStatus);showChat();status={state:'error',micEnabled:false,level:0};avatar.webContents.send('avatar:status',status);}
+  }finally{starting=false;}
+}
 
 function secureWindow(win, allowed) {
   win.webContents.setWindowOpenHandler(() => ({action:'deny'}));
@@ -22,7 +39,7 @@ async function createWindows() {
   const prefs = {preload:path.join(__dirname,'preload.cjs'), nodeIntegration:false, contextIsolation:true, sandbox:true, backgroundThrottling:false};
   chat = new BrowserWindow({width:1120,height:800,minWidth:680,minHeight:600,title:'Assistente',backgroundColor:'#181a21',webPreferences:prefs});
   chat.setMenuBarVisibility(false);
-  secureWindow(chat,trustedChat);
+  secureWindow(chat,url=>trustedChat(url)||url===startupPage);
   chat.on('close', event => {if(!quitting) {event.preventDefault(); chat.hide();}});
   chat.webContents.on('render-process-gone', () => {status={state:'offline',micEnabled:false,level:0}; avatar?.webContents.send('avatar:status',status);});
   const area = screen.getPrimaryDisplay().workArea;
@@ -35,7 +52,12 @@ async function createWindows() {
   avatar.show();
   avatar.focus();
   avatar.setAlwaysOnTop(true,'screen-saver');
-  await chat.loadURL(BASE_URL).catch(()=>{chat.loadFile(path.join(__dirname,'offline.html'));});
+  await chat.loadFile(path.join(__dirname,'startup.html'));
+  const root=app.isPackaged?path.join(process.resourcesPath,'backend'):path.join(__dirname,'..');
+  runtime=new BackendRuntime({root,dataDir:process.env.ASSISTENTE_DATA_DIR||(app.isPackaged?path.join(app.getPath('userData'),'data'):root),
+    uvPath:app.isPackaged?path.join(process.resourcesPath,'tools','uv.exe'):(fs.existsSync(path.join(process.env.USERPROFILE||'','.local','bin','uv.exe'))?path.join(process.env.USERPROFILE||'','.local','bin','uv.exe'):'uv'),
+    onProgress:progress=>{runtimeStatus=progress;if(chat&&!chat.isDestroyed())chat.webContents.send('runtime:status',progress);}});
+  if(!process.argv.includes('--smoke-test'))void bootstrap();
 }
 
 ipcMain.on('assistant:status',(event,value)=>{
@@ -49,6 +71,14 @@ ipcMain.on('avatar:action',(event,action)=>{
   if(action==='toggle-mic') {if(trustedChat(chat?.webContents.getURL())) chat.webContents.send('assistant:command','toggle-mic'); else showChat();}
   if(action==='minimize') avatar.minimize();
   if(action==='quit') app.quit();
+});
+ipcMain.on('runtime:action',(event,action)=>{
+  if(event.sender!==chat?.webContents||event.senderFrame?.url!==startupPage)return;
+  if(action==='status')chat.webContents.send('runtime:status',runtimeStatus);
+  if(action==='retry')void bootstrap();
+  if(action==='folder'&&runtime)void shell.openPath(runtime.dataDir);
+  if(action==='ollama')void shell.openExternal('https://ollama.com/download/windows');
+  if(action==='quit')app.quit();
 });
 
 if(!app.requestSingleInstanceLock()) app.quit();
@@ -76,6 +106,14 @@ else {
     }
   }).catch(error=>{console.error(error.message); app.exit(1);});
 }
-app.on('before-quit',()=>{quitting=true;});
+app.on('before-quit',event=>{
+  quitting=true;
+  if(runtime&&!cleaned){
+    event.preventDefault();cleaned=true;
+    // Destroy renderers first to stop capture and close the AgentSession.
+    for(const win of [chat,avatar])if(win&&!win.isDestroyed())win.destroy();
+    Promise.race([runtime.stop(),new Promise(resolve=>setTimeout(resolve,8000))]).finally(()=>app.exit(0));
+  }
+});
 app.on('window-all-closed',()=>app.quit());
 

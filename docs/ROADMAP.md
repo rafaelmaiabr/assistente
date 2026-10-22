@@ -17,3 +17,7 @@ Cada etapa começa em uma issue e termina em uma entrega verificável. Uma etapa
 Preservar Python/LiveKit como camada de agente, Ollama como LLM local e MCP como padrão de ferramentas. Interface React reaproveitada no navegador e no Electron. Avatar inicial 2D, sem sincronização labial. A janela sobre outros aplicativos é responsabilidade do Electron, não de uma aba comum.
 
 O frontend não recebe segredos nem executa comandos arbitrários. No desktop, usar isolamento de contexto e uma API IPC restrita. Definir transporte e ciclo de sessão na issue do chat antes da implementação. Para voz, avaliar LiveKit WebRTC local versus transporte local explícito; não introduzir dependência obrigatória de nuvem.
+
+## Entregas disponíveis
+
+As entregas 0–5 foram implementadas em PRs separados. A distribuição portable é gerada por `npm run package --prefix desktop`, com diagnóstico de instalação e controle de processos próprios. A etapa 6 é uma evolução futura: email real, memória persistente e roteamento automático de modelos ainda não foram implementados e exigem issues próprias antes de começar.
