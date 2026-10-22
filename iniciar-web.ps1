@@ -5,10 +5,15 @@ if (-not (Test-Path $python)) { throw 'Execute setup.ps1 antes de abrir o chat.'
 $ready = $false
 try {
     $health = Invoke-RestMethod 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
-    $ready = $health.app -eq 'assistente' -and $health.version -eq 1
+    $ready = $health.app -eq 'assistente' -and $health.version -eq 2
 } catch {}
+if ($health -and $health.app -eq 'assistente' -and $health.version -ne 2) {
+    throw 'Servidor de uma versao anterior ativo. Execute encerrar-web.cmd e abra iniciar-web.cmd novamente.'
+}
 if (-not $ready) {
-    if (-not (Test-Path 'frontend\dist\index.html')) {
+    $dist = Get-Item 'frontend\dist\index.html' -ErrorAction SilentlyContinue
+    $sources = Get-ChildItem frontend/src,frontend/public,frontend/package.json,frontend/package-lock.json -Recurse -File
+    if (-not $dist -or ($sources | Where-Object { $_.LastWriteTimeUtc -gt $dist.LastWriteTimeUtc })) {
         if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) { throw 'Instale Node.js 22 ou mais recente para compilar a interface.' }
         & npm.cmd ci --prefix frontend
         if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar a interface.' }
@@ -29,13 +34,13 @@ if (-not $ready) {
         Remove-Item Env:OLLAMA_NO_GPU -ErrorAction SilentlyContinue
         Start-Process -FilePath $ollama.Source -ArgumentList 'serve' -WindowStyle Hidden
     }
-    $server = Start-Process -FilePath $python -ArgumentList 'web_server.py' -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru -RedirectStandardError 'web-server-error.log' -RedirectStandardOutput 'web-server.log'
+    $server = Start-Process -FilePath $python -ArgumentList ('"' + (Join-Path $PSScriptRoot 'web_server.py') + '"') -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru -RedirectStandardError 'web-server-error.log' -RedirectStandardOutput 'web-server.log'
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
         Start-Sleep -Milliseconds 500
         if ($server.HasExited) { throw 'O servidor encerrou. Consulte web-server-error.log.' }
         try {
             $health = Invoke-RestMethod 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
-            if ($health.app -eq 'assistente' -and $health.version -eq 1) { $ready = $true; break }
+            if ($health.app -eq 'assistente' -and $health.version -eq 2) { $ready = $true; break }
         } catch {}
     }
     if (-not $ready) {

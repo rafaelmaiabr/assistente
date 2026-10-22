@@ -1,13 +1,16 @@
 """Translate actual LiveKit events into the small browser protocol."""
 import asyncio
-from livekit.agents import AgentSession
+from livekit.agents import AgentSession, APIConnectOptions
+from livekit.agents.voice.agent_session import SessionConnectOptions
 from assistant_core import make_agent
 
 
 class BrowserAgent:
     def __init__(self, config, emit):
         self.config, self.emit = config, emit
-        self.session = AgentSession(vad=None, turn_handling={"turn_detection": "manual", "interruption": {"enabled": False}})
+        self.session = AgentSession(vad=None,
+            conn_options=SessionConnectOptions(llm_conn_options=APIConnectOptions(timeout=90, max_retry=0)),
+            turn_handling={"turn_detection": "manual", "interruption": {"enabled": False}})
         self.failed = False
         self.answers = 0
         self.session.on("conversation_item_added", self.on_message)

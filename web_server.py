@@ -6,12 +6,14 @@ import logging
 import uuid
 from aiohttp import web, WSMsgType
 from settings import ROOT, load_config
+from speech_service import SpeechService, decode_audio
 
 PORT = 8765
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 CLIENTS = web.AppKey("clients", set)
 CONFIG = web.AppKey("config", dict)
 FACTORY = web.AppKey("factory", object)
+SPEECH = web.AppKey("speech", object)
 MAX_TEXT = 8000
 TURN_TIMEOUT = 120
 
@@ -25,13 +27,13 @@ async def local_only(request, handler):
         response.headers.update({
             "Cache-Control": "no-store",
             "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'",
+            "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data:; frame-ancestors 'none'",
         })
     return response
 
 
 async def health(request):
-    return web.json_response({"app": "assistente", "version": 1})
+    return web.json_response({"app": "assistente", "version": 2})
 
 
 async def index(request):
@@ -47,26 +49,44 @@ async def chat(request):
     clients = request.app[CLIENTS]
     if len(clients) >= 4:
         raise web.HTTPServiceUnavailable(text="Limite de quatro conversas abertas")
-    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=40000)
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=1400000)
     clients.add(ws)  # Reserve a slot before awaiting the handshake.
     queue = asyncio.Queue()
     agent = None
     turn = None
     sender = None
     count = 0
+    answers = []
 
     async def send():
         while True:
             await ws.send_json(await queue.get())
 
     def emit(event):
+        if event.get('type') == 'message' and event.get('role') == 'assistant':
+            answers.append(event['text'])
         queue.put_nowait(event)
 
-    async def reply(text):
-        emit({"type": "message", "id": uuid.uuid4().hex, "role": "user", "text": text})
-        emit({"type": "status", "state": "processing", "label": "Pensando…"})
+    async def reply(text, audio=None, speak=False):
+        answers.clear()
         try:
+            if audio is not None:
+                emit({'type': 'status', 'state': 'transcribing', 'label': 'Transcrevendo sua fala…'})
+                text = await asyncio.wait_for(request.app[SPEECH].transcribe(audio), timeout=120)
+                if not text:
+                    emit({'type': 'warning', 'message': 'Não identifiquei fala. Confira o microfone e tente novamente.'})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    return
+            emit({"type": "message", "id": uuid.uuid4().hex, "role": "user", "text": text})
+            emit({"type": "status", "state": "processing", "label": "Pensando…"})
             await asyncio.wait_for(agent.reply(text), timeout=TURN_TIMEOUT)
+            if speak and answers:
+                emit({'type': 'status', 'state': 'synthesizing', 'label': 'Preparando áudio…'})
+                try:
+                    audio_result = await asyncio.wait_for(request.app[SPEECH].synthesize('\n'.join(answers)), timeout=45)
+                    emit({'type': 'audio', 'wav': audio_result})
+                except Exception:
+                    emit({'type': 'warning', 'message': 'Não foi possível gerar áudio. A resposta continua disponível em texto.'})
         except asyncio.TimeoutError:
             emit({"type": "error", "message": "A resposta excedeu dois minutos. Inicie uma nova conversa para tentar novamente.", "fatal": True})
             await queue_drained()
@@ -99,16 +119,29 @@ async def chat(request):
             except json.JSONDecodeError:
                 emit({"type": "rejected", "message": "Mensagem inválida."})
                 continue
-            text = data.get("text") if isinstance(data, dict) and data.get("type") == "message" else None
-            if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
-                emit({"type": "rejected", "message": "Envie entre 1 e 8.000 caracteres."})
-            elif turn and not turn.done():
-                emit({"type": "rejected", "message": "Aguarde a resposta em andamento."})
+            if turn and not turn.done():
+                emit({"type": "rejected", "message": "Aguarde a resposta em andamento.", "busy": True})
             elif count >= 100:
                 emit({"type": "error", "message": "Limite de 100 mensagens. Inicie uma nova conversa.", "fatal": True})
             else:
+                text, audio = None, None
+                try:
+                    if not isinstance(data, dict):
+                        raise ValueError('Mensagem inválida.')
+                    if data.get('type') == 'audio':
+                        audio = decode_audio(data.get('wav'))
+                    elif data.get('type') == 'message':
+                        text = data.get('text')
+                        if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
+                            raise ValueError('Envie entre 1 e 8.000 caracteres.')
+                        text = text.strip()
+                    else:
+                        raise ValueError('Mensagem inválida.')
+                except ValueError as error:
+                    emit({'type': 'rejected', 'message': str(error)})
+                    continue
                 count += 1
-                turn = asyncio.create_task(reply(text.strip()))
+                turn = asyncio.create_task(reply(text, audio, data.get('speak') is True))
     except (ConnectionError, asyncio.CancelledError):
         pass
     except Exception:
@@ -132,7 +165,7 @@ async def chat(request):
     return ws
 
 
-def create_app(factory=None, config=None):
+def create_app(factory=None, config=None, speech=None):
     if factory is None:
         from browser_agent import BrowserAgent
         factory = BrowserAgent
@@ -140,9 +173,13 @@ def create_app(factory=None, config=None):
     app[CLIENTS] = set()
     app[CONFIG] = config or load_config()
     app[FACTORY] = factory
+    app[SPEECH] = speech or SpeechService(app[CONFIG])
     app.router.add_get("/", index)
     app.router.add_get("/api/health", health)
     app.router.add_get("/ws", chat)
+    async def worklet(request):
+        return web.FileResponse(ROOT / 'frontend/dist/microphone-worklet.js')
+    app.router.add_get('/microphone-worklet.js', worklet)
     assets = ROOT / "frontend/dist/assets"
     if assets.exists():
         app.router.add_static("/assets/", assets)

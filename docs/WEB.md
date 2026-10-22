@@ -33,4 +33,4 @@ O protocolo contém eventos `session`, `status`, `message`, `tool`, `error` e `r
 - Teste de integração opcional: `scripts/smoke_web.py`, com modelo real e caixa MCP fictícia, verifica estados de execução e continuidade do contexto.
 - Validação visual no navegador: entrada, envio, resposta MCP e segunda pergunta. O microfone permanece desligado.
 
-Voz na interface, seleção de dispositivos e transcrição pertencem à issue #4; avatar e janela sempre no topo à #5. A interface existente é a base a reaproveitar nessas entregas.
+Voz na interface, seleção de dispositivos e transcrição estão descritas em [VOICE.md](VOICE.md). O protocolo também aceita `{ "type": "audio", "wav": "base64", "speak": true }`; respostas podem incluir eventos `audio` e `warning` e estados `transcribing`/`synthesizing`. Texto continua aceitando a opção `speak`. Avatar e janela sempre no topo pertencem à issue #5.
