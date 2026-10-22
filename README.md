@@ -6,7 +6,7 @@ Protótipo de um assistente que conversa por texto ou voz e consulta ferramentas
 
 ## Experimentar neste computador
 
-**Avatar desktop:** com o servidor web ativo, abra `iniciar-desktop.cmd`. O personagem mostra os estados reais, permite ligar/silenciar o microfone e abrir o chat. Fechar o chat apenas o oculta; o botão × do avatar encerra o aplicativo. Consulte [desktop](docs/DESKTOP.md).
+**Aplicativo com avatar:** abra `iniciar-desktop.cmd` no projeto ou `Assistente.exe` no pacote portable. O aplicativo verifica/prepara o backend e orienta sobre Ollama e modelo. O personagem mostra os estados reais, permite ligar/silenciar o microfone e abrir o chat. Fechar o chat apenas o oculta; o botão × do avatar encerra o aplicativo e os processos que ele iniciou. Consulte [desktop](docs/DESKTOP.md) e [distribuição Windows](docs/DISTRIBUTION.md).
 
 **Interface amigável:** abra `iniciar-web.cmd`. Ele compila a interface na primeira execução, inicia o backend em segundo plano e abre **http://127.0.0.1:8765** no navegador. É necessário Node.js 22+ para compilar. Clique em **Ligar microfone**, autorize no navegador e fale; selecione o dispositivo em **Dispositivos de áudio**. **Resposta** alterna entre texto e texto com áudio. Consulte [voz](docs/VOICE.md). Para encerrar o servidor, use `encerrar-web.cmd`.
 
@@ -35,7 +35,7 @@ O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. A s�
 ## Escopo
 
 - Implementado: chat React no navegador com Ollama/MCP reais e contexto da sessão; voz/texto no console; detecção de fala com Silero; LLM configurável.
-- Ainda não implementado: avatar desktop, persistência de conversas, integração de email real e roteamento automático entre LLMs.
+- Ainda não implementado: persistência de conversas, integração de email real e roteamento automático entre LLMs.
 - A fluidez, interrupções e latência precisam ser avaliadas falando no microfone. A síntese Windows e transcrição por trechos priorizam simplicidade e custo zero, não qualidade final.
 
 ## Reproduzir a instalação no Windows

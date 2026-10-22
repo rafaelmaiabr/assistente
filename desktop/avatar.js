@@ -6,6 +6,6 @@ window.desktopBridge.onStatus(status=>{
   document.getElementById('level').value=status.level;
   document.getElementById('capture').textContent=status.micEnabled?'Captura ativa':'Microfone desligado';
   mic.textContent=status.micEnabled?'Silenciar mic':'Ligar mic'; mic.setAttribute('aria-pressed',String(status.micEnabled));
-  mic.disabled=['offline','connecting'].includes(status.state);
+  mic.disabled=['offline','connecting'].includes(status.state)||(status.state==='error'&&!status.micEnabled);
 });
 for(const [id,action] of Object.entries({mic:'toggle-mic',chat:'open-chat',quit:'quit',minimize:'minimize'})) document.getElementById(id).addEventListener('click',()=>window.desktopBridge.avatarAction(action));

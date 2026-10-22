@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from settings import ROOT, load_config
 
@@ -33,6 +34,11 @@ class SettingsTests(unittest.TestCase):
         (self.root / "config.json").write_text('{"mcp_servers": ["bad"]}', encoding="utf-8")
         with self.assertRaisesRegex(ValueError, 'mcp_servers'):
             load_config(self.root)
+
+    def test_distribution_can_store_config_outside_resource_directory(self):
+        (self.root / 'config.json').write_text('{"model":"portable:7b"}',encoding='utf-8')
+        with patch('settings.DATA_ROOT', self.root):
+            self.assertEqual(load_config()['model'],'portable:7b')
 
 
 if __name__ == '__main__':

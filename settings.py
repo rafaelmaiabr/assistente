@@ -1,14 +1,16 @@
 """Portable configuration; local settings never belong in Git."""
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
+DATA_ROOT = Path(os.environ.get('ASSISTENTE_DATA_DIR', str(ROOT))).resolve()
 
 
 def load_config(root: Path = ROOT) -> dict:
     defaults = json.loads((root / "config.example.json").read_text(encoding="utf-8-sig"))
-    local = root / "config.json"
+    local = (DATA_ROOT if root == ROOT else root) / "config.json"
     if local.exists():
         try:
             override = json.loads(local.read_text(encoding="utf-8-sig"))

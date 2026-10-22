@@ -12,4 +12,9 @@ contextBridge.exposeInMainWorld('desktopBridge', {
     return () => ipcRenderer.removeListener('avatar:status', handler);
   },
   avatarAction: action => ipcRenderer.send('avatar:action', action),
+  runtimeAction: action => ipcRenderer.send('runtime:action',action),
+  onRuntime: callback => {
+    const handler=(_,status)=>callback(status);ipcRenderer.on('runtime:status',handler);
+    return ()=>ipcRenderer.removeListener('runtime:status',handler);
+  },
 });

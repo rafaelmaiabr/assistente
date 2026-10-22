@@ -5,7 +5,7 @@ import binascii
 import io
 import threading
 import wave
-from settings import ROOT
+from settings import DATA_ROOT
 
 MAX_WAV_BYTES = 960044
 
@@ -49,7 +49,7 @@ class SpeechService:
         from faster_whisper import WhisperModel
         with self.lock:
             if self.model is None:
-                self.model = WhisperModel(self.config['whisper_model'], device='cpu', compute_type='int8', download_root=str(ROOT / '.models'))
+                self.model = WhisperModel(self.config['whisper_model'], device='cpu', compute_type='int8', download_root=str(DATA_ROOT / '.models'))
             segments, _ = self.model.transcribe(io.BytesIO(data), language=self.config['language'], beam_size=1, vad_filter=True)
             return ' '.join(part.text.strip() for part in segments).strip()
 
