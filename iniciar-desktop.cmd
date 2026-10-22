@@ -1,0 +1,11 @@
+@echo off
+cd /d "%~dp0"
+if not exist "desktop\node_modules\electron\dist\electron.exe" (
+  call npm.cmd ci --prefix desktop
+  if errorlevel 1 goto fail
+)
+start "" "%~dp0desktop\node_modules\electron\dist\electron.exe" "%~dp0desktop"
+exit /b 0
+:fail
+echo Nao foi possivel instalar o aplicativo desktop. Confira Node.js e internet.
+pause

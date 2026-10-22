@@ -1,10 +1,12 @@
 # Assistente — validação local
 
-> Produto em desenvolvimento: chat com texto e voz no navegador. Avatar desktop é a próxima entrega. Consulte [roadmap](docs/ROADMAP.md) e [fluxo de contribuição](CONTRIBUTING.md). Toda implementação começa por uma issue.
+> Produto em desenvolvimento: chat com texto e voz e avatar desktop flutuante. Consulte [roadmap](docs/ROADMAP.md) e [fluxo de contribuição](CONTRIBUTING.md). Toda implementação começa por uma issue.
 
 Protótipo de um assistente que conversa por texto ou voz e consulta ferramentas MCP. Base: LiveKit Agents, Ollama, faster-whisper e voz SAPI do Windows. Não requer conta LiveKit Cloud nem chave de API paga.
 
 ## Experimentar neste computador
+
+**Avatar desktop:** com o servidor web ativo, abra `iniciar-desktop.cmd`. O personagem mostra os estados reais, permite ligar/silenciar o microfone e abrir o chat. Fechar o chat apenas o oculta; o botão × do avatar encerra o aplicativo. Consulte [desktop](docs/DESKTOP.md).
 
 **Interface amigável:** abra `iniciar-web.cmd`. Ele compila a interface na primeira execução, inicia o backend em segundo plano e abre **http://127.0.0.1:8765** no navegador. É necessário Node.js 22+ para compilar. Clique em **Ligar microfone**, autorize no navegador e fale; selecione o dispositivo em **Dispositivos de áudio**. **Resposta** alterna entre texto e texto com áudio. Consulte [voz](docs/VOICE.md). Para encerrar o servidor, use `encerrar-web.cmd`.
 

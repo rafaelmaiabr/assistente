@@ -39,6 +39,18 @@ function App() {
     socket.current.send(JSON.stringify({type: 'audio', wav, speak: speakRef.current}));
   }});
   voiceRef.current = voice;
+  const desktopStatus = useRef(null);
+  desktopStatus.current = {state: state === 'ready' ? (error ? 'error' : voice.speaking ? 'speaking' : voice.enabled ? 'listening' : 'ready') : state,
+    micEnabled: voice.enabled, level: voice.level};
+  useEffect(() => {
+    if (!window.desktopBridge) return;
+    const publish = () => window.desktopBridge.publishStatus(desktopStatus.current);
+    publish(); const interval = setInterval(publish, 150);
+    const unsubscribe = window.desktopBridge.onCommand(command => {
+      if (command === 'toggle-mic') {setError(''); voiceRef.current.toggle();}
+    });
+    return () => {clearInterval(interval); unsubscribe();};
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -135,7 +147,7 @@ function App() {
       <div className="composer-area">
         {error && <div className="error" role="alert"><span>{error}</span>{fatal && <button onClick={reset}>Nova conversa</button>}</div>}
         <div className="voice-controls">
-          <button className={`mic-button ${voice.enabled ? 'listening' : ''}`} disabled={state === 'offline' || state === 'connecting'} aria-pressed={voice.enabled} onClick={voice.toggle}><Icon name="mic"/>{voice.starting ? 'Cancelar ativação' : voice.enabled ? 'Silenciar microfone' : 'Ligar microfone'}</button>
+          <button className={`mic-button ${voice.enabled ? 'listening' : ''}`} disabled={state === 'offline' || state === 'connecting'} aria-pressed={voice.enabled} onClick={() => {setError(''); voice.toggle();}}><Icon name="mic"/>{voice.starting ? 'Cancelar ativação' : voice.enabled ? 'Silenciar microfone' : 'Ligar microfone'}</button>
           <label>Resposta<select aria-label="Formato da resposta" value={speak ? 'audio' : 'text'} onChange={e => {const value = e.target.value === 'audio'; setSpeak(value); speakRef.current = value; if (!value) voice.stopPlayback();}}><option value="audio">Texto e áudio</option><option value="text">Somente texto</option></select></label>
           <details><summary>Dispositivos de áudio</summary><div className="device-options">
             <label>Microfone<select aria-label="Microfone" value={voice.inputId} onChange={e => voice.chooseInput(e.target.value)}><option value="">Automático (preferir físico)</option>{voice.devices.filter(d => d.kind === 'audioinput').map((d,i) => <option key={d.deviceId || i} value={d.deviceId}>{d.label || `Microfone ${i+1}`}</option>)}</select></label>
