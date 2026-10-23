@@ -22,7 +22,7 @@ TABLES = {
     "contact_address": "contact_addresses", "contact_link": "contact_links", "access_grant": "access_grants",
     "credential": "credentials", "mcp_catalog_entry": "mcp_catalog",
     "agent_profile_version": "agent_profile_versions", "model_policy": "model_policies", "case_entry": "case_entries", "capability": "capabilities", "triage_decision": "triage_decisions",
-    "outbound_message": "outbound_messages", "knowledge_document": "knowledge_documents",
+    "outbound_message": "outbound_messages", "knowledge_document": "knowledge_documents", "monitored_asset": "monitored_assets",
     "memory_item": "memory_items",
 }
 # Lookup columns that are not plain references; ``address_key`` is derived (see column_value).
@@ -30,7 +30,7 @@ EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal
                  "agent_profile_version": ["agent_version", "status", "content_hash"], "agent_run": ["agent_version"],
                  "model_policy": ["name"], "capability": ["name"],
                  "outbound_message": ["dedup_key", "provider_id"], "knowledge_document": ["status", "doc_key"],
-                 "memory_item": ["scope"]}
+                 "memory_item": ["scope"], "monitored_asset": ["status", "hostname"]}
 DELETABLE = ("contact_address", "contact_link", "access_grant", "credential", "memory_item")
 GLOBAL_KINDS = ("tenant", "skill_definition", "mcp_catalog_entry")
 MAX_LIST = 1000

@@ -528,9 +528,22 @@
     "updated_at": "2026-01-15T12:00:00Z"
   },
   {
+    "kind": "monitored_asset",
+    "schema_version": 1,
+    "id": "ast_00000000000000000000000000000022",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "hostname": "exemplo.com.br",
+    "note": "site institucional",
+    "status": "ativo",
+    "created_by": "usr_00000000000000000000000000000013",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
     "kind": "memory_item",
     "schema_version": 1,
-    "id": "mem_00000000000000000000000000000022",
+    "id": "mem_00000000000000000000000000000023",
     "tenant_id": "ten_00000000000000000000000000000001",
     "scope": "cliente",
     "department_id": null,
