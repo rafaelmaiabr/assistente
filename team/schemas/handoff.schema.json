@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "case_id",
+    "handoff_kind",
+    "from_agent_id",
+    "to_agent_id",
+    "reason",
+    "context_summary",
+    "sources",
+    "state",
+    "idempotency_key",
+    "expected_case_revision",
+    "return_requested",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "handoff"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^hof_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^cas_[0-9a-f]{32}$"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^tsk_[0-9a-f]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "handoff_kind": {
+      "type": "string",
+      "enum": [
+        "delegacao",
+        "transferencia"
+      ]
+    },
+    "from_agent_id": {
+      "type": "string",
+      "pattern": "^agt_[0-9a-f]{32}$"
+    },
+    "to_agent_id": {
+      "type": "string",
+      "pattern": "^agt_[0-9a-f]{32}$"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "context_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      }
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "proposto",
+        "aceito",
+        "recusado",
+        "expirado",
+        "devolvido",
+        "cancelado"
+      ]
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "expected_case_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "return_requested": {
+      "type": "boolean"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
