@@ -11,7 +11,7 @@ Cada etapa começa em uma issue e termina em uma entrega verificável. Uma etapa
 | 4 — [#5](https://github.com/rafaelmaiabr/assistente/issues/5) | Avatar desktop | Janela Electron arrastável e sempre no topo; estados sincronizados; abrir chat e silenciar |
 | 5 — [#6](https://github.com/rafaelmaiabr/assistente/issues/6) | Distribuição Windows | Iniciador amigável, diagnóstico e instruções de instalação; validação de reinício/reconexão |
 | 5.1 — [#12](https://github.com/rafaelmaiabr/assistente/issues/12) | Perfis de voz | Kokoro local, seleção/prévia na interface e credenciais ElevenLabs no cofre do Windows |
-| 6 | Modelos e integrações | Roteamento entre modelos e email real autorizado, cada integração com issue própria |
+| 6 — [plano #15](https://github.com/rafaelmaiabr/assistente/issues/15) | Equipe configurável de agentes | 36 entregas com dependências: agentes/skills, demandas, encaminhamentos, aprovações, email e integrações, operação e escala |
 
 ## Direção técnica
 
@@ -21,4 +21,4 @@ O frontend não recebe segredos nem executa comandos arbitrários. No desktop, u
 
 ## Entregas disponíveis
 
-As entregas 0–5 foram implementadas em PRs separados. A distribuição portable é gerada por `npm run package --prefix desktop`, com diagnóstico de instalação e controle de processos próprios. A etapa 6 é uma evolução futura: email real, memória persistente e roteamento automático de modelos ainda não foram implementados e exigem issues próprias antes de começar.
+As entregas 0–5 e perfis de voz 5.1 foram implementados em PRs separados. A distribuição portable é gerada por `npm run package --prefix desktop`, com diagnóstico de instalação e controle de processos próprios. A etapa 6 está **planejada, não implementada**: consulte a [arquitetura da equipe](TEAM-ARCHITECTURE.md), o [backlog com dependências](TEAM-BACKLOG.md) e o [guia de execução por Codex/Claude](TEAM-IMPLEMENTATION.md). O [manifesto JSON](team-backlog.json) permite selecionar a próxima issue elegível. Começar por [#16 / T01](https://github.com/rafaelmaiabr/assistente/issues/16); uma issue, uma branch e um PR por vez.

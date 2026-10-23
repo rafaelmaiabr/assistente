@@ -7,3 +7,4 @@
 - Gerar o mapa com `scripts/graphify.ps1`; consultar `docs/GRAPHIFY.md`. Usar o wrapper para evitar auto-refresh de skills globais. Instalação opcional: `scripts/graphify.ps1 -Install`.
 - Atualizar documentação e executar verificações relevantes antes do push. Relatar limitações sem alegar testes não realizados.
 - Não fazer merge automático sem autorização do usuário. Não confundir demonstração MCP com acesso real a email.
+- Para evolução da equipe de agentes, consultar docs/TEAM-ARCHITECTURE.md, docs/TEAM-BACKLOG.md, docs/team-backlog.json e docs/TEAM-IMPLEMENTATION.md. Selecionar uma única issue elegível, confirmar dependências entregues na main e não fechar o acompanhamento #15 em PRs das filhas. Planejamento não equivale a implementação pronta nem autoriza ações externas de negócio.
