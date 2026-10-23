@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -78,7 +78,7 @@ def bundle():
           for key, agent, definition in versions],
         _doc("case", "case", department_id=IDS["dep_sup"], state="em_execucao",
              owner_agent_id=IDS["agt_sup"], customer_ref="cliente-exemplo",
-             objective="Site do cliente indisponivel", closed_at=None),
+             objective="Site do cliente indisponivel", closed_at=None, priority="alta", origin="email"),
         _doc("task", "task", case_id=IDS["case"], parent_task_id=None, assignee_agent_id=IDS["agt_fin"],
              state="pendente", objective="Analisar renovacao do dominio",
              expected_result="Valor, prazo e recomendacao com fontes", due_at=None),
@@ -95,7 +95,10 @@ def bundle():
              idempotency_key="hof-exemplo-1", expected_case_revision=1, return_requested=True,
              expires_at=None),
         _doc("evidence", "evidence", case_id=IDS["case"], source="consulta DNS sintetica",
-             collected_at=NOW, summary="Sem registro A para o dominio de exemplo", content_hash=None),
+             collected_at=NOW, summary="Sem registro A para o dominio de exemplo", content_hash=None,
+             evidence_type="fato", reliability="declarada", recorded_by=IDS["agt_sup"]),
+        _doc("case_entry", "entry", case_id=IDS["case"], entry_type="nota_interna", direction=None, channel=None,
+             author=IDS["agt_sup"], body="Cliente relatou site fora do ar desde a manha."),
         _doc("contact", "contact", display_name="Cliente Exemplo", status="ativo"),
         _doc("contact_address", "address", contact_id=IDS["contact"], channel="email",
              address="cliente@exemplo.invalid", link_state="vinculado"),

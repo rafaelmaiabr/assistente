@@ -48,6 +48,7 @@
         "approval_request",
         "handoff",
         "evidence",
+        "case_entry",
         "agent_profile_version",
         "contact",
         "contact_address",

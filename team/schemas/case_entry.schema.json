@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "case_entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "case_id",
+    "entry_type",
+    "author",
+    "body",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "case_entry"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^ent_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^cas_[0-9a-f]{32}$"
+    },
+    "entry_type": {
+      "type": "string",
+      "enum": [
+        "nota_interna",
+        "mensagem_externa",
+        "resumo_ia"
+      ]
+    },
+    "direction": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "entrada",
+            "saida"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "channel": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "chat",
+            "email",
+            "telefone",
+            "interno"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "author": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

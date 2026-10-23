@@ -60,6 +60,48 @@
         }
       ]
     },
+    "evidence_type": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "fato",
+            "resultado_ferramenta",
+            "recibo",
+            "documento"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reliability": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "verificada",
+            "declarada",
+            "inferida"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recorded_by": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1

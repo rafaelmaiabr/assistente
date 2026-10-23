@@ -176,7 +176,7 @@ class IsolationTests(AccessCase):
 
     def seed_case(self, tenant_id, department_id):
         case = dict(one("case"), id=new_id("case"), tenant_id=tenant_id, department_id=department_id,
-                    owner_agent_id=None)
+                    owner_agent_id=None, state="triagem")
         event = dict(one("event"), id=new_id("event"), tenant_id=tenant_id, case_id=case["id"], revision=1,
                      causation_id=None)
         with self.repo.transaction(tenant_id) as session:

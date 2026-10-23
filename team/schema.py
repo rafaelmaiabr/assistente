@@ -93,7 +93,8 @@ SCHEMAS = {
         status="enum:Status", tool_specs="obj?"),
     "case": _entity(
         "case", department_id="ref:department", state="enum:CaseState",
-        owner_agent_id="ref:agent_definition?", customer_ref="str?", objective="text", closed_at="ts?"),
+        owner_agent_id="ref:agent_definition?", customer_ref="str?", objective="text", closed_at="ts?",
+        priority="enum:Priority?", origin="enum:Origin?"),
     "task": _entity(
         "task", case_id="ref:case", parent_task_id="ref:task?", assignee_agent_id="ref:agent_definition",
         state="enum:TaskState", objective="text", expected_result="text", due_at="ts?"),
@@ -108,7 +109,12 @@ SCHEMAS = {
         expected_case_revision="posint", return_requested="bool", expires_at="ts?"),
     "evidence": _entity(
         "evidence", case_id="ref:case", source="str", collected_at="ts", summary="text",
-        content_hash="sha256?"),
+        content_hash="sha256?", evidence_type="enum:EvidenceType?", reliability="enum:Reliability?",
+        recorded_by="actor?"),
+    # Timeline entries are append-only: internal notes, messages exchanged with the customer, and AI summaries.
+    "case_entry": _entity(
+        "case_entry", case_id="ref:case", entry_type="enum:EntryType", direction="enum:Direction?",
+        channel="enum:EntryChannel?", author="actor", body="text"),
     # Contacts: a person's identity is separate from the addresses seen or linked to them.
     "contact": _entity("contact", display_name="str", status="enum:Status"),
     "contact_address": _entity(
@@ -299,7 +305,22 @@ def _rule_catalog(doc):
     return [] if doc["url"] and doc["launcher"] is None else ["$.url: http/sse exige url e proibe launcher"]
 
 
-_RULES = {"contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+def _rule_case(doc):
+    # One owner once work starts; before that (or when closed without work) the case sits in the triage queue.
+    if doc["owner_agent_id"] is None and doc["state"] in (
+            "em_execucao", "aguardando_cliente", "aguardando_aprovacao", "aguardando_subtarefa", "pausada", "resolvida"):
+        return ["$.owner_agent_id: obrigatorio apos a triagem (um unico responsavel)"]
+    return []
+
+
+def _rule_entry(doc):
+    external = doc["entry_type"] == "mensagem_externa"
+    if external != (doc["direction"] is not None and doc["channel"] is not None):
+        return ["$: mensagem_externa exige direction e channel; notas e resumos nao os possuem"]
+    return []
+
+
+_RULES = {"case": _rule_case, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 
