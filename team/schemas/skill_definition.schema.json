@@ -72,6 +72,101 @@
         "inativo"
       ]
     },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputs": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outputs": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "risks": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "dados_pessoais",
+              "dados_financeiros",
+              "leitura_email",
+              "envio_externo",
+              "pagamento",
+              "alteracao_dominio"
+            ]
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "settings": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tool_operations": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fictitious": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1

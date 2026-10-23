@@ -30,6 +30,7 @@ STATUSES = ("ativo", "inativo")
 CREDENTIAL_STORES = ("cofre-local", "elevenlabs-legado")
 CREDENTIAL_STATES = ("ativa", "revogada")
 ROUTING_POLICIES = ("encaminhar", "esclarecer")
+RISK_TAGS = ("dados_pessoais", "dados_financeiros", "leitura_email", "envio_externo", "pagamento", "alteracao_dominio")
 CHANNELS = ("email", "telefone")
 # observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
 LINK_STATES = ("observado", "vinculado")
@@ -45,7 +46,7 @@ ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
+    "Status": STATUSES, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }
 

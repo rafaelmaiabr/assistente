@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "id": "demo.suporte-diagnostico",
+  "version": "1.0.0",
+  "fictitious": true,
+  "description": "[DEMONSTRACAO - dados ficticios] Diagnostico tecnico de site indisponivel (HTTP, DNS, TLS).",
+  "instructions": "Verifique HTTP, DNS, certificado e registro do dominio como evidencias separadas. Declare incerteza quando uma consulta falhar e nunca conclua que o dominio venceu sem evidencia.",
+  "inputs": [
+    "dominio"
+  ],
+  "outputs": [
+    "evidencias",
+    "hipotese"
+  ],
+  "required_tools": [
+    {
+      "tool": "diagnostico-demo.consultar-http",
+      "operations": [
+        "read"
+      ]
+    },
+    {
+      "tool": "diagnostico-demo.consultar-dns",
+      "operations": [
+        "read"
+      ]
+    }
+  ],
+  "risks": [],
+  "settings": [
+    "dominio-padrao"
+  ]
+}

@@ -94,6 +94,17 @@
       "type": "string",
       "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
     },
+    "revoked_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1
