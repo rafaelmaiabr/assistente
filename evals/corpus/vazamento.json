@@ -1,0 +1,86 @@
+{
+ "corpus_version": 1,
+ "description": "Tentativas de ler ou agir sobre registros de outra empresa (a empresa B tenta alcancar o que e da empresa A). Em todas, o registro tem de ser invisivel: a mesma resposta de 'nao existe'.",
+ "attempts": [
+  {
+   "id": "vaz-01",
+   "via": "caso_por_id",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-02",
+   "via": "caso_detalhe",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-03",
+   "via": "eventos_com_cursor",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-04",
+   "via": "aprovacao_por_id",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-05",
+   "via": "mensagem_por_id",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-06",
+   "via": "encaminhamento_por_id",
+   "expect": "lista_vazia"
+  },
+  {
+   "id": "vaz-07",
+   "via": "agente_por_id",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-08",
+   "via": "documento_de_conhecimento",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-09",
+   "via": "lista_de_demandas",
+   "expect": "lista_vazia"
+  },
+  {
+   "id": "vaz-10",
+   "via": "lista_de_mensagens",
+   "expect": "lista_vazia"
+  },
+  {
+   "id": "vaz-11",
+   "via": "registros_financeiros",
+   "expect": "lista_vazia"
+  },
+  {
+   "id": "vaz-12",
+   "via": "abrir_demanda_em_departamento_alheio",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-13",
+   "via": "atribuir_agente_alheio",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-14",
+   "via": "empresa_no_corpo",
+   "expect": "recusada"
+  },
+  {
+   "id": "vaz-15",
+   "via": "contexto_de_agente_de_outra_empresa",
+   "expect": "invisivel"
+  },
+  {
+   "id": "vaz-16",
+   "via": "membro_de_uma_empresa_em_outra",
+   "expect": "invisivel"
+  }
+ ]
+}

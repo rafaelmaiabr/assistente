@@ -1,0 +1,17 @@
+{
+ "baseline_version": 1,
+ "suites": {
+  "cobranca_incorreta": {
+   "min_passed": 11,
+   "total": 11
+  },
+  "escopo": {
+   "min_passed": 10,
+   "total": 10
+  },
+  "triagem": {
+   "min_passed": 40,
+   "total": 40
+  }
+ }
+}
