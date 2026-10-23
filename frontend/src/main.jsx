@@ -7,6 +7,7 @@ import {PersistenceSettings} from './PersistenceSettings.jsx';
 import {TeamPanel} from './team/TeamPanel.jsx';
 import {ConversationLink} from './ConversationLink.jsx';
 import {LoginScreen, RemoteApp, readSession} from './RemoteApp.jsx';
+import {Markdown} from './markdown.jsx';
 import {api} from './team/api.js';
 import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
@@ -173,7 +174,7 @@ function App() {
           </div>
           <div className="demo-note">A consulta de e-mails usa dados de demonstração. Nenhuma conta real está conectada.</div>
         </section> : <section className="messages" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions">
-          {messages.map(item => <article key={item.id} className={`message ${item.role}`}><div className="message-avatar">{item.role === 'assistant' ? <Icon name="spark"/> : 'EU'}</div><div className="message-content"><div className="message-author">{item.role === 'assistant' ? 'Assistente' : 'Você'}</div><div className="message-text">{item.text}</div></div></article>)}
+          {messages.map(item => <article key={item.id} className={`message ${item.role}`}><div className="message-avatar">{item.role === 'assistant' ? <Icon name="spark"/> : 'EU'}</div><div className="message-content"><div className="message-author">{item.role === 'assistant' ? 'Assistente' : 'Você'}</div><div className="message-text">{item.role === 'assistant' ? <Markdown text={item.text}/> : item.text}</div></div></article>)}
           {waiting && <div className="working"><span className="spinner"/>{label}</div>}
           {tools.length > 0 && <div className="tool-result"><Icon name="mail"/>{tools.some(t => t.state === 'error') ? 'A ferramenta encontrou um erro.' : tools.some(t => t.state === 'done') ? 'Consulta de ferramenta concluída nesta resposta.' : 'Ferramenta em execução…'}</div>}
         </section>}
