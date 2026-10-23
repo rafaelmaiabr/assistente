@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -59,6 +59,10 @@ def bundle():
         _doc("mcp_catalog_entry", "mcpentry", tenant=False, catalog_key="erp-exemplo", entry_version="1.0.0",
              transport="http", url="http://127.0.0.1:9000/mcp", launcher=None, tools=["listar-cobrancas"],
              approved_by=IDS["user"], status="ativo"),
+        _doc("model_policy", "policy", name="local-primeiro",
+             models={"local": {"provider": "ollama", "model": "qwen2.5:7b", "base_url": "http://127.0.0.1:11435/v1"}},
+             rules=[{"when": {"complexity": ["baixa"]}, "use": "local"}], default="local", fallbacks=["local"],
+             limits={"max_output_tokens": 800}, external_enabled=False, external_acknowledged_at=None),
         _doc("credential", "cred", label="Credencial do ERP de exemplo", store="cofre-local", state="ativa"),
         _doc("connection", "conn", label="ERP de exemplo (MCP)", provider="erp-exemplo",
              connection_kind="mcp", transport="http", endpoint="http://127.0.0.1:9000/mcp",

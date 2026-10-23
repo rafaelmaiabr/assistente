@@ -30,6 +30,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Perfis de agentes (T05).** `agent_definition` ganhou `goals` e `routing_policy` (opcionais) e há `agent_profile_version`, snapshot imutável de cada versão publicada. Detalhes em [TEAM-AGENTS.md](TEAM-AGENTS.md).
 - **Skills (T06).** `skill_definition` ganhou campos opcionais de manifesto (descrição, entradas/saídas, riscos, configurações, operações por ferramenta) e `skill_grant` ganhou `revoked_at`. Detalhes em [TEAM-SKILLS.md](TEAM-SKILLS.md).
 - **Gateway (T07).** `mcp_catalog_entry` ganhou `tool_specs` (classificação e regras de argumentos por ferramenta, definidas pelo operador). Detalhes em [TEAM-GATEWAY.md](TEAM-GATEWAY.md).
+- **Políticas de modelo (T08).** `model_policy` (modelos, regras de roteamento, fallbacks, limites; provedor externo desligado por padrão). Detalhes em [TEAM-RUNTIME.md](TEAM-RUNTIME.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

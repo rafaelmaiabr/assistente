@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from urllib.parse import urlparse
 
-from .enums import ENUMS
+from .enums import ENUMS, LLM_PROVIDERS
 from .ids import ACTOR_PREFIXES, PREFIXES, is_id
 
 SCHEMA_VERSION = 1
@@ -80,6 +80,10 @@ SCHEMAS = {
         "connection", label="str", provider="slug", connection_kind="enum:ConnectionKind",
         transport="enum:McpTransport?", endpoint="url?", credential_ref="ref:credential?",
         catalog_entry_id="ref:mcp_catalog_entry?", scopes="list:slug?", status="enum:Status"),
+    # Routing rules and models for the LLM; external providers stay off until the company enables and acknowledges.
+    "model_policy": _entity(
+        "model_policy", name="slug", models="obj", rules="list:obj", default="slug", fallbacks="list:slug",
+        limits="obj", external_enabled="bool", external_acknowledged_at="ts?"),
     # Metadata only: the secret value lives in the vault under (tenant_id, credential id).
     "credential": _entity("credential", label="str", store="enum:CredentialStore", state="enum:CredentialState"),
     # Approved MCP servers (global, operator-approved). stdio names a launcher id, never a command line.
@@ -251,13 +255,52 @@ def _rule_grant(doc):
     return [] if doc["actions"] else ["$.actions: informe ao menos uma acao"]
 
 
+_WHEN_KEYS = {"task", "complexity"}
+
+
+def _rule_policy(doc):
+    errors, models = [], doc["models"]
+    if not models or len(models) > 10:
+        return ["$.models: informe de 1 a 10 modelos"]
+    for name, model in models.items():
+        if not (_SLUG.match(str(name)) and isinstance(model, dict)):
+            errors.append(f"$.models.{str(name)[:30]}: entrada invalida")
+            continue
+        if model.get("provider") not in LLM_PROVIDERS or not isinstance(model.get("model"), str)                 or not model["model"].strip() or set(model) - {"provider", "model", "base_url", "connection_id"}:
+            errors.append(f"$.models.{name}: provider (ollama/externo) e model sao obrigatorios")
+            continue
+        parts = urlparse(model.get("base_url") or "")
+        if parts.scheme not in ("http", "https") or not parts.hostname or parts.username:
+            errors.append(f"$.models.{name}.base_url: url http(s) sem credenciais")
+        if model["provider"] == "externo" and not is_id(model.get("connection_id"), "con"):
+            errors.append(f"$.models.{name}.connection_id: provedor externo exige uma conexao com credencial no cofre")
+        if model["provider"] == "ollama" and "connection_id" in model:
+            errors.append(f"$.models.{name}: ollama local nao usa conexao")
+    for name in [doc["default"], *doc["fallbacks"]]:
+        if name not in models:
+            errors.append(f"$: modelo desconhecido na politica: {name}")
+    for index, rule in enumerate(doc["rules"]):
+        when = rule.get("when") if isinstance(rule, dict) else None
+        if not isinstance(rule, dict) or set(rule) != {"when", "use"} or rule["use"] not in models                 or not isinstance(when, dict) or not when or set(when) - _WHEN_KEYS                 or not all(isinstance(v, list) and v and all(isinstance(i, str) and _SLUG.match(i) for i in v)
+                           for v in when.values()):
+            errors.append(f"$.rules[{index}]: use {{'when': {{task|complexity: [..]}}, 'use': modelo}}")
+    limits = doc["limits"]
+    if set(limits) - {"max_output_tokens"} or not all(
+            isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 32768 for v in limits.values()):
+        errors.append("$.limits: somente max_output_tokens entre 1 e 32768")
+    if doc["external_enabled"] and not doc["external_acknowledged_at"]:
+        errors.append("$.external_enabled: exige external_acknowledged_at (aviso de envio a terceiros)")
+    return errors
+
+
 def _rule_catalog(doc):
     if doc["transport"] == "stdio":
         return [] if doc["launcher"] and doc["url"] is None else ["$.launcher: stdio exige launcher e proibe url"]
     return [] if doc["url"] and doc["launcher"] is None else ["$.url: http/sse exige url e proibe launcher"]
 
 
-_RULES = {"contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog}
+_RULES = {"contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+          "model_policy": _rule_policy}
 
 
 def validate(kind, doc):

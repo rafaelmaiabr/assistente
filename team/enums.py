@@ -31,6 +31,7 @@ CREDENTIAL_STORES = ("cofre-local", "elevenlabs-legado")
 CREDENTIAL_STATES = ("ativa", "revogada")
 ROUTING_POLICIES = ("encaminhar", "esclarecer")
 RISK_TAGS = ("dados_pessoais", "dados_financeiros", "leitura_email", "envio_externo", "pagamento", "alteracao_dominio")
+LLM_PROVIDERS = ("ollama", "externo")
 CHANNELS = ("email", "telefone")
 # observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
 LINK_STATES = ("observado", "vinculado")
