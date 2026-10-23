@@ -70,7 +70,14 @@ SCHEMAS = {
         resource="str?", expires_at="ts?", granted_by="actor"),
     "connection": _entity(
         "connection", label="str", provider="slug", connection_kind="enum:ConnectionKind",
-        transport="enum:McpTransport?", endpoint="url?", credential_ref="id:credential?",
+        transport="enum:McpTransport?", endpoint="url?", credential_ref="ref:credential?",
+        catalog_entry_id="ref:mcp_catalog_entry?", scopes="list:slug?", status="enum:Status"),
+    # Metadata only: the secret value lives in the vault under (tenant_id, credential id).
+    "credential": _entity("credential", label="str", store="enum:CredentialStore", state="enum:CredentialState"),
+    # Approved MCP servers (global, operator-approved). stdio names a launcher id, never a command line.
+    "mcp_catalog_entry": _entity(
+        "mcp_catalog_entry", tenant=False, catalog_key="slug", entry_version="semver",
+        transport="enum:McpTransport", url="url?", launcher="slug?", tools="list:slug", approved_by="actor",
         status="enum:Status"),
     "case": _entity(
         "case", department_id="ref:department", state="enum:CaseState",
@@ -230,7 +237,13 @@ def _rule_grant(doc):
     return [] if doc["actions"] else ["$.actions: informe ao menos uma acao"]
 
 
-_RULES = {"contact_address": _rule_address, "access_grant": _rule_grant}
+def _rule_catalog(doc):
+    if doc["transport"] == "stdio":
+        return [] if doc["launcher"] and doc["url"] is None else ["$.launcher: stdio exige launcher e proibe url"]
+    return [] if doc["url"] and doc["launcher"] is None else ["$.url: http/sse exige url e proibe launcher"]
+
+
+_RULES = {"contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog}
 
 
 def validate(kind, doc):
@@ -293,7 +306,7 @@ def validate_bundle(docs):
             target = index.get(target_id)
             if target is None or target["kind"] != target_kind:
                 errors.append(f"{doc['id']}: referencia invalida para {target_kind} {target_id}")
-            elif target_kind != "skill_definition" and (
+            elif target_kind not in ("skill_definition", "mcp_catalog_entry") and (
                     target["id"] if target_kind == "tenant" else target.get("tenant_id")) != tenant:
                 errors.append(f"{doc['id']}: referencia {target_id} pertence a outra empresa")
     if errors:

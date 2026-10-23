@@ -13,9 +13,9 @@ from team.repository import (
     TABLES, IntegrityViolation, RepositoryError, RevisionConflict, SqliteRepository, TenantMismatch, indexed_columns)
 from team.samples import IDS, NOW, bundle
 
-ORDER = ["tenant", "skill_definition", "department", "connection", "agent_definition", "skill_grant", "case",
-         "task", "agent_run", "approval_request", "handoff", "evidence", "contact", "contact_address", "contact_link",
-         "access_grant"]
+ORDER = ["tenant", "skill_definition", "mcp_catalog_entry", "department", "credential", "connection",
+         "agent_definition", "skill_grant", "case", "task", "agent_run", "approval_request", "handoff", "evidence",
+         "contact", "contact_address", "contact_link", "access_grant"]
 
 
 def sample(kind):
@@ -39,8 +39,9 @@ class RepoCase(unittest.TestCase):
     def load_sample(self):
         self.repo.create_tenant(sample("tenant")[0])
         self.repo.save_global(sample("skill_definition")[0])
+        self.repo.save_global(sample("mcp_catalog_entry")[0])
         with self.repo.transaction(IDS["tenant"]) as session:
-            for kind in ORDER[2:]:
+            for kind in ORDER[3:]:
                 for doc in sample(kind):
                     session.save(doc)
 

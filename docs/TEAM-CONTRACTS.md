@@ -26,6 +26,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Conceitos separados.** `agent_definition` (configuração versionada), `agent_run` (execução com orçamento), `skill_definition` (instruções + hash + ferramentas), `skill_grant` (concessão explícita de uma versão para um agente, conexão, recurso e operações) e `connection` (provedor + `credential_ref`). Instruções de uma skill não concedem acesso: só `skill_grant`.
 - **Estados.** Demanda: `recebida, triagem, em_execucao, aguardando_cliente, aguardando_aprovacao, aguardando_subtarefa, pausada, resolvida, falhou, cancelada`, com o grafo em `CASE_TRANSITIONS` (`cancelada` é final; reabrir `resolvida`/`falhou` é transição explícita). T09 aplica o grafo com revisão atômica. Há enums também para tarefa, execução, aprovação, transferência, operação e conexão.
 - **Contatos e acesso (T03).** `contact`, `contact_address` (identidade separada do endereço; `observado` ou `vinculado`), `contact_link` e `access_grant` (default-deny). Detalhes em [TEAM-ACCESS.md](TEAM-ACCESS.md). Tipos novos são aditivos: `schema_version` continua 1.
+- **Conexões (T04).** `connection` ganhou `catalog_entry_id` e `scopes` (opcionais), `credential_ref` agora referencia um `credential` (metadados), e há o catálogo global `mcp_catalog_entry`. Detalhes em [TEAM-CONNECTIONS.md](TEAM-CONNECTIONS.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga
