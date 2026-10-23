@@ -1,0 +1,1048 @@
+{
+  "schema_version": 1,
+  "planning_issue": 14,
+  "tracking_issue": 15,
+  "status": "planned",
+  "tasks": [
+    {
+      "code": "T01",
+      "phase": "Fundação",
+      "title": "Contratos de domínio e configuração versionada",
+      "dependencies": [],
+      "goal": "Definir contratos executáveis para empresas, departamentos, agentes, skills, demandas, subtarefas, eventos, conexões e aprovações.",
+      "acceptance": [
+        "IDs opacos e schema_version; tenant_id e case_id obrigatórios onde há dados de negócio; referências a credenciais, nunca valores.",
+        "Schemas e exemplos sintéticos distinguem definição de agente, execução, skill, concessão de acesso e conexão MCP.",
+        "Definir enums de estados, envelope de comando/evento, correlation_id, causation_id, actor_id e controle de revisão.",
+        "Documentar compatibilidade e importação de configuração antiga sem alterar config.json existente."
+      ],
+      "tests": "Validar exemplos, versões desconhecidas, referências inválidas e tentativa de embutir segredo; testes de contrato sem LLM.",
+      "areas": "Novos módulos de domínio/configuração; settings.py; docs/TEAM-ARCHITECTURE.md",
+      "decision": "",
+      "issue": 16,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/16",
+      "depends_on_issues": []
+    },
+    {
+      "code": "T02",
+      "phase": "Fundação",
+      "title": "Persistência SQLite, migrações e outbox transacional",
+      "dependencies": [
+        "T01"
+      ],
+      "goal": "Introduzir repositórios persistentes sob DATA_ROOT para demandas e configurações com uma fronteira preparada para outros bancos.",
+      "acceptance": [
+        "Migrações numeradas, foreign keys e transações; armazenamento local fora do Git e dos recursos empacotados.",
+        "Repositórios exigem contexto de empresa; escritas de estado e outbox fazem parte da mesma transação.",
+        "Modo chat efêmero atual permanece disponível; ativar atendimento persistente informa o usuário e não importa conversas anteriores.",
+        "Falha de migração preserva o arquivo e apresenta diagnóstico; nenhum reset destrutivo automático."
+      ],
+      "tests": "Banco temporário: instalação nova, migração, rollback de transação, reinício e dois escritores concorrentes sem evento perdido.",
+      "areas": "Novos repositórios/migrações; settings.py; .gitignore; desktop/build.cjs",
+      "decision": "",
+      "issue": 17,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/17",
+      "depends_on_issues": [
+        16
+      ]
+    },
+    {
+      "code": "T03",
+      "phase": "Fundação",
+      "title": "Empresas, departamentos, contatos e política de acesso",
+      "dependencies": [
+        "T01",
+        "T02"
+      ],
+      "goal": "Criar fronteiras de empresa e departamento antes de executar uma equipe.",
+      "acceptance": [
+        "CRUD validado de empresas, departamentos, contatos e vínculos; identidade do contato separada de endereço remetente.",
+        "Contexto de acesso é produzido pelo backend; tenant_id ou papel proposto pela LLM nunca concede permissão.",
+        "Política default-deny para recursos, contas e agentes; consulta por ID também aplica escopo, incluindo exportação e eventos.",
+        "Modo local tem um operador confiável e isolamento lógico; não alegar autenticação SaaS ou resistência a processos da mesma conta."
+      ],
+      "tests": "Fixtures Empresa A/B com IDs cruzados; listar, buscar, alterar e relacionar recursos de outra empresa deve falhar sem vazar existência/conteúdo.",
+      "areas": "Serviços de empresas/contatos/política; rotas locais com origem e validação",
+      "decision": "",
+      "issue": 18,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/18",
+      "depends_on_issues": [
+        16,
+        17
+      ]
+    },
+    {
+      "code": "T04",
+      "phase": "Fundação",
+      "title": "Conexões por empresa e cofre de credenciais extensível",
+      "dependencies": [
+        "T02",
+        "T03"
+      ],
+      "goal": "Generalizar o cofre atual para conexões de email, MCP e outros provedores sem colocar segredos no modelo.",
+      "acceptance": [
+        "CRUD de conexões contém apenas credential_ref, provedor, status e escopos; reutilizar/migrar a entrada ElevenLabs sem quebrar perfis.",
+        "Salvar, substituir, revogar e remover credenciais por empresa/conexão; API retorna somente estado e erros sanitizados.",
+        "Catálogo de servidores MCP aprovados com transporte, origem, ferramentas e versão; stdio não aceita comando arbitrário sugerido pela LLM.",
+        "Credenciais são resolvidas no conector autorizado; nenhuma variável/arquivo global é exposto a todos os agentes."
+      ],
+      "tests": "Cofre fake na CI e teste local descartável documentado; revogação, segredo em logs/respostas, referências cruzadas e configuração antiga.",
+      "areas": "voice_profiles.py; novos serviços de conexões/segredos; assistant_core.py",
+      "decision": "",
+      "issue": 19,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/19",
+      "depends_on_issues": [
+        17,
+        18
+      ]
+    },
+    {
+      "code": "T05",
+      "phase": "Fundação",
+      "title": "Perfis de agentes com personalidade, escopo e versões",
+      "dependencies": [
+        "T01",
+        "T02",
+        "T03"
+      ],
+      "goal": "Permitir configurar Secretaria, Suporte e Financeiro sem codificar uma classe por funcionário.",
+      "acceptance": [
+        "CRUD de AgentDefinition com empresa/departamento, nome, objetivos, tom, escopo, política de encaminhamento, skills, modelo e perfil de voz.",
+        "Definições versionadas; execução registra a versão usada e alterações não reescrevem o histórico.",
+        "Compilação de instruções diferencia regras do produto, política, perfil e conteúdo externo; anexos/emails nunca viram system prompt.",
+        "Pergunta fora do escopo oferece encaminhamento ou pede esclarecimento; o prompt não substitui autorização de ferramentas."
+      ],
+      "tests": "Testes da montagem de contexto e exemplos de escopo, conflito de instruções, versão desativada e referência a voz inexistente.",
+      "areas": "assistant_core.py; voice_profiles.py; novos serviços de agentes",
+      "decision": "",
+      "issue": 20,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/20",
+      "depends_on_issues": [
+        16,
+        17,
+        18
+      ]
+    },
+    {
+      "code": "T06",
+      "phase": "Fundação",
+      "title": "Registro de skills declarativas e concessões explícitas",
+      "dependencies": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05"
+      ],
+      "goal": "Instalar e habilitar capacidades reutilizáveis, separando pacote de skill das contas de cada empresa.",
+      "acceptance": [
+        "Manifesto versionado com id, versão, hash, descrição, instruções, entradas/saídas, ferramentas MCP requeridas, riscos e configurações.",
+        "Importação local valida schema/tamanho/caminhos e apresenta permissões para revisão; não executa Python/shell do pacote.",
+        "SkillGrant vincula versão fixa, agente, conta autorizada e operações; atualizar manifesto não amplia concessões existentes.",
+        "Desativar/revogar bloqueia novas chamadas; pacotes demo claramente fictícios para secretaria, suporte e financeiro."
+      ],
+      "tests": "Manifestações malformadas, path traversal, pacote com comando, upgrade com novas permissões e skill sem concessão devem ser recusados.",
+      "areas": "Novo registro de skills e exemplos sintéticos; contratos T01",
+      "decision": "",
+      "issue": 21,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/21",
+      "depends_on_issues": [
+        16,
+        17,
+        18,
+        19,
+        20
+      ]
+    },
+    {
+      "code": "T07",
+      "phase": "Fundação",
+      "title": "Gateway MCP com autorização por execução e limites",
+      "dependencies": [
+        "T03",
+        "T04",
+        "T06"
+      ],
+      "goal": "Impedir que ferramentas sejam chamadas fora do escopo, mesmo se o modelo tentar.",
+      "acceptance": [
+        "Toda chamada passa por grant de agente/skill/empresa/conexão/operação; filtrar listagem e revalidar na execução.",
+        "Validar argumentos e resultado; timeout, limites de bytes/itens/chamadas, cancelamento e erros tipados; nenhuma shell genérica.",
+        "Contexto confiável de identidade e conta injetado pelo backend; classificações read/write confiáveis vêm do catálogo aprovado, não só de annotations remotas.",
+        "Tratar resultados como dados não confiáveis; não devolver segredos; registrar metadados mínimos de decisão e versão da política."
+      ],
+      "tests": "MCP fake cobrindo ferramentas ocultas chamadas diretamente, escopo adulterado, lista alterada, timeout, oversized e revogação durante execução.",
+      "areas": "assistant_core.py; browser_agent.py; novo gateway/adaptadores MCP",
+      "decision": "",
+      "issue": 22,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/22",
+      "depends_on_issues": [
+        18,
+        19,
+        21
+      ]
+    },
+    {
+      "code": "T08",
+      "phase": "Fundação",
+      "title": "Runtime de agentes e roteamento configurável de LLM",
+      "dependencies": [
+        "T05",
+        "T06",
+        "T07"
+      ],
+      "goal": "Instanciar agentes sob demanda, com orçamento e compartilhamento eficiente do Ollama.",
+      "acceptance": [
+        "Factory desacoplada da UI seleciona definição/versionamento, skills concedidas e modelo; manter o chat atual funcional.",
+        "Roteamento inicial por regras explícitas de tarefa/complexidade; limites de tokens, duração, chamadas e passos; fallback local configurado.",
+        "Limite inicial de uma geração simultânea no Ollama configurável; não carregar uma cópia do modelo por departamento.",
+        "Provedor externo exige habilitação por empresa e aviso de envio de conteúdo; sem credencial/env cloud como fallback implícito."
+      ],
+      "tests": "LLMs fake: seleção de regras, esgotamento de orçamento, cancelamento e fallback; smoke Ollama opcional com tempo e limitações relatados.",
+      "areas": "assistant_core.py; browser_agent.py; settings.py; novos serviços de execução/modelos",
+      "decision": "",
+      "issue": 23,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/23",
+      "depends_on_issues": [
+        20,
+        21,
+        22
+      ]
+    },
+    {
+      "code": "T09",
+      "phase": "Orquestração",
+      "title": "Demandas persistentes, evidências e máquina de estados",
+      "dependencies": [
+        "T02",
+        "T03",
+        "T05"
+      ],
+      "goal": "Transformar um atendimento numa demanda rastreável que sobrevive ao fechamento da janela.",
+      "acceptance": [
+        "Case com cliente, objetivo, estado, owner_agent_id, revisão, prioridade, origem e referências de evidências; exatamente um responsável ou fila inicial.",
+        "Estados recebida/triagem/em_execucao/aguardando_cliente/aguardando_aprovacao/aguardando_subtarefa/pausada/resolvida/falhou/cancelada e transições validadas.",
+        "Notas internas, mensagens externas e fatos com fonte/data/confiabilidade são distintos; resumo da LLM não é prova de execução.",
+        "Fechar chat não resolve nem apaga demanda; histórico auditável não inclui raciocínio privado da LLM."
+      ],
+      "tests": "Transições válidas/inválidas, revisão concorrente, evidências ausentes, isolamento e reabrir demanda após reinício.",
+      "areas": "Novos serviços de demandas/eventos e repositórios T02",
+      "decision": "",
+      "issue": 24,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/24",
+      "depends_on_issues": [
+        17,
+        18,
+        20
+      ]
+    },
+    {
+      "code": "T10",
+      "phase": "Orquestração",
+      "title": "Fila durável, workers, leases e recuperação de execução",
+      "dependencies": [
+        "T02",
+        "T08",
+        "T09"
+      ],
+      "goal": "Executar trabalho assíncrono com recuperação sem depender do processo da interface.",
+      "acceptance": [
+        "Jobs persistentes, claim atômico por lease, heartbeat e checkpoint; contagem de tentativas e backoff com limite.",
+        "Uma execução ativa por demanda; chave idempotente por comando/evento; outbox processada sem perda no reinício.",
+        "Cancelamento/pausa e orçamento propagados a filhos e chamadas MCP; trabalhos esgotados ficam visíveis para intervenção.",
+        "Efeito externo com resultado desconhecido entra em reconciliação e não é repetido cegamente; definir contrato para futuro worker remoto."
+      ],
+      "tests": "Dois workers, crash antes/depois de commit, lease vencido, mensagem duplicada, pausa e retomada; relógio e conectores fake sem sleeps longos.",
+      "areas": "Novo worker/fila local SQLite; ciclo do backend e desktop/runtime.cjs",
+      "decision": "",
+      "issue": 25,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/25",
+      "depends_on_issues": [
+        17,
+        23,
+        24
+      ]
+    },
+    {
+      "code": "T11",
+      "phase": "Orquestração",
+      "title": "Delegação, transferência de responsável e retorno entre agentes",
+      "dependencies": [
+        "T07",
+        "T09",
+        "T10"
+      ],
+      "goal": "Permitir cooperação previsível entre Secretaria, Suporte e Financeiro.",
+      "acceptance": [
+        "Delegação cria subtask mantendo dono da demanda; transferência possui proposta, aceite e troca atômica com versão esperada.",
+        "Envelope inclui motivo, objetivo, prazo, evidências, resumo mínimo, resposta esperada e return_to opcional; apenas contexto permitido.",
+        "Falha/recusa/timeout de aceite mantém o dono anterior ou escala ao operador; limite de saltos, profundidade e detecção de ciclo.",
+        "Subtask Financeiro pode concluir e devolver ao Suporte ou aceitar a responsabilidade e atendimento direto; dono anterior perde autorização de responder."
+      ],
+      "tests": "Secretaria→Suporte→Financeiro→Suporte e Secretaria→Financeiro direto; aceitações concorrentes, timeout, ciclos e nenhuma elevação de acesso.",
+      "areas": "Novos serviços de handoff/subtarefas; máquina de estados e policy",
+      "decision": "",
+      "issue": 26,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/26",
+      "depends_on_issues": [
+        22,
+        24,
+        25
+      ]
+    },
+    {
+      "code": "T12",
+      "phase": "Orquestração",
+      "title": "Secretaria: triagem, esclarecimento e roteamento por capacidade",
+      "dependencies": [
+        "T05",
+        "T08",
+        "T11"
+      ],
+      "goal": "Criar a porta de entrada que identifica empresa/assunto e encaminha a quem pode resolver.",
+      "acceptance": [
+        "Roteamento prioriza regras e catálogo de capacidades; LLM produz proposta estruturada validada, nunca IDs inventados.",
+        "Ambiguidade de empresa/cliente/assunto pede esclarecimento; baixa confiança ou destino indisponível leva à fila humana.",
+        "Permitir múltiplas subtarefas no mesmo atendimento sem múltiplos donos; registrar motivo verificável da decisão.",
+        "Mensagem externa não pode criar concessão, escolher credencial ou alterar system prompt; limites de passos e de reencaminhamento."
+      ],
+      "tests": "Corpus sintético de financeiro, suporte, assunto misto, fora do escopo e prompt injection; relatar acertos/erros e limiar, com LLM fake determinística na CI.",
+      "areas": "Skill de secretaria; roteador e runtime; fixtures de avaliação",
+      "decision": "",
+      "issue": 27,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/27",
+      "depends_on_issues": [
+        20,
+        23,
+        26
+      ]
+    },
+    {
+      "code": "T13",
+      "phase": "Orquestração",
+      "title": "Aprovações humanas vinculadas à ação e tomada de controle",
+      "dependencies": [
+        "T03",
+        "T07",
+        "T09",
+        "T11"
+      ],
+      "goal": "Separar preparar uma ação de autorizá-la e executá-la.",
+      "acceptance": [
+        "ApprovalRequest registra ação normalizada, empresa, recurso, destinatário, valor/moeda quando houver, hash, prazo, aprovador e política.",
+        "Estados pendente/aprovada/negada/expirada/consumida; aprovação só vale para payload exato e uso único; mudança de parâmetros invalida.",
+        "Aprovar exige operador autenticado/confiável, nunca texto de email, resposta de ferramenta ou decisão da LLM; padrão pede aprovação para escrita externa, renovação e cobrança.",
+        "Operador pode pausar, assumir, rejeitar e devolver a demanda; efeitos já enviados exigem reconciliação, sem prometer desfazer pagamento."
+      ],
+      "tests": "Alterar destinatário/valor, replay, expiração, outra empresa, duplo clique e corrida aprovação/revogação devem bloquear execução incorreta.",
+      "areas": "Serviços de aprovação/política e API local protegida; contratos de UI",
+      "decision": "",
+      "issue": 28,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/28",
+      "depends_on_issues": [
+        18,
+        22,
+        24,
+        26
+      ]
+    },
+    {
+      "code": "T14",
+      "phase": "Orquestração",
+      "title": "Gateway de comunicação externa com rascunhos e dono único",
+      "dependencies": [
+        "T10",
+        "T11",
+        "T13"
+      ],
+      "goal": "Centralizar respostas ao cliente e impedir que dois departamentos enviem mensagens conflitantes.",
+      "acceptance": [
+        "Draft separado de envio; gateway verifica dono atual, política de destinatário, aprovação e conta de saída imediatamente antes de enviar.",
+        "Outbox de mensagens com chave de deduplicação e identificador de provedor; serialização por demanda com versão de ownership.",
+        "Em handoff, envio pendente do dono anterior é bloqueado/revalidado; nota interna nunca vira resposta externa automaticamente.",
+        "Timeout depois de possível envio fica em estado desconhecido para reconciliação; não alegar entrega com base só na intenção."
+      ],
+      "tests": "Transporte fake: mudança de dono no meio da fila, envio concorrente, duplicata, aprovação alterada e resposta do provedor perdida.",
+      "areas": "Novo gateway de mensagens e adaptador demo sem comunicação externa real",
+      "decision": "",
+      "issue": 29,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/29",
+      "depends_on_issues": [
+        25,
+        26,
+        28
+      ]
+    },
+    {
+      "code": "T15",
+      "phase": "Interface",
+      "title": "Painel de empresas, equipe, skills e conexões",
+      "dependencies": [
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08"
+      ],
+      "goal": "Expor configuração da equipe ao operador sem editar prompts e JSON manualmente.",
+      "acceptance": [
+        "CRUD de empresas/departamentos/agentes, versões de perfis, voz e modelo; contas/conexões mostram somente estado e escopos.",
+        "Instalar skill declarativa com prévia de permissões; habilitar/desabilitar por agente, selecionar conta e aprovar concessão explicitamente.",
+        "Rascunho de alteração, validação de referências e salvamento consistente; demo identificada e nenhuma conexão paga automática.",
+        "Interface acessível no navegador e Electron; seleção de empresa visível e falha de acesso não apresenta recursos alheios."
+      ],
+      "tests": "Build e testes de fluxos críticos de configuração/segredos; validação visual desktop/mobile e preservar captura explícita do microfone.",
+      "areas": "frontend/src; web_server.py; desktop/preload.cjs somente se necessário",
+      "decision": "",
+      "issue": 30,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/30",
+      "depends_on_issues": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ]
+    },
+    {
+      "code": "T16",
+      "phase": "Interface",
+      "title": "Central de demandas, timeline, aprovações e intervenção humana",
+      "dependencies": [
+        "T09",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15"
+      ],
+      "goal": "Mostrar quem está cuidando de cada demanda e permitir intervenção real.",
+      "acceptance": [
+        "Lista e detalhe por empresa com responsável, estado, subtarefas, evidências, mensagens e trilha de transferências.",
+        "Aprovação mostra ação concreta/destinatário/valor; decisões e assumir/pausar/devolver usam revisão e checagem de permissão no backend.",
+        "Reconexão por cursor de eventos, snapshot autoritativo e deduplicação; não perder estado ao recarregar.",
+        "Diferenciar andamento, aguardando humano, falha e conclusão; mostrar operação desconhecida que precisa de reconciliação."
+      ],
+      "tests": "UI com atualizações duplicadas/fora de ordem, desconexão, dois operadores na mesma revisão e demandas em empresas distintas.",
+      "areas": "frontend/src; web_server.py; novo endpoint de eventos com escopo",
+      "decision": "",
+      "issue": 31,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/31",
+      "depends_on_issues": [
+        24,
+        26,
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    {
+      "code": "T17",
+      "phase": "Conhecimento",
+      "title": "Memória e base de conhecimento com escopo e retenção",
+      "dependencies": [
+        "T05",
+        "T07",
+        "T09",
+        "T16"
+      ],
+      "goal": "Dar continuidade aos agentes sem compartilhar indiscriminadamente históricos e documentos.",
+      "acceptance": [
+        "Separar histórico da demanda, preferências confirmadas e conhecimento publicado por empresa/departamento; versões e fontes visíveis.",
+        "Busca local inicial por SQLite FTS; recuperar somente documentos autorizados antes da geração, com limite de tamanho/contexto.",
+        "Conteúdo recuperado é dado não confiável, não altera políticas; fatos temporais têm data e podem expirar.",
+        "Importar, corrigir e excluir dados com política de retenção; não gravar memórias permanentes a partir de inferência sem confirmação definida."
+      ],
+      "tests": "Corpus sintético A/B, documentos revogados, conflito entre fontes, remoção dos índices e tentativa de injeção na base.",
+      "areas": "Serviços de conhecimento/memória; repositórios; painel de administração",
+      "decision": "",
+      "issue": 32,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/32",
+      "depends_on_issues": [
+        20,
+        22,
+        24,
+        31
+      ]
+    },
+    {
+      "code": "T18",
+      "phase": "Email",
+      "title": "Servidor MCP IMAP somente leitura e configuração de conta",
+      "dependencies": [
+        "T04",
+        "T07"
+      ],
+      "goal": "Trocar a caixa fictícia por acesso IMAP autorizado, mantendo a demonstração disponível separadamente.",
+      "acceptance": [
+        "Ferramentas de listar pastas/mensagens, buscar e ler corpo com UID/UIDVALIDITY, paginação e limites de bytes/data.",
+        "TLS validado e modo somente leitura com BODY.PEEK, sem alterar flags, mover, excluir ou enviar; pastas autorizadas pelo backend.",
+        "Host/porta/usuário por conexão aprovada e segredo pelo cofre; teste de conexão e erros acionáveis, sem credencial na LLM.",
+        "Parser MIME seguro com texto limitado, sem carregar recursos externos ou executar anexos/HTML; autenticação de app somente onde o provedor aceitar."
+      ],
+      "tests": "Servidor IMAP fake/local: TLS inválido, UID inválido, mensagem grande, Unicode, MIME aninhado, timeout e tentativa de pasta não concedida; guia para validação com conta real.",
+      "areas": "Novo conector MCP IMAP; assistant_core.py; conexões e frontend de contas",
+      "decision": "",
+      "issue": 33,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/33",
+      "depends_on_issues": [
+        19,
+        22
+      ]
+    },
+    {
+      "code": "T19",
+      "phase": "Email",
+      "title": "OAuth Gmail para conexão IMAP autorizada",
+      "dependencies": [
+        "T04",
+        "T15",
+        "T18"
+      ],
+      "goal": "Suportar login Google sem pedir a senha principal do usuário.",
+      "acceptance": [
+        "Fluxo OAuth instalado/local adequado ao provedor com state, PKCE quando aplicável, redirect loopback restrito e timeout; credenciais de app no cofre.",
+        "Refresh/revogação/cancelamento e escopos reais informados na interface; não apresentar acesso limitado a pastas se o token do provedor for mais amplo.",
+        "Configuração guiada de projeto OAuth, conta de teste e limitações de publicação/verificação; sem cadastro externo realizado pelo agente sem instrução.",
+        "Testes usam provedor fake; checklist real registra sucesso ou pendência sem publicar tokens nem exigir conta paga na CI."
+      ],
+      "tests": "Callback adulterado, state errado, token expirado, refresh concorrente, revogação e cancelamento; smoke real opcional documentado.",
+      "areas": "Adaptador de autenticação Google e conector IMAP; painel de conexões",
+      "decision": "Antes de integrar conta real, operador precisa definir conta/organização e disponibilizar registro OAuth necessário; não solicitar segredo no GitHub.",
+      "issue": 34,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/34",
+      "depends_on_issues": [
+        19,
+        30,
+        33
+      ]
+    },
+    {
+      "code": "T20",
+      "phase": "Email",
+      "title": "OAuth Microsoft 365 e Outlook para conexão IMAP",
+      "dependencies": [
+        "T04",
+        "T15",
+        "T18"
+      ],
+      "goal": "Suportar autenticação moderna Microsoft com consentimento por conta/tenant.",
+      "acceptance": [
+        "Fluxo oficial para aplicativo local com callback validado ou device flow adequado; definir tenant permitido e permissões necessárias.",
+        "Tokens/cache no cofre por conexão, refresh e logout; recusa administrativa ou IMAP desabilitado produzem diagnóstico útil.",
+        "Explicar consentimento de organização e limites do escopo no provedor, sem recorrer à senha principal ou desabilitar segurança.",
+        "Validação fake na CI e roteiro real opt-in; nenhuma conta ou licença paga obrigatória para executar o produto local."
+      ],
+      "tests": "Tenant errado, consentimento negado, token expirado, conta desconectada e IMAP indisponível; sem tokens nos resultados.",
+      "areas": "Adaptador Microsoft; painel de conexões; MCP IMAP",
+      "decision": "Antes da validação real, definir organização/conta e registro de aplicativo; políticas corporativas podem exigir administrador.",
+      "issue": 35,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/35",
+      "depends_on_issues": [
+        19,
+        30,
+        33
+      ]
+    },
+    {
+      "code": "T21",
+      "phase": "Email",
+      "title": "Entrada de emails como demandas com identidade e threads",
+      "dependencies": [
+        "T09",
+        "T10",
+        "T12",
+        "T18"
+      ],
+      "goal": "Transformar mensagens recebidas em atendimentos sem duplicatas ou atribuição indevida de cliente.",
+      "acceptance": [
+        "Conectar conta/pasta autorizada a empresa e secretaria; ingestão manual inicial, cursor por mailbox/UIDVALIDITY/UID e deduplicação por conexão.",
+        "Relacionar Message-ID, In-Reply-To e References como evidências, sem confiar apenas no assunto para juntar demandas.",
+        "Remetente externo é identidade não verificada; políticas de contatos e destinatários exigem validação antes de revelar dados ou aprovar cobrança.",
+        "Ignorar loops/auto-respostas conforme regra explícita e tratar MIME/injeções como dados; preservar rastreio até a mensagem fonte."
+      ],
+      "tests": "Reimportação, mudança de UIDVALIDITY, assunto idêntico de clientes diferentes, headers forjados, auto-resposta e mensagem reprocessada após crash.",
+      "areas": "Serviço de ingestão email; fila e demandas; UI de importar/sincronizar",
+      "decision": "",
+      "issue": 36,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/36",
+      "depends_on_issues": [
+        24,
+        25,
+        27,
+        33
+      ]
+    },
+    {
+      "code": "T22",
+      "phase": "Email",
+      "title": "Saída de emails por SMTP com aprovação e reconciliação",
+      "dependencies": [
+        "T04",
+        "T14",
+        "T18",
+        "T21"
+      ],
+      "goal": "Enviar ao cliente respostas concretas preparadas pelo responsável autorizado.",
+      "acceptance": [
+        "SMTP TLS com conta de saída explicitamente configurada; reaproveitar OAuth quando disponível ou app credential compatível; IMAP não envia email.",
+        "Gateway central aplica aprovação, proprietário, destinatários autorizados e threading; CC/BCC e anexos entram no payload aprovado.",
+        "Persistir Message-ID próprio e resultado técnico; timeout após DATA aceito vira estado desconhecido, sem retry automático.",
+        "Adaptador fake disponível por padrão; email real exige conexão ativa e ação aprovada; nunca confundir aceitação SMTP com leitura/entrega final."
+      ],
+      "tests": "Servidor SMTP de teste: resposta perdida, destinatário alterado, credencial revogada, envio duplicado e troca de dono; teste real somente com destinatário autorizado.",
+      "areas": "Novo transporte SMTP; gateway de comunicação; UI de rascunhos/conexões",
+      "decision": "",
+      "issue": 37,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/37",
+      "depends_on_issues": [
+        19,
+        29,
+        33,
+        36
+      ]
+    },
+    {
+      "code": "T23",
+      "phase": "Operação",
+      "title": "Skill MCP de diagnóstico HTTP, DNS e domínio",
+      "dependencies": [
+        "T04",
+        "T06",
+        "T07"
+      ],
+      "goal": "Investigar site indisponível com evidências sem presumir que todo erro é domínio vencido.",
+      "acceptance": [
+        "Ferramentas limitadas de HTTP/TLS, DNS e RDAP com fonte, timestamp, resultado e grau de certeza; ativos/domínios autorizados por empresa.",
+        "Distinguir falha de DNS/TLS/HTTP, status de registro, dado ausente e suspeita de expiração; confirmar por fonte de registrador quando necessário.",
+        "Defesa SSRF em resolução e redirects, bloqueio de redes privadas/metadados/loopback por padrão, limites de tempo/bytes e sem varredura arbitrária.",
+        "Resultado estruturado recomenda próximo passo e evidências; não altera DNS, domínio ou hospedagem."
+      ],
+      "tests": "Fixtures de domínio expirado, RDAP sem data, NXDOMAIN com domínio vigente, TLS vencido, redirect interno e DNS rebinding; rede pública real opcional.",
+      "areas": "Novo servidor/skill MCP de diagnóstico; catálogo de ativos por empresa",
+      "decision": "",
+      "issue": 38,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/38",
+      "depends_on_issues": [
+        19,
+        21,
+        22
+      ]
+    },
+    {
+      "code": "T24",
+      "phase": "Operação",
+      "title": "Skill Financeiro para análise de cobranças e reconciliação",
+      "dependencies": [
+        "T06",
+        "T07",
+        "T09",
+        "T13",
+        "T17"
+      ],
+      "goal": "Permitir que o financeiro analise pendências e proponha ações com dados rastreáveis.",
+      "acceptance": [
+        "Consultar registros financeiros importados de forma explícita e documentos autorizados com origem/data; demo sem informações reais.",
+        "Distinguir pagamento feito pela empresa, cobrança ao cliente, orçamento do fornecedor e renovação; valores/moedas não inferidos sem evidência.",
+        "Produzir proposta estruturada e pedido de esclarecimento quando houver divergência; nenhuma movimentação bancária ou pagamento por texto livre.",
+        "Identidade, beneficiário e autorização não são validados só por email recebido; ação externa passa por aprovação e conector específico."
+      ],
+      "tests": "Casos sintéticos: moeda divergente, duplicata de fatura, beneficiário alterado, cobrança de outra empresa e evidência insuficiente.",
+      "areas": "Skill Financeiro; contratos de faturas/propostas; conhecimento e aprovações",
+      "decision": "",
+      "issue": 39,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/39",
+      "depends_on_issues": [
+        21,
+        22,
+        24,
+        28,
+        32
+      ]
+    },
+    {
+      "code": "T25",
+      "phase": "Operação",
+      "title": "Fluxo de renovação de domínio com execução manual rastreada",
+      "dependencies": [
+        "T11",
+        "T13",
+        "T16",
+        "T23",
+        "T24"
+      ],
+      "goal": "Entregar o cenário de domínio com cooperação de equipe antes de automatizar compras.",
+      "acceptance": [
+        "Suporte abre subtask Financeiro com evidências e proposta; Financeiro pede aprovação ou informações sem afirmar compra realizada.",
+        "Permitir registrar confirmação humana de renovação com referência, valor e data; verificar domínio/site novamente e distinguir propagação de falha persistente.",
+        "Financeiro devolve ao Suporte para validação técnica ou assume a demanda quando resta apenas cobrança; retorno definido no handoff.",
+        "Sem conta de registrador configurada, operação manual fica explícita; falha/negação/timeout não encerra atendimento como resolvido."
+      ],
+      "tests": "Fixtures do fluxo completo com aprovação negada, renovação confirmada mas site ainda fora, solução só financeira e retorno técnico.",
+      "areas": "Workflow/skills Suporte e Financeiro; central de demandas",
+      "decision": "",
+      "issue": 40,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/40",
+      "depends_on_issues": [
+        26,
+        28,
+        31,
+        38,
+        39
+      ]
+    },
+    {
+      "code": "T26",
+      "phase": "Operação",
+      "title": "Conector MCP de registrador para renovação aprovada",
+      "dependencies": [
+        "T04",
+        "T07",
+        "T13",
+        "T23",
+        "T25"
+      ],
+      "goal": "Automatizar a renovação somente com fornecedor conhecido, API disponível e autorização exata.",
+      "acceptance": [
+        "Primeiro registrar decisão do fornecedor real, documentação oficial, disponibilidade de sandbox, métodos de autenticação e custos; não implementar endpoint imaginado.",
+        "Adapter consulta domínio e cotação; proposta inclui domínio, período, preço, moeda, conta e vencimento; compra exige aprovação atual do payload.",
+        "Usar idempotência/reconciliação oferecida pelo fornecedor; resultado desconhecido bloqueia repetição e pede verificação; dry-run padrão.",
+        "Renovação não altera titular, DNS ou auto-renew sem autorização distinta; verificação pós-operação grava recibo/estado comprovado."
+      ],
+      "tests": "Contrato do provedor com fixtures: preço mudou, aprovação expirada, resposta perdida e domínio de outra empresa; sandbox se disponível, sem compra real obrigatória.",
+      "areas": "Novo adapter MCP por registrador; política e workflow de renovação",
+      "decision": "Decisão externa obrigatória: qual registrador e quais credenciais/ambiente serão usados? Esta issue fica bloqueada para integração real até a resposta.",
+      "issue": 41,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/41",
+      "depends_on_issues": [
+        19,
+        22,
+        28,
+        38,
+        40
+      ]
+    },
+    {
+      "code": "T27",
+      "phase": "Operação",
+      "title": "Conector financeiro para faturamento e baixa comprovada",
+      "dependencies": [
+        "T04",
+        "T07",
+        "T13",
+        "T14",
+        "T24",
+        "T25"
+      ],
+      "goal": "Conectar o financeiro ao sistema real sem confundir proposta, emissão de cobrança e pagamento.",
+      "acceptance": [
+        "Definir primeiro ERP/provedor e operações admitidas; contrato separado para consultar, emitir cobrança, consultar status e reconciliar.",
+        "Emissão/alteração exige aprovação com cliente, valor, moeda, beneficiário e dados exatos; fixture/demo não emite cobrança real.",
+        "Eventos externos autenticados e idempotentes ou polling autorizado; mensagem do cliente não prova pagamento, webhook duplicado não duplica baixa.",
+        "Movimentação bancária e pagamento a fornecedor permanecem manuais nesta entrega; recibos e status técnicos suportam atendimento direto pelo Financeiro."
+      ],
+      "tests": "Contrato fake: assinatura inválida, evento duplicado/fora de ordem, status pendente, estorno, cliente incorreto e resposta perdida; sandbox escolhido quando houver.",
+      "areas": "Novo adapter financeiro MCP; reconciliação e comunicação externa",
+      "decision": "Decisão externa obrigatória: sistema financeiro/ERP, disponibilidade de API/sandbox e operações desejadas; sem esses dados não declarar integração pronta.",
+      "issue": 42,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/42",
+      "depends_on_issues": [
+        19,
+        22,
+        28,
+        29,
+        39,
+        40
+      ]
+    },
+    {
+      "code": "T28",
+      "phase": "Validação",
+      "title": "Cenários completos Secretaria, Suporte, Financeiro e cliente",
+      "dependencies": [
+        "T12",
+        "T16",
+        "T21",
+        "T22",
+        "T25"
+      ],
+      "goal": "Provar que a equipe resolve os dois caminhos descritos pelo usuário com responsabilidade única.",
+      "acceptance": [
+        "Cenário A: cliente→Secretaria→Suporte→Financeiro por delegação→Suporte→cliente; site verificado antes de resolver.",
+        "Cenário B: demanda só financeira ou transferência aceita→Financeiro→cliente, sem retorno obrigatório ao Suporte.",
+        "Cobrir negação de aprovação, pessoa assumindo, cliente ambíguo, loop, restart e resposta externa duplicada; todas as evidências vêm de fixtures identificadas.",
+        "Suite roda sem rede, modelo ou conta paga; roteiro real opcional usa contas autorizadas e relata o que não foi validado."
+      ],
+      "tests": "Integração ponta a ponta com MCP/LLM/IMAP/SMTP/registrador fake, clock controlado; asserts de dono, mensagens únicas, estado e isolamento.",
+      "areas": "Fixtures e cenários de aceitação; scripts de validação; docs de demonstração",
+      "decision": "",
+      "issue": 43,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/43",
+      "depends_on_issues": [
+        27,
+        31,
+        36,
+        37,
+        40
+      ]
+    },
+    {
+      "code": "T29",
+      "phase": "Operação contínua",
+      "title": "Agendamentos, SLA, monitoramento e escalonamento",
+      "dependencies": [
+        "T10",
+        "T11",
+        "T13",
+        "T16",
+        "T21",
+        "T23"
+      ],
+      "goal": "Fazer a equipe acompanhar pendências sem depender de uma aba aberta.",
+      "acceptance": [
+        "Agendamento explícito por empresa, timezone, horário, frequência e orçamento; polling IMAP e checagem de ativos são opt-in.",
+        "Scheduler persistente evita sobreposição/duplicatas; política de catch-up no reinício e pausa/desativação visíveis.",
+        "SLA de aceite, aprovação e resposta produz escalonamento ao operador ou fila; não fica redistribuindo indefinidamente.",
+        "Notificar mudança relevante e falha acionável, evitando ruído; agendamento não concede permissão nova nem aprovação financeira."
+      ],
+      "tests": "Relógio fake com mudança de timezone/horário, downtime, duas instâncias, job lento e limite de orçamento; sem loops reais na CI.",
+      "areas": "Scheduler/worker; painel de rotinas e notificações",
+      "decision": "",
+      "issue": 44,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/44",
+      "depends_on_issues": [
+        25,
+        26,
+        28,
+        31,
+        36,
+        38
+      ]
+    },
+    {
+      "code": "T30",
+      "phase": "Operação contínua",
+      "title": "Auditoria sanitizada, métricas, retenção e backup restaurável",
+      "dependencies": [
+        "T02",
+        "T09",
+        "T10",
+        "T13",
+        "T16"
+      ],
+      "goal": "Permitir operar e investigar a equipe sem publicar conteúdo privado em logs.",
+      "acceptance": [
+        "Trilha por demanda/execução com ator, política, ferramenta, decisão, custo/latência conhecidos e referência de evidência; nunca chain-of-thought ou tokens.",
+        "Redação de credenciais/PII e payload bruto desativado por padrão; retenção e exclusão cobrem banco, índices, anexos, traces e exportações.",
+        "Backup/restauração local consistente, com permissões/proteção documentadas e segredos tratados separadamente; exportação exige escopo e aviso de dados sensíveis.",
+        "Métricas de fila, retries, handoffs, falhas, espera humana e tokens sem estimar custo pago como fato quando preço/uso não estiver disponível."
+      ],
+      "tests": "Injetar canários de segredos e verificar ausência em logs/API/export padrão; restaurar backup de fixtures e reconciliar jobs/outbox pendentes.",
+      "areas": "Serviços de auditoria/telemetria/backup; central operacional; .gitignore",
+      "decision": "",
+      "issue": 45,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/45",
+      "depends_on_issues": [
+        17,
+        24,
+        25,
+        28,
+        31
+      ]
+    },
+    {
+      "code": "T31",
+      "phase": "Interface",
+      "title": "Conversa e voz vinculadas ao agente e à demanda ativa",
+      "dependencies": [
+        "T08",
+        "T11",
+        "T15",
+        "T16"
+      ],
+      "goal": "Manter a experiência de ligação enquanto a equipe trabalha em tarefas persistentes.",
+      "acceptance": [
+        "Chat identifica empresa, demanda e agente que responde; vínculo é capturado no início do turno, sem trocar por alteração visual concorrente.",
+        "Handoff muda a indicação e perfil de voz somente após aceite; áudio/mensagens atrasados de outra demanda não entram na conversa ativa.",
+        "Separar parar fala, interromper geração, pausar demanda e desligar microfone; nenhuma troca de agente ativa microfone automaticamente.",
+        "Avatar mostra escuta/processamento/espera de humano e abre a demanda correta; medir latência e manter texto disponível."
+      ],
+      "tests": "Eventos fora de ordem, mudança de empresa durante síntese, mic desligado, cancelamento e reconexão; regressão Electron de origem/IPC e build.",
+      "areas": "frontend/src/useVoice.js; main.jsx; browser_agent.py; desktop/main.cjs/policy.cjs/avatar",
+      "decision": "",
+      "issue": 46,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/46",
+      "depends_on_issues": [
+        23,
+        26,
+        30,
+        31
+      ]
+    },
+    {
+      "code": "T32",
+      "phase": "Escala",
+      "title": "Autenticação, RBAC e isolamento para acesso remoto",
+      "dependencies": [
+        "T03",
+        "T04",
+        "T07",
+        "T13",
+        "T16",
+        "T30"
+      ],
+      "goal": "Preparar acesso de múltiplos operadores e empresas antes de expor o backend além de loopback.",
+      "acceptance": [
+        "Identidade autenticada por provedor escolhido, sessão segura, RBAC por empresa/departamento e identidade própria de worker; revogação imediata.",
+        "Autorizar cada rota, stream, ferramenta, arquivo, exportação, busca e aprovação; não confiar em tenant_id enviado pelo frontend.",
+        "TLS e configuração de origens/CSRF/CORS, rate limits e proteção de callbacks; nenhum bind público automático no portable.",
+        "Suite de isolamento documenta limites; dono local é modo distinto, sem ser tratado como admin global em ambiente remoto."
+      ],
+      "tests": "Dois usuários/duas empresas: acesso por ID, cursor, arquivo, busca e replay; sessão revogada, role alterada e tentativa de aprovar ação própria sem permissão.",
+      "areas": "Camada de identidade/política HTTP e serviços; configuração de implantação",
+      "decision": "Escolher provedor de identidade e destino de implantação antes da validação remota; modo local deve continuar sem serviço pago.",
+      "issue": 47,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/47",
+      "depends_on_issues": [
+        18,
+        19,
+        22,
+        28,
+        31,
+        45
+      ]
+    },
+    {
+      "code": "T33",
+      "phase": "Validação",
+      "title": "Evals de equipe e gates de regressão de segurança e custo",
+      "dependencies": [
+        "T17",
+        "T28",
+        "T29",
+        "T30",
+        "T31",
+        "T32"
+      ],
+      "goal": "Estabelecer critérios mensuráveis antes de aumentar autonomia ou escala.",
+      "acceptance": [
+        "Corpus sintético versionado para triagem, evidências, escopo, injeção, cobrança incorreta, vazamento entre empresas e duplicatas.",
+        "Gates determinísticos exigem zero violações nos cenários de autorização, aprovação, dono único e envio duplicado cobertos; não prometer invulnerabilidade.",
+        "Evals com Ollama opcionais registram modelo/versão, latência, tokens, sucesso e erro; CI principal usa doubles e orçamento limitado.",
+        "Checklist de release inclui rollback/migração, parar workers, revogar skills/conexões e relatar pendências de provedores reais."
+      ],
+      "tests": "Rodar suites offline, smoke local opcional e relatório reproduzível; mudança de prompt/skill/modelo deve indicar regressões sem fixtures com dados privados.",
+      "areas": "CI; harness de avaliação; docs de operação/release",
+      "decision": "",
+      "issue": 48,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/48",
+      "depends_on_issues": [
+        32,
+        43,
+        44,
+        45,
+        46,
+        47
+      ]
+    },
+    {
+      "code": "T34",
+      "phase": "Escala",
+      "title": "PostgreSQL e workers separados com filas e quotas por empresa",
+      "dependencies": [
+        "T10",
+        "T29",
+        "T30",
+        "T32",
+        "T33"
+      ],
+      "goal": "Extrair execução para processos/máquinas separados quando houver demanda medida.",
+      "acceptance": [
+        "Adapter PostgreSQL para contratos de repositório/outbox, migração verificada e caminho de rollback operacional; SQLite continua padrão local.",
+        "Workers separados com identidades e leases; dupla execução após falha é tratada por idempotência/reconciliação, sem alegar exactly-once externo.",
+        "Quotas e justiça entre empresas/contas/modelos, limites de conexões e backpressure; não aumentar paralelismo além da capacidade do Ollama.",
+        "Decisão documentada sobre broker adicional apenas se medições justificarem; implantação reproduzível com segredos fora de imagens e Git."
+      ],
+      "tests": "Testes de contrato iguais em SQLite/Postgres, múltiplos workers, indisponibilidade do banco, saturação de uma empresa e recuperação de outbox.",
+      "areas": "Adapters de persistência; worker; configuração local/servidor; documentação de capacidade",
+      "decision": "",
+      "issue": 49,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/49",
+      "depends_on_issues": [
+        25,
+        44,
+        45,
+        47,
+        48
+      ]
+    },
+    {
+      "code": "T35",
+      "phase": "Escala",
+      "title": "Interoperabilidade A2A para equipes e agentes externos",
+      "dependencies": [
+        "T07",
+        "T11",
+        "T13",
+        "T14",
+        "T32",
+        "T33"
+      ],
+      "goal": "Permitir delegação a agentes fora deste processo sem substituir MCP para ferramentas.",
+      "acceptance": [
+        "ADR fixa versão suportada do A2A após conferir especificação oficial; mapear tarefas/contextos/artefatos/estados e capacidade de cancelamento.",
+        "Agent Cards/capabilities não concedem acesso; autenticação de contraparte, allowlist, escopo de contexto e tenant permanecem no gateway.",
+        "Transferir tarefa remota não transfere automaticamente responsabilidade ou permissão de falar com cliente; retorno, timeout e perda de conexão seguem T11/T14.",
+        "Adapter de transporte isolado do domínio, com servidor/cliente de teste; proibir envio de segredos e histórico inteiro por padrão."
+      ],
+      "tests": "Dois agentes de teste: continuidade, estados incompatíveis, callback forjado, tarefa duplicada, contraparte revogada e recusa de autenticação.",
+      "areas": "Novo adapter A2A e testes de contrato; docs de integração",
+      "decision": "",
+      "issue": 50,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/50",
+      "depends_on_issues": [
+        22,
+        26,
+        28,
+        29,
+        47,
+        48
+      ]
+    },
+    {
+      "code": "T36",
+      "phase": "Distribuição",
+      "title": "Onboarding da equipe e pacote Windows com migrações",
+      "dependencies": [
+        "T15",
+        "T16",
+        "T28",
+        "T30",
+        "T31",
+        "T33"
+      ],
+      "goal": "Entregar a equipe configurável de forma utilizável no ambiente local atual.",
+      "acceptance": [
+        "Assistente de configuração cria empresa/departamentos/agentes a partir de template versionado com preview; demo não conecta contas reais.",
+        "Portable inclui novos módulos, schemas e migrações via allowlist; dados, banco, contas, modelos e segredos continuam fora do pacote.",
+        "Atualização preserva configurações/credenciais existentes e informa persistência; diagnóstico de conexão, migrations e dependências acionável.",
+        "Documentar começar pela primeira issue elegível, operar equipe, desligar/reiniciar, restaurar dados e limitações de integrações ainda bloqueadas."
+      ],
+      "tests": "Instalação nova e upgrade de fixtures da versão atual; reinício com demanda pendente, pacote sem dados privados e smoke Electron/voz.",
+      "areas": "desktop/build.cjs/runtime.cjs; setup.ps1; frontend onboarding; docs de distribuição",
+      "decision": "",
+      "issue": 51,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/51",
+      "depends_on_issues": [
+        30,
+        31,
+        43,
+        45,
+        46,
+        48
+      ]
+    }
+  ]
+}
