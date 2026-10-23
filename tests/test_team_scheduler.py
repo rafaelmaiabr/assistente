@@ -25,7 +25,8 @@ PROFILE = dict(goals=["Atender"], personality={"tone": "claro", "initiative": "p
 
 class Clock:
     def __init__(self):
-        self.now = datetime.now(timezone.utc).replace(microsecond=0)
+        # Fixed: schedules depend on the time of day, so a wall clock would make "how many occurrences were missed" vary by run.
+        self.now = datetime(2026, 6, 1, 6, 0, tzinfo=timezone.utc)
 
     def __call__(self):
         return self.now
@@ -288,6 +289,7 @@ class TickTests(SchedulerCase):
 class SlaTests(SchedulerCase):
     def setUp(self):
         super().setUp()
+        self.clock.now = datetime.now(timezone.utc).replace(microsecond=0)  # cases are stamped by the real clock
         self.dep = self.team.create(self.ca, "department", name="Atendimento", scope="x", status="ativo")
         self.sup = self.agents.create_agent(self.ca, department_id=self.dep["id"], name="Suporte", **PROFILE)
         self.fin = self.agents.create_agent(self.ca, department_id=self.dep["id"], name="Financeiro", **PROFILE)
