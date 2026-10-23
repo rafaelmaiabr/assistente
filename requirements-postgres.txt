@@ -1,0 +1,2 @@
+# Opcional: so e necessario para usar o PostgreSQL no lugar do SQLite (docs/TEAM-POSTGRES.md).
+psycopg[binary]==3.2.13

@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from .access import AccessContext, AccessError, NotFound, PermissionDenied
 from .cases import TERMINAL_STATES, CaseRejected, clean_text
 from .ids import new_id
-from .repository import IntegrityViolation
+from .repository import IntegrityViolation, RevisionConflict
 from .schema import content_hash, find_secrets
 
 POLICY_REF = "aprovacao-padrao"
@@ -173,6 +173,12 @@ class ApprovalService:
 
     # -- deciding (trusted operator only) -------------------------------------------------------------------------
     def _decide(self, ctx, approval_id, state, event_type, comment):
+        try:
+            return self._decide_once(ctx, approval_id, state, event_type, comment)
+        except RevisionConflict:  # two decisions at the same moment: one wins, the other is told it was already decided
+            raise ApprovalRejected("Esta solicitacao ja foi decidida ou encerrada.") from None
+
+    def _decide_once(self, ctx, approval_id, state, event_type, comment):
         with self.repository.transaction(ctx.tenant_id) as session:
             approval = self._approval(session, approval_id)
             case = self._case(session, approval["case_id"])
@@ -210,15 +216,18 @@ class ApprovalService:
         """Withdraw a pending or approved request that was not consumed yet."""
         self._trusted_operator(ctx)
         text = clean_text(reason)
-        with self.repository.transaction(ctx.tenant_id) as session:
-            approval = self._approval(session, approval_id)
-            if approval["state"] not in ("pendente", "aprovada"):
-                raise ApprovalRejected("Somente solicitacoes ainda nao consumidas podem ser revogadas.")
-            case = self._case(session, approval["case_id"])
-            revoked = self._save(session, approval, state="cancelada", reason=text)
-            self._note(ctx, session, case["id"], f"Aprovacao revogada: {approval['action']} ({text})")
-            self._settle_case(ctx, session, case, "approval.revoked", {"approval_id": approval_id})
-            return revoked
+        try:
+            with self.repository.transaction(ctx.tenant_id) as session:
+                approval = self._approval(session, approval_id)
+                if approval["state"] not in ("pendente", "aprovada"):
+                    raise ApprovalRejected("Somente solicitacoes ainda nao consumidas podem ser revogadas.")
+                case = self._case(session, approval["case_id"])
+                revoked = self._save(session, approval, state="cancelada", reason=text)
+                self._note(ctx, session, case["id"], f"Aprovacao revogada: {approval['action']} ({text})")
+                self._settle_case(ctx, session, case, "approval.revoked", {"approval_id": approval_id})
+                return revoked
+        except RevisionConflict:  # another process spent or changed it at the same moment (several workers/processes)
+            raise ApprovalRejected("A solicitacao mudou ao mesmo tempo; confira o estado atual.") from None
 
     def find_approved(self, ctx, case_id, normalized):
         """The approved, unconsumed, unexpired approval for exactly this payload, if any (read-only lookup)."""
@@ -249,6 +258,12 @@ class ApprovalService:
         ``ApprovalInvalid`` so a caller learns nothing about why or about other approvals.
         """
         self._ctx(ctx)
+        try:
+            return self._consume(ctx, approval_id, request)
+        except RevisionConflict:  # another process spent it first: the same answer as any other refusal
+            raise ApprovalInvalid() from None
+
+    def _consume(self, ctx, approval_id, request):
         with self.repository.transaction(ctx.tenant_id) as session:
             approval = session.get("approval_request", approval_id) if isinstance(approval_id, str) else None
             if approval is None or approval["state"] != "aprovada":

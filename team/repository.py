@@ -62,7 +62,7 @@ def indexed_columns(kind: str) -> list:
     spec = SCHEMAS[kind]
     refs = [name for name, field in spec.items()
             if isinstance(field, str) and field.startswith("ref:") and name != "tenant_id"]
-    return refs + (["state"] if "state" in spec else []) + EXTRA_INDEXED.get(kind, [])
+    return list(dict.fromkeys(refs + (["state"] if "state" in spec else []) + EXTRA_INDEXED.get(kind, [])))  # no repeated column
 
 
 def address_key(channel: str, address: str) -> str:
@@ -153,8 +153,30 @@ class Repository(ABC):
 
 
 class SqliteSession(TenantSession):
+    """SQL shared by every backend. A backend overrides only the few hooks below (see ``team/pgdb.py``)."""
+
+    INTEGRITY = (sqlite3.IntegrityError,)
+
     def __init__(self, conn, tenant_id):
         self.conn, self.tenant_id = conn, tenant_id
+
+    @staticmethod
+    def _is_unique(error):
+        return "events.revision" in str(error) or "UNIQUE" in str(error)
+
+    def _insert_event(self, event):
+        """Insert the event row and return its sequence number."""
+        return self.conn.execute(
+            "INSERT INTO events (id, tenant_id, case_id, revision, occurred_at, doc) VALUES (?, ?, ?, ?, ?, ?)",
+            (event["id"], self.tenant_id, event["case_id"], event["revision"], event["occurred_at"], _dump(event))).lastrowid
+
+    def _insert_command(self, command):
+        """Insert a command once per idempotency key; True when this call inserted it."""
+        return self.conn.execute(
+            "INSERT OR IGNORE INTO commands (id, tenant_id, case_id, idempotency_key, issued_at, doc) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (command["id"], self.tenant_id, command["case_id"], command["idempotency_key"],
+             command["issued_at"], _dump(command))).rowcount == 1
 
     def _table(self, kind):
         if kind in GLOBAL_KINDS or kind not in TABLES:
@@ -200,9 +222,12 @@ class SqliteSession(TenantSession):
                     f"INSERT INTO {table} ({', '.join(names)}) VALUES ({', '.join('?' * len(names))})", values)
             else:
                 assignments = ", ".join(f"{name} = ?" for name in names[2:])
-                self.conn.execute(f"UPDATE {table} SET {assignments} WHERE id = ? AND tenant_id = ?",
-                                  [*values[2:], doc["id"], self.tenant_id])
-        except sqlite3.IntegrityError as error:
+                # the revision in the WHERE makes concurrent writers (more than one process) lose cleanly instead of overwriting
+                updated = self.conn.execute(f"UPDATE {table} SET {assignments} WHERE id = ? AND tenant_id = ? AND revision = ?",
+                                            [*values[2:], doc["id"], self.tenant_id, doc["revision"] - 1])
+                if updated.rowcount != 1:
+                    raise RevisionConflict("o registro foi alterado por outro processo; releia e tente de novo")
+        except self.INTEGRITY as error:
             raise IntegrityViolation(str(error)) from error
         if event is not None:
             self.record_event(event)
@@ -215,7 +240,7 @@ class SqliteSession(TenantSession):
         try:
             cursor = self.conn.execute(
                 f"DELETE FROM {self._table(kind)} WHERE tenant_id = ? AND id = ?", (self.tenant_id, doc_id))
-        except sqlite3.IntegrityError as error:
+        except self.INTEGRITY as error:
             raise IntegrityViolation(str(error)) from error
         return cursor.rowcount == 1
 
@@ -224,16 +249,14 @@ class SqliteSession(TenantSession):
         if event["tenant_id"] != self.tenant_id:
             raise TenantMismatch("evento pertence a outra empresa")
         try:
-            cursor = self.conn.execute(
-                "INSERT INTO events (id, tenant_id, case_id, revision, occurred_at, doc) VALUES (?, ?, ?, ?, ?, ?)",
-                (event["id"], self.tenant_id, event["case_id"], event["revision"], event["occurred_at"], _dump(event)))
-        except sqlite3.IntegrityError as error:
-            if "events.revision" in str(error) or "UNIQUE" in str(error):
+            seq = self._insert_event(event)
+        except self.INTEGRITY as error:
+            if self._is_unique(error):
                 raise RevisionConflict(f"evento com revisao {event['revision']} ja existe na demanda") from error
             raise IntegrityViolation(str(error)) from error
         self.conn.execute("INSERT INTO outbox (tenant_id, event_seq, topic, created_at) VALUES (?, ?, ?, ?)",
-                          (self.tenant_id, cursor.lastrowid, topic, _now()))
-        return cursor.lastrowid
+                          (self.tenant_id, seq, topic, _now()))
+        return seq
 
     def register_command(self, command):
         """Store a command once per idempotency key; False means it was already registered."""
@@ -241,14 +264,9 @@ class SqliteSession(TenantSession):
         if command["tenant_id"] != self.tenant_id:
             raise TenantMismatch("comando pertence a outra empresa")
         try:
-            cursor = self.conn.execute(
-                "INSERT OR IGNORE INTO commands (id, tenant_id, case_id, idempotency_key, issued_at, doc) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (command["id"], self.tenant_id, command["case_id"], command["idempotency_key"],
-                 command["issued_at"], _dump(command)))
-        except sqlite3.IntegrityError as error:
+            return self._insert_command(command)
+        except self.INTEGRITY as error:
             raise IntegrityViolation(str(error)) from error
-        return cursor.rowcount == 1
 
     def events(self, case_id=None, after_seq=0, limit=100):
         clause, args = ("AND case_id = ? ", [case_id]) if case_id else ("", [])
@@ -273,7 +291,7 @@ class SqliteSession(TenantSession):
                 (self.tenant_id, decision["run_id"], decision["agent_id"], decision["agent_version"], decision["tool"],
                  decision.get("operation"), decision["decision"], decision["reason"], decision["policy_version"],
                  decision.get("result_bytes"), decision.get("duration_ms"), _now()))
-        except sqlite3.IntegrityError as error:
+        except self.INTEGRITY as error:
             raise IntegrityViolation(str(error)) from error
 
     def tool_decisions(self, run_id, limit=100):
@@ -304,15 +322,23 @@ class SqliteSession(TenantSession):
 
 
 class SqliteRepository(Repository):
+    dialect = "sqlite"
+    integrity_errors = (sqlite3.IntegrityError,)
+    row_order = "rowid"  # insertion order of rows (jobs break ties with it)
+    session_class = SqliteSession
+
     def __init__(self, path):
         self.path = Path(path)
+
+    def _connect(self):
+        return connect(self.path)
 
     def migrate(self):
         return migrate(self.path)
 
     @contextmanager
     def _transaction(self):
-        conn = connect(self.path)
+        conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")  # one writer at a time; others wait on busy_timeout
             yield conn
@@ -331,7 +357,7 @@ class SqliteRepository(Repository):
         with self._transaction() as conn:
             if conn.execute("SELECT 1 FROM tenants WHERE id = ?", (tenant_id,)).fetchone() is None:
                 raise TenantMismatch("empresa desconhecida")
-            yield SqliteSession(conn, tenant_id)
+            yield self.session_class(conn, tenant_id)
 
     def _save_global(self, doc, kind):
         validate(kind, doc)
@@ -350,7 +376,7 @@ class SqliteRepository(Repository):
                 else:
                     conn.execute(f"UPDATE {table} SET {', '.join(f'{n} = ?' for n in names[1:])} WHERE id = ?",
                                  [*values[1:], doc["id"]])
-            except sqlite3.IntegrityError as error:
+            except self.integrity_errors as error:
                 raise IntegrityViolation(str(error)) from error
         return doc
 
@@ -365,7 +391,7 @@ class SqliteRepository(Repository):
     def get_global(self, kind, doc_id):
         if kind not in GLOBAL_KINDS:
             raise RepositoryError(f"tipo nao e global: {kind}")
-        conn = connect(self.path)
+        conn = self._connect()
         try:
             row = conn.execute(f"SELECT doc FROM {TABLES[kind]} WHERE id = ?", (doc_id,)).fetchone()
         finally:
@@ -375,7 +401,7 @@ class SqliteRepository(Repository):
     def list_global(self, kind, limit=100):
         if kind not in GLOBAL_KINDS:
             raise RepositoryError(f"tipo nao e global: {kind}")
-        conn = connect(self.path)
+        conn = self._connect()
         try:
             rows = conn.execute(f"SELECT doc FROM {TABLES[kind]} ORDER BY created_at, id LIMIT ?",
                                 (min(max(int(limit), 1), MAX_LIST),)).fetchall()

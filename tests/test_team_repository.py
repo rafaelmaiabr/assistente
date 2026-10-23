@@ -28,13 +28,8 @@ def event(case_id, revision, tenant=IDS["tenant"]):
     return item
 
 
-class RepoCase(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.path = Path(self.temp.name) / "team-data" / "team.sqlite3"
-        self.repo = SqliteRepository(self.path)
-        self.repo.migrate()
+class SampleLoader:
+    """Loads the sample company into ``self.repo``; shared by every backend's tests."""
 
     def load_sample(self):
         self.repo.create_tenant(sample("tenant")[0])
@@ -44,6 +39,15 @@ class RepoCase(unittest.TestCase):
             for kind in ORDER[3:]:
                 for doc in sample(kind):
                     session.save(doc)
+
+
+class RepoCase(SampleLoader, unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "team-data" / "team.sqlite3"
+        self.repo = SqliteRepository(self.path)
+        self.repo.migrate()
 
 
 class MigrationTests(RepoCase):
@@ -126,10 +130,12 @@ class MigrationTests(RepoCase):
             discover(folder)
 
 
-class RepositoryTests(RepoCase):
+class RepositoryContract:
+    """The repository contracts. Every backend runs these same tests (SQLite here, PostgreSQL in test_team_repository_pg.py)."""
+
     def test_roundtrip_survives_restart_and_lists_by_index(self):
         self.load_sample()
-        reopened = SqliteRepository(self.path)
+        reopened = self.restart()
         with reopened.transaction(IDS["tenant"]) as session:
             self.assertEqual(session.get("case", IDS["case"]), sample("case")[0])
             self.assertEqual(len(session.list("agent_definition")), 2)
@@ -238,6 +244,11 @@ class RepositoryTests(RepoCase):
             stored = session.events(IDS["case"], limit=1000)
             self.assertEqual([e["revision"] for _, e in stored], list(range(1, 2 * per_writer + 1)))
             self.assertEqual(len(session.pending_outbox(limit=1000)), 2 * per_writer)
+
+
+class RepositoryTests(RepositoryContract, RepoCase):
+    def restart(self):
+        return SqliteRepository(self.path)
 
 
 class PersistenceSwitchTests(unittest.TestCase):

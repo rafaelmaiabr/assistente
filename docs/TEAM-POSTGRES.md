@@ -1,0 +1,69 @@
+# PostgreSQL, workers separados e filas com quotas (T34, parte 1)
+
+Primeira parte da issue [#49](https://github.com/rafaelmaiabr/assistente/issues/49), subdividida antes de codificar. Esta entrega: o **adaptador PostgreSQL** dos contratos de repositório e de outbox, as **migrações** para PostgreSQL com paridade de esquema verificada, a **fila durável** com workers concorrentes (threads e processos separados), **quotas, justiça e backpressure**, a **cópia dos dados nos dois sentidos** (SQLite → PostgreSQL e a volta) e uma **implantação reproduzível** em Docker. A [parte 2 (#89)](https://github.com/rafaelmaiabr/assistente/issues/89) leva para o PostgreSQL os módulos que ainda têm SQL próprio de SQLite e faz o aplicativo escolher o banco; #49 só fecha com a #89.
+
+**O que isto significa hoje, sem rodeios:** o aplicativo **continua usando SQLite**, que é o padrão e não muda para ninguém. O PostgreSQL já funciona para o repositório, os eventos e a outbox, as demandas e tudo o que vem delas, as aprovações, os encaminhamentos, a saída de mensagens, o gateway, o runtime e a fila; **identidade/acesso remoto, busca de conhecimento (FTS), auditoria, retenção, agendador e backup ainda usam SQL de SQLite** (#89), então o aplicativo inteiro ainda não roda sobre ele. Não há escolha de banco no `config.json` por enquanto, de propósito.
+
+## Escolhas de projeto
+
+- **Mesmo SQL, poucos ganchos.** A camada de repositório continua escrevendo o mesmo SQL; o PostgreSQL entra por um adaptador (`team/pgdb.py`) que dá à conexão a superfície que o SQL compartilhado espera (`?` → `%s`, `execute`, `executemany`, cursores) e por quatro ganchos de dialeto (erro de integridade, inserção de evento com `RETURNING`, comando idempotente com `ON CONFLICT`, ordem de linhas da fila).
+- **JSON** é `JSONB` no banco e trafega como texto, então os documentos saem iguais aos do SQLite.
+- **Migrações:** o SQLite continua sendo a fonte. `scripts/translate_migrations_pg.py` traduz `team/migrations` para `team/migrations_pg` (tipos, `JSONB`, identidade, gatilhos `RAISE(ABORT)` → funções PL/pgSQL, `json_extract` → `->>`, `DROP TRIGGER`); o que não reconhece **interrompe** a tradução, e a CI confere que os arquivos commitados são exatamente a tradução. Cada migração roda em uma transação, sob um bloqueio consultivo (dois processos migrando ao mesmo tempo não se atropelam), com numeração, soma de verificação e recusa de banco "mais novo que o programa" iguais às do SQLite. A única coluna a mais é `jobs.seq` (o PostgreSQL não tem `rowid`).
+- **Vários escritores:** no SQLite um escritor por vez serializava tudo; no PostgreSQL toda atualização carrega a revisão esperada na cláusula `WHERE` e perde de forma limpa (`RevisionConflict`) quando outro processo mudou o registro antes. Aprovações e encaminhamentos traduzem essa perda para o erro de domínio que já tinham ("já decidida", "mudou ao mesmo tempo"); a API devolve 409 nos demais casos.
+- **Conexões limitadas:** `max_connections` (padrão 8) é o limite do banco; quando todas estão ocupadas, quem chega espera `acquire_timeout` e recebe `DatabaseSaturated`, em vez de empilhar conexões. As conexões ociosas são reaproveitadas (teto global de 16), sem comandos preparados no servidor (seguro atrás de pooler).
+- **A conexão é um segredo.** Vem de uma variável de ambiente (ou do cofre), nunca da linha de comando; não aparece em mensagens de erro, em `repr` nem em logs (testado).
+
+## Usar
+
+```
+python -m pip install -r requirements-postgres.txt            # psycopg (opcional: o SQLite não precisa)
+.\deploy\postgres\dev.ps1                                      # PostgreSQL 17 em Docker, volume persistente, senha em secrets/ (fora do Git)
+set ASSISTENTE_PG_DSN=postgresql://assistente:<senha>@127.0.0.1:5432/assistente
+python scripts/pg_migrate.py status                            # versão do servidor e migrações aplicadas/pendentes
+python scripts/pg_migrate.py migrate
+python scripts/pg_migrate.py to-postgres --sqlite team-data/team.sqlite3   # copia SQLite -> PostgreSQL VAZIO e migrado
+python scripts/pg_migrate.py verify --sqlite team-data/team.sqlite3        # compara os dois; não escreve nada
+```
+
+`.\deploy\postgres\dev.ps1 -Test` sobe um banco **descartável** (porta 55432) para os testes e imprime a variável `ASSISTENTE_TEST_POSTGRES_DSN`; `-Down` para o persistente (os dados ficam no volume). Docker não é obrigatório: qualquer PostgreSQL 15+ serve. Um PostgreSQL embutido no pacote Windows **não** foi adotado: pesaria centenas de MB, exigiria gerenciar `initdb`, porta, processo e atualização de versão, e o caso de uso do PostgreSQL (vários processos ou máquinas) é o de um servidor.
+
+### Cópia dos dados e caminho de volta
+
+- `to-postgres` e `to-sqlite` **nunca alteram a origem**, recusam um destino que já tenha dados (nada é misturado ou sobrescrito), copiam numa **única transação** (falhou, o destino fica como estava) e comparam **por tabela** o número de linhas e uma impressão do conteúdo (o JSON é comparado como dado, não como texto); qualquer diferença aborta.
+- Durante a cópia os gatilhos de proteção do destino ficam desligados **só dentro da transação** (a história é copiada, não recriada; uma execução pode apontar para uma versão desativada depois) e voltam antes dela terminar; depois, a numeração gerada continua após as linhas copiadas. Testado: a proteção contra alteração do histórico continua valendo depois da cópia.
+- **Rollback operacional:** (1) antes, faça o backup do SQLite ([TEAM-OPS.md](TEAM-OPS.md)) — ele não é tocado pela cópia, então continua sendo o ponto de retorno; (2) migrações do PostgreSQL são transacionais: uma falha não deixa meia-migração; (3) para voltar depois de um tempo no PostgreSQL, o caminho inverso: `python scripts/pg_migrate.py to-sqlite --sqlite volta.sqlite3` cria um arquivo **novo** (migrado, íntegro, com as chaves estrangeiras conferidas) com os dados atuais; (4) `pg_dump` do próprio PostgreSQL continua sendo a cópia nativa do servidor. O conhecimento publicado (índice FTS5) não é copiado nesta parte (#89).
+
+## Fila: workers, quotas e backpressure
+
+- **Workers separados.** Cada worker tem uma identidade (`worker-<máquina>-<pid>-<aleatório>`, gravada como dono do lease) e a fila é a mesma para threads ou processos: reivindicação atômica, lease com batimento, **fencing** (o worker que perdeu o lease não consegue mais completar nem alterar o job) e recuperação do job de um worker que morreu. Testado com seis threads e com **três processos Python separados** contra o mesmo banco: cada job é tratado por exatamente um deles e o efeito externo (marcado com `consume_once`) não se repete.
+- **Reivindicação correta com vários escritores:** serializada por um bloqueio consultivo (as contagens das quotas e o "no máximo um job ativo por demanda" não podem ser ultrapassados por dois workers ao mesmo tempo); a linha candidata é reservada com `FOR UPDATE SKIP LOCKED`; um choque raro com o índice único por demanda só faz a fila olhar de novo. No SQLite o escritor único já garantia o mesmo.
+- **Quotas e justiça** (`QueueLimits`, tudo opcional; sem limites a fila se comporta como antes): `max_running_per_tenant`, `max_running_total` e `max_running_per_kind`. A reivindicação sempre prefere a empresa **com menos jobs em execução**, depois a prioridade, depois a idade: uma empresa ocupada não deixa as outras esperando, mesmo com prioridade menor (testado). O teto por tipo (`{"agent_run": 1}`) é como se respeita a **capacidade do servidor de modelo**: uma chamada ao modelo por vez, não importa quantos workers ou empresas haja; **o paralelismo não aumenta além do Ollama**, que continua no limite de 1 do padrão.
+- **Backpressure:** `max_pending_per_tenant` e `max_pending_total` fazem `enqueue` levantar `Backpressure` (o produtor espera em vez de empilhar); repetir uma chave de idempotência nunca conta como trabalho novo; as conexões do banco têm o limite descrito acima.
+- **Falha e duplicidade, sem prometer "exactly-once" externo:** continua valendo o contrato anterior. Um job cujo worker morreu volta à fila (ou vai para **reconciliação** se havia um efeito externo iniciado e não confirmado); a outbox é **pelo menos uma vez**, em ordem, e os consumidores usam `consume_once`. Testado: entrega que falha espera e é reentregue; um despachante que morre depois do efeito e antes de marcar causa nova entrega, mas **não repete o efeito**.
+- O que **não** foi ligado: os manipuladores reais (`agent_run`, envio de mensagens) rodam com os serviços completos, que só existem sobre PostgreSQL depois da #89; aqui a infraestrutura de fila está provada com trabalhos de teste.
+
+## Decisão sobre um broker adicional (Redis, RabbitMQ, Kafka…)
+
+**Não adotar.** Medido neste computador (`python scripts/bench_queue.py`, Docker Desktop, PostgreSQL 17, 1000 jobs, trabalho trivial): PostgreSQL ≈ 100 jobs/s de reivindicação+conclusão com 6 workers (mediana de uma reivindicação ≈ 46 ms, p95 ≈ 90 ms); SQLite ≈ 38 jobs/s com 4 threads. A unidade de trabalho desta equipe é uma execução de agente, que leva **segundos** (uma chamada ao modelo local), então a fila precisa de uma fração mínima disso; um broker acrescentaria outro serviço a operar, outra fonte de verdade e outro modo de falha, sem ganho. **Reabrir** a decisão se uma medição futura mostrar a fila como gargalo (por exemplo, centenas de jobs/s sustentados ou latência de reivindicação acima da duração típica dos jobs); o script é o instrumento. Os números variam com a máquina e com a rede até o banco.
+
+## Implantação
+
+- `deploy/postgres/compose.yaml`: PostgreSQL 17 (imagem oficial), porta publicada **só em 127.0.0.1**, volume nomeado, verificação de saúde e a senha lida de `secrets/pg_password.txt` (**fora da imagem e do Git**, ignorada por `.gitignore`). `dev.ps1` cria a senha na primeira vez e não a imprime.
+- Para expor além deste computador: não publique a porta sem TLS e regras de rede; use `sslmode=require` (ou `verify-full`) na conexão, uma rede privada ou túnel, usuários com o mínimo de privilégios e a senha no cofre. **Nada disso foi exercitado nesta entrega.**
+- **Supabase ou outro PostgreSQL gerenciado** é só um destino possível: o adaptador usa PostgreSQL padrão. **Não foi testado** com um provedor real. Pontos de atenção: use a conexão direta ou em modo de sessão para migrar (a migração usa bloqueio consultivo de sessão); atrás de um pooler em modo transação o restante funciona porque os bloqueios da fila são de transação e os comandos preparados estão desligados; dados de clientes passariam a ficar fora deste computador (região, LGPD, custo).
+- CI: um job próprio (Ubuntu) com um PostgreSQL efêmero roda os contratos, a paridade de esquema, a fila, a cópia dos dados e os testes de serviço; o PostgreSQL não é necessário nos demais jobs (os testes dele são pulados sem a variável `ASSISTENTE_TEST_POSTGRES_DSN`).
+
+## Validação
+
+- `tests/test_team_repository_pg.py` (19): **os mesmos testes de contrato do SQLite** (ida e volta, controle de revisão, isolamento por empresa, estado+evento+outbox atômicos, rollback, comandos idempotentes, escritores concorrentes sem perder evento); **paridade de esquema** com o SQLite (tabelas, colunas e anulabilidade, índices explícitos e gatilhos; a tradução commitada é exatamente a gerada); comportamento das proteções (histórico e evidências só de acréscimo, versões de perfil imutáveis, execução só em versão ativa, credencial só da mesma empresa, uma mensagem em envio e um job ativo por demanda, chaves únicas); o banco indisponível e a conexão que nunca aparece em mensagens.
+- `scripts/run_tests_postgres.py`: **286 testes de serviço existentes** (contratos, acesso, agentes, conexões, skills, demandas, encaminhamentos, aprovações, triagem, lacunas, fila, mensagens de saída, gateway, runtime) rodados sobre o PostgreSQL trocando só a classe do repositório; cinco testes que abrem o arquivo SQLite diretamente ficam de fora e têm o equivalente em PostgreSQL acima. Já pegaram e corrigiram: colunas indexadas repetidas no `INSERT` (o SQLite tolerava) e perdas de corrida que apareciam como `RevisionConflict` em vez do erro de domínio.
+- `tests/test_team_queue_limits.py` (20, nos dois bancos onde cabe): sem limites nada muda; backpressure por empresa e total sem contar repetições; quota por empresa; justiça entre empresas; tetos total e por tipo; um job ativo por demanda com limites; seis workers em threads, três processos separados, workers na mesma demanda sem sobreposição, lease perdido e fencing, banco indisponível e recuperação, conexões esgotadas, worker morto e outbox.
+- `tests/test_team_pgmigrate.py` (7) e a execução real do `scripts/pg_migrate.py` (`status`, `migrate`, `to-postgres`, `verify`, recusa de destino com dados, `to-sqlite`) contra o banco criado pelo `dev.ps1`: 74 linhas em 48 tabelas conferidas por conteúdo nos dois sentidos; falha no meio não deixa nada nem gatilho desligado; a numeração continua; as proteções funcionam depois.
+
+## Limites (honestos)
+
+- **O aplicativo ainda não usa o PostgreSQL** e os módulos com SQL próprio ainda não foram portados (#89): identidade e acesso remoto, busca de conhecimento, auditoria e métricas, retenção, agendador e SLA, backup/restauração.
+- Validado com **PostgreSQL 17** em Docker (e a CI usa a mesma imagem). Versões 15/16 e provedores gerenciados **não** foram testados; TLS, réplicas, failover e `pg_dump`/restauração nativa também não.
+- A fila pode devolver `RevisionConflict` ou `Backpressure` ao chamador em situações de corrida ou lotação; só aprovações e encaminhamentos foram convertidos em erros de domínio específicos.
+- O desempenho foi medido numa máquina e rede de desenvolvimento, só para a decisão do broker; não é uma garantia.
+- Tudo é local e gratuito; nada foi enviado a serviços externos além da imagem oficial do PostgreSQL baixada do Docker Hub para os testes.

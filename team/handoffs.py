@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from .access import AccessContext, AccessError, NotFound, PermissionDenied
 from .cases import CaseRejected, clean_text
 from .ids import new_id
-from .repository import IntegrityViolation
+from .repository import RevisionConflict, IntegrityViolation
 
 MAX_TRANSFERS = 5
 MAX_DEPTH = 3
@@ -37,6 +37,19 @@ def _stamp(moment):
 
 def _parse(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _race_safe(method):
+    """With several processes two people can act on the same handoff at once: the loser is told it already changed."""
+    import functools
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except RevisionConflict:
+            raise HandoffRejected("O encaminhamento mudou ao mesmo tempo; confira o estado atual.") from None
+    return wrapper
 
 
 class HandoffService:
@@ -244,6 +257,7 @@ class HandoffService:
         self._resume_owner(ctx, session, case, event_type, {"handoff_id": handoff["id"], "to": handoff["to_agent_id"]})
         return closed
 
+    @_race_safe
     def accept(self, ctx, handoff_id):
         """The recipient accepts. A transfer swaps the owner atomically, only if the case is unchanged."""
         self._ctx(ctx)
@@ -287,6 +301,7 @@ class HandoffService:
                 return accepted
         raise HandoffRejected(outcome)
 
+    @_race_safe
     def decline(self, ctx, handoff_id, reason):
         self._ctx(ctx)
         with self.repository.transaction(ctx.tenant_id) as session:
@@ -295,6 +310,7 @@ class HandoffService:
                 raise HandoffRejected("Este encaminhamento ja foi respondido.")
             return self._settle_failed(ctx, session, handoff, "recusado", self._text(reason, 500), "handoff.declined")
 
+    @_race_safe
     def cancel(self, ctx, handoff_id, reason="cancelado pelo proponente"):
         """The proposer (or the operator) withdraws a handoff that is pending or running."""
         self._ctx(ctx)
@@ -324,6 +340,7 @@ class HandoffService:
         handoff = next((h for h in session.list("handoff", task_id=task_id, limit=10)), None)
         return task, handoff
 
+    @_race_safe
     def complete_task(self, ctx, task_id, summary, evidence=()):
         """The assignee finishes and returns a result. ``evidence`` items follow the same rules as any agent's."""
         self._ctx(ctx)
@@ -356,6 +373,7 @@ class HandoffService:
                                 "evidence_ids": ids})
             return final
 
+    @_race_safe
     def fail_task(self, ctx, task_id, reason):
         """The assignee cannot deliver: the owner keeps the case and the operator is alerted."""
         self._ctx(ctx)
