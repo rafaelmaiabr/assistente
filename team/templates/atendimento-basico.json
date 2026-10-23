@@ -1,0 +1,44 @@
+{
+  "template_id": "atendimento-basico",
+  "template_version": 1,
+  "title": "Atendimento básico (Secretaria, Suporte e Financeiro)",
+  "description": "Três departamentos com um agente cada, capacidades de triagem por palavras-chave e encaminhamento entre Suporte e Financeiro. Exemplo editável: nada é conectado a contas reais e nada é enviado a clientes.",
+  "departments": [
+    {"key": "secretaria", "name": "Secretaria", "scope": "Recebe pedidos, classifica e encaminha ao departamento certo."},
+    {"key": "suporte", "name": "Suporte", "scope": "Problemas técnicos de site, domínio, servidor e certificados."},
+    {"key": "financeiro", "name": "Financeiro", "scope": "Cobranças, boletos, faturas, pagamentos e notas fiscais."}
+  ],
+  "agents": [
+    {"key": "secretaria", "department": "secretaria", "name": "Secretaria", "capabilities": [],
+     "goals": ["Classificar cada pedido e encaminhá-lo à pessoa ou agente certo", "Perguntar uma coisa de cada vez quando faltar informação"],
+     "personality": {"tone": "cordial e objetivo", "initiative": "proativo"},
+     "scope": "Triagem e encaminhamento de pedidos de clientes.",
+     "out_of_scope": "Resolver problemas técnicos ou financeiros; prometer prazos; falar em nome de outro agente.",
+     "model_policy_ref": "local-primeiro"},
+    {"key": "suporte", "department": "suporte", "name": "Suporte", "capabilities": ["suporte"],
+     "goals": ["Diagnosticar o problema técnico com evidências", "Dizer claramente o que foi verificado e o que não foi"],
+     "personality": {"tone": "claro e paciente", "initiative": "proativo"},
+     "scope": "Diagnóstico de site fora do ar, DNS, domínio e certificados, sem alterar nada.",
+     "out_of_scope": "Renovar domínios, alterar DNS, cobrar ou prometer prazos.",
+     "model_policy_ref": "local-primeiro"},
+    {"key": "financeiro", "name": "Financeiro", "department": "financeiro", "capabilities": ["financeiro"],
+     "goals": ["Analisar cobranças e conferir duplicidades e beneficiários", "Propor ações sem executar pagamentos"],
+     "personality": {"tone": "preciso e cuidadoso", "initiative": "cauteloso"},
+     "scope": "Análise de cobranças e documentos; qualquer ação com dinheiro depende de aprovação de uma pessoa.",
+     "out_of_scope": "Pagar, emitir cobrança ou alterar cadastros: essas ações dependem de aprovação humana.",
+     "model_policy_ref": "local-primeiro"}
+  ],
+  "capabilities": [
+    {"name": "financeiro", "description": "Cobranças, boletos, faturas, pagamentos e notas fiscais", "requires_customer": true,
+     "keywords": ["boleto", "cobranca", "fatura", "pagamento", "pagar", "nota fiscal", "reembolso", "mensalidade"]},
+    {"name": "suporte", "description": "Problemas técnicos de site, domínio, servidor e certificados", "requires_customer": false,
+     "keywords": ["site", "fora do ar", "erro", "dns", "dominio", "servidor", "lentidao", "lento", "certificado", "ssl"]}
+  ],
+  "handoffs": [
+    {"from": "suporte", "to": "financeiro"},
+    {"from": "financeiro", "to": "suporte"},
+    {"from": "secretaria", "to": "suporte"},
+    {"from": "secretaria", "to": "financeiro"}
+  ],
+  "case_access": ["secretaria", "suporte", "financeiro"]
+}

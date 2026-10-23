@@ -6,6 +6,7 @@ path and builds its access context on the server; a company the operator does no
 that is not visible, answers with the same 404 and never reveals another company's data. Credentials
 are write-only: no response contains a secret, only its state. Errors are sanitized sentences.
 """
+import asyncio
 import dataclasses
 import json
 import tempfile
@@ -21,6 +22,7 @@ from .cases import CaseRejected, InvalidTransition
 from .gaps import GapRejected
 from .handoffs import HandoffRejected
 from .identity import IdentityRejected
+from .onboarding import OnboardingRejected
 from .outbound import OutboundError
 from .connections import ConnectionRejected
 from .llm import PolicyRejected
@@ -33,7 +35,7 @@ TEAM = web.AppKey("team_app", object)
 IDENTITY = web.RequestKey("identity", object)  # set by the remote guard after it verified the session
 DEMOS = Path(__file__).resolve().parent / "skills_demo"
 SAFE_ERRORS = (ProfileRejected, SkillRejected, ConnectionRejected, PolicyRejected, CaseRejected, ApprovalRejected,
-               HandoffRejected, OutboundError, GapRejected, IdentityRejected)
+               HandoffRejected, OutboundError, GapRejected, IdentityRejected, OnboardingRejected)
 
 
 def _json(data, status=200):
@@ -492,6 +494,35 @@ async def gap_action(request):
     return _json(overview.gap_view(gap))
 
 
+# -- guided setup and installation check (local owner only) ---------------------------------------------------------------
+@api
+async def onboarding_templates(request):
+    services = _services(request)
+    return _json({"templates": services.onboarding.list_templates(services.operator)})
+
+
+@api
+async def onboarding_preview(request):
+    services = _services(request)
+    data = _fields(await _body(request), ("template_id", "company_name"))
+    return _json(services.onboarding.preview(services.operator, data["template_id"], data["company_name"]))
+
+
+@api
+async def onboarding_apply(request):
+    services = _services(request)
+    data = _fields(await _body(request), ("template_id", "company_name", "plan_hash"))
+    return _json(services.onboarding.apply(services.operator, data["template_id"], data["company_name"], data["plan_hash"]), 201)
+
+
+@api
+async def doctor_report(request):
+    """Works even with persistence off: it is how the person finds out what is wrong. Read-only."""
+    from . import doctor
+    team_app = request.app[TEAM]
+    return _json(await asyncio.to_thread(doctor.run, team_app.root, team_app.config, vault=team_app.vault()))
+
+
 # -- members (the local owner or a company administrator) --------------------------------------------------------------------
 @api
 async def members_list(request):
@@ -538,6 +569,10 @@ def register(app, team_app):
     base = "/api/team"
     r = app.router
     r.add_get(f"{base}/state", state)
+    r.add_get(f"{base}/onboarding/templates", onboarding_templates)
+    r.add_post(f"{base}/onboarding/preview", onboarding_preview)
+    r.add_post(f"{base}/onboarding/apply", onboarding_apply)
+    r.add_get(f"{base}/doctor", doctor_report)
     r.add_post(f"{base}/companies", create_company)
     r.add_patch(f"{base}/companies/{{tenant}}", update_company)
     t = f"{base}/companies/{{tenant}}"
