@@ -56,7 +56,17 @@ SCHEMAS = {
         personality={"tone": "text", "initiative": "text"}, scope="text", out_of_scope="text",
         skill_grant_ids="list:ref:skill_grant", handoff_target_ids="list:ref:agent_definition",
         model_policy_ref="slug", voice_profile_ref="slug?", status="enum:Status",
-        goals="list:text?", routing_policy="enum:RoutingPolicy?"),
+        goals="list:text?", routing_policy="enum:RoutingPolicy?", capabilities="list:slug?"),
+    # What a company can ask its team to do; triage routes by these names, never by ids written by a model.
+    "capability": _entity(
+        "capability", name="slug", description="text", keywords="list:str", requires_customer="bool?",
+        status="enum:Status"),
+    # Append-only, verifiable record of one triage decision (the message is kept only as a hash).
+    "triage_decision": _entity(
+        "triage_decision", case_id="ref:case", decision="enum:TriageDecision", method="enum:TriageMethod",
+        capabilities="list:slug", confidence_pct="int", reasons="list:obj", question="text?",
+        message_hash="sha256", catalog_hash="sha256", threshold_route="int", threshold_clarify="int",
+        rounds="posint", decided_by="actor"),
     # Immutable snapshot of one published agent version; only ``status`` (disabling) may change later.
     "agent_profile_version": _entity(
         "agent_profile_version", agent_id="ref:agent_definition", agent_version="posint", definition="obj",
@@ -322,7 +332,18 @@ def _rule_entry(doc):
     return []
 
 
-_RULES = {"case": _rule_case, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+def _rule_triage(doc):
+    errors = []
+    if not 0 <= doc["confidence_pct"] <= 100:
+        errors.append("$.confidence_pct: use de 0 a 100")
+    if doc["decision"] == "esclarecer" and not doc["question"]:
+        errors.append("$.question: obrigatoria quando a decisao e pedir esclarecimento")
+    if doc["decision"] in ("rotear", "misto") and not doc["capabilities"]:
+        errors.append("$.capabilities: obrigatorias para rotear")
+    return errors
+
+
+_RULES = {"case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 

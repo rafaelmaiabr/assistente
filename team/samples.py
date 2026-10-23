@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -40,7 +40,8 @@ def bundle():
          scope="Cobrancas, recebimentos e analise financeira", out_of_scope="Encaminhar ao responsavel",
          skill_grant_ids=[IDS["grant"]], handoff_target_ids=[IDS["agt_sup"]],
          model_policy_ref="local-primeiro", voice_profile_ref="pf_dora", status="ativo",
-         goals=["Resumir pendencias financeiras com fontes"], routing_policy="encaminhar")
+         goals=["Resumir pendencias financeiras com fontes"], routing_policy="encaminhar",
+         capabilities=["financeiro"])
     support = _doc("agent_definition", "agt_sup", department_id=IDS["dep_sup"], agent_version=1, name="Suporte",
          personality={"tone": "claro e paciente", "initiative": "pedir informacao que falta"},
          scope="Diagnostico tecnico de sites", out_of_scope="Encaminhar a Secretaria",
@@ -59,6 +60,8 @@ def bundle():
         _doc("mcp_catalog_entry", "mcpentry", tenant=False, catalog_key="erp-exemplo", entry_version="1.0.0",
              transport="http", url="http://127.0.0.1:9000/mcp", launcher=None, tools=["listar-cobrancas"],
              approved_by=IDS["user"], status="ativo"),
+        _doc("capability", "cap", name="financeiro", description="Cobrancas, boletos e pagamentos",
+             keywords=["boleto", "cobranca", "pagamento"], requires_customer=True, status="ativo"),
         _doc("model_policy", "policy", name="local-primeiro",
              models={"local": {"provider": "ollama", "model": "qwen2.5:7b", "base_url": "http://127.0.0.1:11435/v1"}},
              rules=[{"when": {"complexity": ["baixa"]}, "use": "local"}], default="local", fallbacks=["local"],
@@ -97,6 +100,12 @@ def bundle():
         _doc("evidence", "evidence", case_id=IDS["case"], source="consulta DNS sintetica",
              collected_at=NOW, summary="Sem registro A para o dominio de exemplo", content_hash=None,
              evidence_type="fato", reliability="declarada", recorded_by=IDS["agt_sup"]),
+        _doc("triage_decision", "tri", case_id=IDS["case"], decision="rotear", method="regra",
+             capabilities=["financeiro"], confidence_pct=90,
+             reasons=[{"tipo": "regra", "capacidade": "financeiro", "palavras": ["boleto", "cobranca"]}],
+             question=None, message_hash=hashlib.sha256(b"mensagem de exemplo").hexdigest(),
+             catalog_hash=hashlib.sha256(b"catalogo de exemplo").hexdigest(), threshold_route=70, threshold_clarify=40,
+             rounds=1, decided_by=IDS["user"]),
         _doc("case_entry", "entry", case_id=IDS["case"], entry_type="nota_interna", direction=None, channel=None,
              author=IDS["agt_sup"], body="Cliente relatou site fora do ar desde a manha."),
         _doc("contact", "contact", display_name="Cliente Exemplo", status="ativo"),
