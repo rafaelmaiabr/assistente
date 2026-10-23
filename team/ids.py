@@ -7,7 +7,7 @@ PREFIXES = {
     "skill_definition": "skl", "skill_grant": "grt", "connection": "con", "case": "cas",
     "task": "tsk", "approval_request": "apr", "handoff": "hof", "evidence": "evd",
     "command": "cmd", "event": "evt",
-    "mcp_catalog_entry": "mcp", "agent_profile_version": "apv", "model_policy": "mpl", "case_entry": "ent", "job": "job", "capability": "cap", "outbound_message": "msg", "knowledge_document": "kdc", "monitored_asset": "ast", "financial_record": "fre", "email_message": "eml", "mailbox_cursor": "mbx", "memory_item": "mem", "triage_decision": "tri", "contact": "ctc", "contact_address": "adr", "contact_link": "lnk", "access_grant": "acl",
+    "mcp_catalog_entry": "mcp", "agent_profile_version": "apv", "model_policy": "mpl", "case_entry": "ent", "job": "job", "capability": "cap", "outbound_message": "msg", "knowledge_document": "kdc", "monitored_asset": "ast", "financial_record": "fre", "email_message": "eml", "schedule": "sch", "notification": "ntf", "mailbox_cursor": "mbx", "memory_item": "mem", "triage_decision": "tri", "contact": "ctc", "contact_address": "adr", "contact_link": "lnk", "access_grant": "acl",
     # not stored entities: correlation chains, credential vault entries, actors
     "correlation": "cor", "credential": "crd", "user": "usr", "system": "sys",
 }

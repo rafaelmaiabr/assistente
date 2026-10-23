@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "schedule",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "name",
+    "job_kind",
+    "payload",
+    "timezone",
+    "frequency",
+    "catch_up",
+    "max_runs_per_day",
+    "state",
+    "next_run_at",
+    "runs_today",
+    "overlaps",
+    "budget_skips",
+    "catchup_skipped",
+    "failures",
+    "opt_in",
+    "created_by",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "schedule"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^sch_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "job_kind": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "intervalo",
+        "diaria",
+        "semanal"
+      ]
+    },
+    "time_of_day": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "weekday": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "interval_minutes": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "catch_up": {
+      "type": "string",
+      "enum": [
+        "pular",
+        "uma_vez"
+      ]
+    },
+    "max_runs_per_day": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "pausado",
+        "desativado"
+      ]
+    },
+    "state_reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "next_run_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_run_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "last_job_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runs_day": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runs_today": {
+      "type": "integer"
+    },
+    "overlaps": {
+      "type": "integer"
+    },
+    "budget_skips": {
+      "type": "integer"
+    },
+    "catchup_skipped": {
+      "type": "integer"
+    },
+    "failures": {
+      "type": "integer"
+    },
+    "opt_in": {
+      "type": "boolean"
+    },
+    "created_by": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

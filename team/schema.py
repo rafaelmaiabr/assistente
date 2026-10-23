@@ -138,6 +138,17 @@ SCHEMAS = {
         "knowledge_document", department_id="ref:department?", doc_key="slug", version="posint", title="str", body="text",
         source="str", topic="slug?", status="enum:DocStatus", valid_until="ts?", published_by="actor",
         content_hash="sha256", suspicious="bool?"),
+    # An explicit, opt-in routine. It only enqueues jobs; it never grants a permission or an approval.
+    "schedule": _entity(
+        "schedule", name="str", job_kind="slug", payload="obj", timezone="str", frequency="enum:ScheduleFrequency",
+        time_of_day="str?", weekday="int?", interval_minutes="posint?", catch_up="enum:CatchUp", max_runs_per_day="posint",
+        state="enum:ScheduleState", state_reason="str?", next_run_at="ts", last_run_at="ts?", last_job_id="str?",
+        runs_day="str?", runs_today="int", overlaps="int", budget_skips="int", catchup_skipped="int", failures="int",
+        opt_in="bool", created_by="actor"),
+    # An alert for the operator. Repeats inside the cool-down raise the counter instead of creating noise.
+    "notification": _entity(
+        "notification", severity="enum:NotifySeverity", topic="slug", dedupe_key="str", message="text", subject_ref="str?",
+        state="enum:NotifyState", count="posint", last_seen_at="ts"),
     # One mailbox folder bound to a department. The cursor is (UIDVALIDITY, last UID); a new UIDVALIDITY resets it.
     "mailbox_cursor": _entity("mailbox_cursor", connection_id="ref:connection", department_id="ref:department", folder="str",
                               uidvalidity="posint?", last_uid="int", resets="int", status="enum:Status"),
@@ -411,11 +422,35 @@ def _rule_financial(doc):
     return errors
 
 
+_CLOCK = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _rule_schedule(doc):
+    errors, frequency = [], doc["frequency"]
+    if doc["opt_in"] is not True:
+        errors.append("$.opt_in: a rotina precisa ser ativada explicitamente")
+    if frequency == "intervalo":
+        if doc["interval_minutes"] is None or not 5 <= doc["interval_minutes"] <= 10080:
+            errors.append("$.interval_minutes: de 5 a 10080 minutos")
+        if doc["time_of_day"] is not None or doc["weekday"] is not None:
+            errors.append("$.time_of_day: intervalo nao usa horario nem dia da semana")
+    else:
+        if doc["time_of_day"] is None or not _CLOCK.match(doc["time_of_day"]):
+            errors.append("$.time_of_day: use HH:MM")
+        if doc["interval_minutes"] is not None:
+            errors.append("$.interval_minutes: so para frequencia intervalo")
+        if (frequency == "semanal") != (doc["weekday"] is not None) or (doc["weekday"] is not None and not 0 <= doc["weekday"] <= 6):
+            errors.append("$.weekday: 0 (segunda) a 6, obrigatorio so na frequencia semanal")
+    if doc["max_runs_per_day"] > 1440:
+        errors.append("$.max_runs_per_day: no maximo 1440")
+    return errors
+
+
 def _rule_asset(doc):
     return [] if _HOSTNAME.match(doc["hostname"]) else ["$.hostname: use um nome DNS minusculo (ex.: exemplo.com.br)"]
 
 
-_RULES = {"financial_record": _rule_financial, "monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+_RULES = {"schedule": _rule_schedule, "financial_record": _rule_financial, "monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 
