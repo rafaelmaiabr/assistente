@@ -28,7 +28,8 @@ OPERATIONS = ("read", "write", "send", "spend")
 CONNECTION_KINDS = ("mcp", "imap", "smtp", "http", "outro")
 MCP_TRANSPORTS = ("http", "sse", "stdio", "local")
 STATUSES = ("ativo", "inativo")
-CREDENTIAL_STORES = ("cofre-local", "elevenlabs-legado")
+CREDENTIAL_STORES = ("cofre-local", "elevenlabs-legado", "oauth")
+OAUTH_STATES = ("conectada", "revogada", "expirada", "erro")
 CREDENTIAL_STATES = ("ativa", "revogada")
 ROUTING_POLICIES = ("encaminhar", "esclarecer")
 RISK_TAGS = ("dados_pessoais", "dados_financeiros", "leitura_email", "envio_externo", "pagamento", "alteracao_dominio")
@@ -72,7 +73,7 @@ ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "ScheduleFrequency": SCHEDULE_FREQUENCIES, "CatchUp": CATCH_UP_POLICIES, "ScheduleState": SCHEDULE_STATES,
+    "Status": STATUSES, "OAuthState": OAUTH_STATES, "ScheduleFrequency": SCHEDULE_FREQUENCIES, "CatchUp": CATCH_UP_POLICIES, "ScheduleState": SCHEDULE_STATES,
     "NotifySeverity": NOTIFY_SEVERITIES, "NotifyState": NOTIFY_STATES, "EmailClass": EMAIL_CLASSES, "IdentityState": IDENTITY_STATES, "RecordKind": RECORD_KINDS, "RecordOrigin": RECORD_ORIGINS, "DocStatus": DOC_STATUSES, "MemoryScope": MEMORY_SCOPES, "MemoryKind": MEMORY_KINDS,
     "MemoryState": MEMORY_STATES, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,

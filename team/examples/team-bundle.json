@@ -528,6 +528,40 @@
     "updated_at": "2026-01-15T12:00:00Z"
   },
   {
+    "kind": "oauth_app",
+    "schema_version": 1,
+    "id": "oap_00000000000000000000000000000028",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "provider": "google",
+    "client_id": "exemplo.apps.googleusercontent.com",
+    "secret_ref": "oauth-app-google",
+    "label": "Aplicativo de exemplo",
+    "status": "ativo",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "oauth_grant",
+    "schema_version": 1,
+    "id": "oag_00000000000000000000000000000029",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "connection_id": "con_00000000000000000000000000000008",
+    "app_id": "oap_00000000000000000000000000000028",
+    "provider": "google",
+    "account": "atendimento@exemplo.invalid",
+    "scopes": [
+      "https://mail.google.com/"
+    ],
+    "state": "conectada",
+    "granted_at": "2026-01-15T12:00:00Z",
+    "refreshed_at": null,
+    "error_code": null,
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
     "kind": "schedule",
     "schema_version": 1,
     "id": "sch_00000000000000000000000000000026",
@@ -663,7 +697,7 @@
   {
     "kind": "memory_item",
     "schema_version": 1,
-    "id": "mem_00000000000000000000000000000028",
+    "id": "mem_0000000000000000000000000000002a",
     "tenant_id": "ten_00000000000000000000000000000001",
     "scope": "cliente",
     "department_id": null,

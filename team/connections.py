@@ -111,6 +111,7 @@ class ConnectionService:
         self.repository, self.access, self.vault, self.launchers = repository, access, vault, launchers
         self.legacy_elevenlabs = legacy_elevenlabs
         self._connectors = set()
+        self.token_resolvers = {}  # credential store -> callable(tenant_id, connection_id) -> short-lived secret (OAuth access token)
 
     # -- trusted wiring (backend code, never LLM input) --------------------------------------------
     def register_connector(self, provider):
@@ -235,7 +236,7 @@ class ConnectionService:
             session.save({**credential, "state": "revogada", "revision": credential["revision"] + 1,
                           "updated_at": _now()})
             view = self._view(session, connection)
-        if credential["store"] == "cofre-local":
+        if credential["store"] in ("cofre-local", "oauth"):
             try:
                 self.vault.delete(ctx.tenant_id, credential["id"])
             except VaultError:
@@ -250,7 +251,7 @@ class ConnectionService:
             connection, credential = self._locate(session, connection_id)
         if credential is None:
             raise ConnectionRejected("A conexao nao tem credencial.")
-        if credential["store"] == "cofre-local":
+        if credential["store"] in ("cofre-local", "oauth"):
             try:
                 self.vault.delete(ctx.tenant_id, credential["id"])
             except VaultError as error:
@@ -302,6 +303,9 @@ class ConnectionService:
             return None  # a connection that needs no credential
         if credential is None or credential["state"] != "ativa":
             raise CredentialError("Credencial indisponivel ou revogada.")
+        resolver = self.token_resolvers.get(credential["store"])
+        if resolver is not None:  # the stored secret is a refresh token; connectors get a fresh access token instead
+            return resolver(ctx.tenant_id, connection_id)
         secret = self._read_secret(ctx.tenant_id, credential)
         if secret is None:
             raise CredentialError("Credencial indisponivel ou revogada.")
@@ -325,7 +329,7 @@ class ConnectionService:
     async def use_credential_async(self, ctx, connection_id, connector, fn, optional=False):
         """Async twin used by the tool gateway; ``optional`` lets credential-less connections proceed.
         Cancellation and timeouts pass through untouched so callers can handle them."""
-        secret = self._authorized_secret(ctx, connection_id, connector, optional)
+        secret = await asyncio.to_thread(self._authorized_secret, ctx, connection_id, connector, optional)  # may refresh a token
         try:
             result = await fn(secret)
         except asyncio.CancelledError:

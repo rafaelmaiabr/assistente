@@ -1,4 +1,5 @@
 """A tiny fake IMAP server for tests: it records every command it receives and can only read."""
+import base64
 import re
 import socket
 import socketserver
@@ -23,6 +24,7 @@ class FakeImap(socketserver.ThreadingTCPServer):
         self.folders = folders  # {"INBOX": {"validity": 11, "messages": {uid: raw_bytes}}}
         self.user, self.password = user, password
         self.log, self.seen, self.delay = [], set(), 0
+        self.oauth_tokens = set()  # access tokens accepted by AUTHENTICATE XOAUTH2
         self.thread = threading.Thread(target=self.serve_forever, daemon=True)
         self.thread.start()
 
@@ -91,6 +93,16 @@ class Handler(socketserver.StreamRequestHandler):
                 user, password = (tokens(args) + ["", ""])[:2]
                 authenticated = (user, password) == (server.user, server.password)
                 self.send(f"{tag} OK logged in\r\n" if authenticated else f"{tag} NO [AUTHENTICATIONFAILED] bad credentials\r\n")
+            elif command == "AUTHENTICATE":
+                if args.split()[:1] != ["XOAUTH2"]:
+                    self.send(f"{tag} NO mecanismo nao suportado\r\n")
+                    continue
+                self.send("+ \r\n")
+                answer = base64.b64decode(self.rfile.readline().strip() or b"").decode("utf-8", "replace")
+                fields = dict(part.split("=", 1) for part in answer.split("\x01") if "=" in part)
+                token = fields.get("auth", "").removeprefix("Bearer ")
+                authenticated = fields.get("user") == server.user and token in server.oauth_tokens
+                self.send(f"{tag} OK autenticado\r\n" if authenticated else f"{tag} NO [AUTHENTICATIONFAILED] token invalido\r\n")
             elif command == "LOGOUT":
                 self.send(f"* BYE bye\r\n{tag} OK done\r\n")
                 return
