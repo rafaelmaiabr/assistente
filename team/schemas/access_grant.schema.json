@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "access_grant",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "principal_id",
+    "resource_kind",
+    "actions",
+    "granted_by",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "access_grant"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^acl_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "principal_id": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "resource_kind": {
+      "type": "string",
+      "enum": [
+        "department",
+        "agent_definition",
+        "agent_run",
+        "skill_grant",
+        "connection",
+        "case",
+        "task",
+        "approval_request",
+        "handoff",
+        "evidence",
+        "contact",
+        "contact_address",
+        "contact_link",
+        "event"
+      ]
+    },
+    "resource_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write",
+          "relate",
+          "export"
+        ]
+      }
+    },
+    "granted_by": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -8,7 +8,10 @@ import os
 from pathlib import Path
 
 from .db import MigrationError
+from .access import AccessService
+from .ids import is_id, new_id
 from .repository import SqliteRepository
+from .service import TeamService
 
 DIRECTORY = "team-data"
 DATABASE = "team.sqlite3"
@@ -59,3 +62,26 @@ def _write(root, enabled) -> dict:
     temp.write_text(json.dumps({"enabled": enabled}), encoding="utf-8")
     os.replace(temp, folder / FLAG)
     return status(root)
+
+
+def operator_id(root) -> str:
+    """Stable id of the single trusted local operator, created on first use."""
+    path = data_dir(root) / "operator.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8")).get("operator_id")
+        if is_id(value, "usr"):
+            return value
+    except (OSError, ValueError, AttributeError):
+        pass
+    value = new_id("user")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps({"operator_id": value}), encoding="utf-8")
+    os.replace(temp, path)
+    return value
+
+
+def team_service(root) -> TeamService:
+    """Service over the (already migrated) local database; the backend creates contexts from it."""
+    repo = repository(root)
+    return TeamService(repo, AccessService(repo, operator_id(root)))

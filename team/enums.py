@@ -27,12 +27,23 @@ OPERATIONS = ("read", "write", "send", "spend")
 CONNECTION_KINDS = ("mcp", "imap", "smtp", "http", "outro")
 MCP_TRANSPORTS = ("http", "sse", "stdio")
 STATUSES = ("ativo", "inativo")
+CHANNELS = ("email", "telefone")
+# observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
+LINK_STATES = ("observado", "vinculado")
+RELATIONS = ("cliente", "fornecedor", "interno", "outro")
+ACCESS_ACTIONS = ("read", "write", "relate", "export")
+# Recursos que uma concessao pode alcancar (empresa e a propria concessao nunca sao concediveis a agentes).
+RESOURCE_KINDS = (
+    "department", "agent_definition", "agent_run", "skill_grant", "connection", "case", "task",
+    "approval_request", "handoff", "evidence", "contact", "contact_address", "contact_link", "event",
+)
 
 ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES,
+    "Status": STATUSES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
+    "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }
 
 

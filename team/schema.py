@@ -90,6 +90,17 @@ SCHEMAS = {
     "evidence": _entity(
         "evidence", case_id="ref:case", source="str", collected_at="ts", summary="text",
         content_hash="sha256?"),
+    # Contacts: a person's identity is separate from the addresses seen or linked to them.
+    "contact": _entity("contact", display_name="str", status="enum:Status"),
+    "contact_address": _entity(
+        "contact_address", contact_id="ref:contact?", channel="enum:Channel", address="str",
+        link_state="enum:LinkState"),
+    "contact_link": _entity(
+        "contact_link", contact_id="ref:contact", department_id="ref:department", relation="enum:Relation"),
+    # Default-deny: an agent or operator reaches a resource only through an explicit grant.
+    "access_grant": _entity(
+        "access_grant", principal_id="actor", resource_kind="enum:ResourceKind", resource_id="str?",
+        actions="list:enum:AccessAction", granted_by="actor", expires_at="ts?"),
     # Envelopes. ``case_id`` may be null only for configuration messages (type "config.*").
     "command": _entity(
         "command", envelope=True, type="slug", case_id="ref:case?", task_id="ref:task?",
@@ -201,6 +212,27 @@ def find_secrets(value, path="$"):
     return found
 
 
+def _rule_address(doc):
+    linked = doc["link_state"] == "vinculado"
+    if linked != (doc["contact_id"] is not None):
+        return ["$.contact_id: obrigatorio se vinculado e proibido se observado"]
+    value = doc["address"]
+    if doc["channel"] == "email" and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+        return ["$.address: email invalido"]
+    if doc["channel"] == "telefone" and not re.fullmatch(r"\+?[0-9 ()-]{6,20}", value):
+        return ["$.address: telefone invalido"]
+    return []
+
+
+def _rule_grant(doc):
+    if doc["resource_id"] is not None and not is_id(doc["resource_id"], PREFIXES[doc["resource_kind"]]):
+        return ["$.resource_id: deve ser um id opaco do tipo do recurso ou nulo (todos da empresa)"]
+    return [] if doc["actions"] else ["$.actions: informe ao menos uma acao"]
+
+
+_RULES = {"contact_address": _rule_address, "access_grant": _rule_grant}
+
+
 def validate(kind, doc):
     """Return ``doc`` when valid; raise ContractError otherwise (no mutation, no I/O)."""
     if kind not in SCHEMAS:
@@ -220,6 +252,8 @@ def validate(kind, doc):
     if kind in ("command", "event") and doc.get("case_id") is None \
             and not str(doc.get("type", "")).startswith("config."):
         errors.append("$.case_id: obrigatorio exceto em mensagens config.*")
+    if not errors and kind in _RULES:
+        errors += _RULES[kind](doc)
     if errors:
         raise ContractError(errors)
     return doc

@@ -7,7 +7,8 @@ _NAMES = [
     ("tenant", "ten"), ("dep_fin", "dep"), ("dep_sup", "dep"), ("agt_fin", "agt"), ("agt_sup", "agt"),
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
-    ("event", "evt"), ("corr", "cor"), ("user", "usr"),
+    ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -68,6 +69,14 @@ def bundle():
              expires_at=None),
         _doc("evidence", "evidence", case_id=IDS["case"], source="consulta DNS sintetica",
              collected_at=NOW, summary="Sem registro A para o dominio de exemplo", content_hash=None),
+        _doc("contact", "contact", display_name="Cliente Exemplo", status="ativo"),
+        _doc("contact_address", "address", contact_id=IDS["contact"], channel="email",
+             address="cliente@exemplo.invalid", link_state="vinculado"),
+        _doc("contact_address", "observed", contact_id=None, channel="email",
+             address="remetente@exemplo.invalid", link_state="observado"),
+        _doc("contact_link", "link", contact_id=IDS["contact"], department_id=IDS["dep_sup"], relation="cliente"),
+        _doc("access_grant", "acl", principal_id=IDS["agt_fin"], resource_kind="case", resource_id=IDS["case"],
+             actions=["read"], granted_by=IDS["user"], expires_at=None),
         _doc("command", "command", stamped=False, type="case.delegate-task", case_id=IDS["case"],
              task_id=IDS["task"], correlation_id=IDS["corr"], causation_id=None, actor_id=IDS["agt_sup"],
              expected_revision=1, idempotency_key="cmd-exemplo-1", issued_at=NOW,

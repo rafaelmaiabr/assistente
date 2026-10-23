@@ -7,6 +7,7 @@ PREFIXES = {
     "skill_definition": "skl", "skill_grant": "grt", "connection": "con", "case": "cas",
     "task": "tsk", "approval_request": "apr", "handoff": "hof", "evidence": "evd",
     "command": "cmd", "event": "evt",
+    "contact": "ctc", "contact_address": "adr", "contact_link": "lnk", "access_grant": "acl",
     # not stored entities: correlation chains, credential vault entries, actors
     "correlation": "cor", "credential": "crd", "user": "usr", "system": "sys",
 }
