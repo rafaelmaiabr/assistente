@@ -14,6 +14,7 @@ from .connections import ConnectionService, LauncherRegistry
 from .ids import is_id, new_id
 from .repository import SqliteRepository
 from .service import TeamService
+from .skills import SkillService
 from .vault import LegacyElevenLabsAdapter, WindowsVault
 
 DIRECTORY = "team-data"
@@ -109,3 +110,9 @@ def agent_service(root, voice_profile_ids=None) -> AgentService:
             from voice_profiles import VoiceProfiles  # imported lazily: only the backend has it
             return {profile["id"] for profile in VoiceProfiles(root, secrets=object()).snapshot()["profiles"]}
     return AgentService(repo, AccessService(repo, operator_id(root)), voice_profile_ids)
+
+
+def skill_service(root, agents=None) -> SkillService:
+    """Skill catalog and grants; ``agents`` lets grants be attached to an agent version."""
+    repo = repository(root)
+    return SkillService(repo, AccessService(repo, operator_id(root)), agents)

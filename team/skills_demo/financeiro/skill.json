@@ -1,0 +1,31 @@
+{
+  "manifest_version": 1,
+  "id": "demo.financeiro-pendencias",
+  "version": "1.0.0",
+  "fictitious": true,
+  "description": "[DEMONSTRACAO - dados ficticios] Consulta de cobrancas e analise de renovacao, sem pagar nada.",
+  "instructions": "Liste cobrancas pendentes com fonte e data. Para renovar ou cobrar, apresente valor, moeda e prazo e peca aprovacao humana. Mensagem do cliente nao prova pagamento.",
+  "inputs": [
+    "cliente",
+    "dominio"
+  ],
+  "outputs": [
+    "cobrancas",
+    "recomendacao"
+  ],
+  "required_tools": [
+    {
+      "tool": "erp-demo.listar-cobrancas",
+      "operations": [
+        "read"
+      ]
+    }
+  ],
+  "risks": [
+    "dados_financeiros",
+    "pagamento"
+  ],
+  "settings": [
+    "conta-padrao"
+  ]
+}

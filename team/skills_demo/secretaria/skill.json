@@ -1,0 +1,21 @@
+{
+  "manifest_version": 1,
+  "id": "demo.secretaria-triagem",
+  "version": "1.0.0",
+  "fictitious": true,
+  "description": "[DEMONSTRACAO - dados ficticios] Triagem de pedidos e roteamento por capacidade.",
+  "instructions": "Classifique o pedido, identifique o departamento responsavel e, se faltar informacao, pergunte uma coisa de cada vez. Nao responda ao cliente em nome de outro agente.",
+  "inputs": [
+    "pedido",
+    "contexto-da-demanda"
+  ],
+  "outputs": [
+    "departamento-sugerido",
+    "pergunta-de-esclarecimento"
+  ],
+  "required_tools": [],
+  "risks": [
+    "dados_pessoais"
+  ],
+  "settings": []
+}

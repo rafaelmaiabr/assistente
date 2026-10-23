@@ -70,11 +70,12 @@ SCHEMAS = {
     "skill_definition": _entity(
         "skill_definition", tenant=False, skill_key="slug", skill_version="semver", content_hash="sha256",
         instructions="text", required_tools="list:slug", operations="list:enum:Operation",
-        status="enum:Status"),
+        status="enum:Status", description="text?", inputs="list:slug?", outputs="list:slug?",
+        risks="list:enum:RiskTag?", settings="list:slug?", tool_operations="obj?", fictitious="bool?"),
     "skill_grant": _entity(
         "skill_grant", agent_id="ref:agent_definition", skill_id="ref:skill_definition",
         skill_version="semver", connection_id="ref:connection?", operations="list:enum:Operation",
-        resource="str?", expires_at="ts?", granted_by="actor"),
+        resource="str?", expires_at="ts?", granted_by="actor", revoked_at="ts?"),
     "connection": _entity(
         "connection", label="str", provider="slug", connection_kind="enum:ConnectionKind",
         transport="enum:McpTransport?", endpoint="url?", credential_ref="ref:credential?",
