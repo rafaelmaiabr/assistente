@@ -9,9 +9,11 @@ from pathlib import Path
 
 from .db import MigrationError
 from .access import AccessService
+from .connections import ConnectionService, LauncherRegistry
 from .ids import is_id, new_id
 from .repository import SqliteRepository
 from .service import TeamService
+from .vault import LegacyElevenLabsAdapter, WindowsVault
 
 DIRECTORY = "team-data"
 DATABASE = "team.sqlite3"
@@ -85,3 +87,14 @@ def team_service(root) -> TeamService:
     """Service over the (already migrated) local database; the backend creates contexts from it."""
     repo = repository(root)
     return TeamService(repo, AccessService(repo, operator_id(root)))
+
+
+def connection_service(root, vault=None, legacy_elevenlabs=None) -> ConnectionService:
+    """Connections over the Windows vault; the voice key is reused through a read-only adapter."""
+    repo = repository(root)
+    access = AccessService(repo, operator_id(root))
+    if legacy_elevenlabs is None:
+        from voice_profiles import WindowsSecrets  # imported lazily: only the backend has it
+        legacy_elevenlabs = LegacyElevenLabsAdapter(WindowsSecrets(root))
+    launchers = LauncherRegistry(data_dir(root) / "launchers.json", access.operator_id)
+    return ConnectionService(repo, access, vault or WindowsVault(root), launchers, legacy_elevenlabs)

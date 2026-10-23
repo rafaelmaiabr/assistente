@@ -20,11 +20,12 @@ TABLES = {
     "connection": "connections", "case": "cases", "task": "tasks", "approval_request": "approval_requests",
     "handoff": "handoffs", "evidence": "evidences", "contact": "contacts",
     "contact_address": "contact_addresses", "contact_link": "contact_links", "access_grant": "access_grants",
+    "credential": "credentials", "mcp_catalog_entry": "mcp_catalog",
 }
 # Lookup columns that are not plain references; ``address_key`` is derived (see column_value).
 EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal_id", "resource_kind"]}
-DELETABLE = ("contact_address", "contact_link", "access_grant")
-GLOBAL_KINDS = ("tenant", "skill_definition")
+DELETABLE = ("contact_address", "contact_link", "access_grant", "credential")
+GLOBAL_KINDS = ("tenant", "skill_definition", "mcp_catalog_entry")
 MAX_LIST = 1000
 
 
@@ -271,7 +272,8 @@ class SqliteRepository(Repository):
     def _save_global(self, doc, kind):
         validate(kind, doc)
         table = TABLES[kind]
-        extra = {"skill_definition": ("skill_key", "skill_version")}.get(kind, ())
+        extra = {"skill_definition": ("skill_key", "skill_version"),
+                 "mcp_catalog_entry": ("catalog_key", "entry_version")}.get(kind, ())
         names = ["id", "revision", "created_at", "updated_at", *extra, "doc"]
         values = [doc["id"], doc["revision"], doc["created_at"], doc["updated_at"], *(doc[n] for n in extra), _dump(doc)]
         with self._transaction() as conn:
@@ -292,9 +294,9 @@ class SqliteRepository(Repository):
         return self._save_global(doc, "tenant")
 
     def save_global(self, doc):
-        if doc.get("kind") != "skill_definition":
-            raise RepositoryError("somente skill_definition e global")
-        return self._save_global(doc, "skill_definition")
+        if doc.get("kind") not in ("skill_definition", "mcp_catalog_entry"):
+            raise RepositoryError("tipo nao e um catalogo global")
+        return self._save_global(doc, doc["kind"])
 
     def get_global(self, kind, doc_id):
         if kind not in GLOBAL_KINDS:

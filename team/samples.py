@@ -8,7 +8,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -33,9 +33,14 @@ def bundle():
              skill_version="1.0.0", content_hash=hashlib.sha256(b"exemplo").hexdigest(),
              instructions="Consultar pendencias financeiras e resumir com fontes.",
              required_tools=["listar-cobrancas"], operations=["read"], status="ativo"),
+        _doc("mcp_catalog_entry", "mcpentry", tenant=False, catalog_key="erp-exemplo", entry_version="1.0.0",
+             transport="http", url="http://127.0.0.1:9000/mcp", launcher=None, tools=["listar-cobrancas"],
+             approved_by=IDS["user"], status="ativo"),
+        _doc("credential", "cred", label="Credencial do ERP de exemplo", store="cofre-local", state="ativa"),
         _doc("connection", "conn", label="ERP de exemplo (MCP)", provider="erp-exemplo",
              connection_kind="mcp", transport="http", endpoint="http://127.0.0.1:9000/mcp",
-             credential_ref=IDS["cred"], status="ativo"),
+             credential_ref=IDS["cred"], catalog_entry_id=IDS["mcpentry"], scopes=["cobrancas.read"],
+             status="ativo"),
         _doc("skill_grant", "grant", agent_id=IDS["agt_fin"], skill_id=IDS["skill"], skill_version="1.0.0",
              connection_id=IDS["conn"], operations=["read"], resource="cobrancas", expires_at=None,
              granted_by=IDS["user"]),

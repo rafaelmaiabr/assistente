@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from .access import AccessContext, AccessError, NotFound, OperatorContext, PermissionDenied
 from .ids import new_id
-from .repository import DELETABLE, TABLES, IntegrityViolation, RevisionConflict, address_key
+from .repository import DELETABLE, GLOBAL_KINDS, TABLES, IntegrityViolation, RevisionConflict, address_key
 from .schema import SCHEMAS
 
 SERVICE_KINDS = ("department", "contact", "contact_address", "contact_link", "access_grant")
@@ -197,7 +197,7 @@ class TeamService:
         documents = []
         with self.repository.transaction(ctx.tenant_id) as session:
             for kind in TABLES:
-                if kind in ("tenant", "skill_definition"):
+                if kind in GLOBAL_KINDS:
                     continue
                 for doc in session.list(kind, limit=1000):
                     if kind == "access_grant" and ctx.role != "operator":
