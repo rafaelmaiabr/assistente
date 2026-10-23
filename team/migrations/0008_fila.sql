@@ -1,0 +1,44 @@
+-- 0008: fila duravel de jobs (claim por lease, tentativas, checkpoint) e deduplicacao de consumidores.
+CREATE TABLE jobs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  kind TEXT NOT NULL,
+  case_id TEXT,
+  run_id TEXT,
+  parent_job_id TEXT,
+  idempotency_key TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN
+    ('pendente', 'em_execucao', 'concluido', 'falhou', 'pausado', 'cancelado', 'esgotado', 'reconciliar')),
+  priority INTEGER NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL CHECK (max_attempts >= 1),
+  available_at_ms INTEGER NOT NULL,
+  lease_owner TEXT,
+  lease_expires_ms INTEGER,
+  heartbeat_ms INTEGER,
+  control TEXT CHECK (control IS NULL OR control IN ('pausar', 'cancelar')),
+  payload TEXT NOT NULL CHECK (json_valid(payload)),
+  checkpoint TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(checkpoint)),
+  result TEXT CHECK (result IS NULL OR json_valid(result)),
+  budget TEXT CHECK (budget IS NULL OR json_valid(budget)),
+  last_error TEXT,
+  created_ms INTEGER NOT NULL,
+  updated_ms INTEGER NOT NULL,
+  UNIQUE (tenant_id, id),
+  UNIQUE (tenant_id, idempotency_key),
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id),
+  FOREIGN KEY (tenant_id, run_id) REFERENCES agent_runs(tenant_id, id),
+  FOREIGN KEY (tenant_id, parent_job_id) REFERENCES jobs(tenant_id, id)
+);
+-- No maximo uma execucao ativa por demanda, garantido pelo banco.
+CREATE UNIQUE INDEX jobs_one_active_per_case ON jobs (tenant_id, case_id)
+  WHERE state = 'em_execucao' AND case_id IS NOT NULL;
+CREATE INDEX jobs_claimable ON jobs (state, available_at_ms, priority);
+CREATE INDEX jobs_by_parent ON jobs (tenant_id, parent_job_id);
+
+CREATE TABLE processed_events (
+  consumer TEXT NOT NULL,
+  event_id TEXT NOT NULL,
+  processed_ms INTEGER NOT NULL,
+  PRIMARY KEY (consumer, event_id)
+);

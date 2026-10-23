@@ -11,6 +11,7 @@ from .db import MigrationError
 from .access import AccessService
 from .agents import AgentService
 from .gateway import Gateway
+from .jobs import JobQueue
 from .llm import ModelPolicyService
 from .runtime import AgentRuntime
 from .connections import ConnectionService, LauncherRegistry
@@ -141,3 +142,9 @@ def build_runtime(root, config, transports=None, client_factory=None, vault=None
     gateway = Gateway(repo, access, skills, connections, transports or {})
     return AgentRuntime(repo, access, agents, skills, gateway, policies, config, client_factory=client_factory,
                         connections=connections)
+
+
+def job_queue(root) -> JobQueue:
+    """Durable job queue on the local database (no worker is started by the application yet)."""
+    repo = repository(root)
+    return JobQueue(repo, AccessService(repo, operator_id(root)))
