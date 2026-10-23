@@ -106,7 +106,9 @@ SCHEMAS = {
         "handoff", case_id="ref:case", task_id="ref:task?", handoff_kind="enum:HandoffKind",
         from_agent_id="ref:agent_definition", to_agent_id="ref:agent_definition", reason="text",
         context_summary="text", sources="list:str", state="enum:HandoffState", idempotency_key="str",
-        expected_case_revision="posint", return_requested="bool", expires_at="ts?"),
+        expected_case_revision="posint", return_requested="bool", expires_at="ts?",
+        objective="text?", expected_result="text?", evidence_ids="list:ref:evidence?", return_to="ref:agent_definition?",
+        attention="bool?", resolution="text?"),
     "evidence": _entity(
         "evidence", case_id="ref:case", source="str", collected_at="ts", summary="text",
         content_hash="sha256?", evidence_type="enum:EvidenceType?", reliability="enum:Reliability?",

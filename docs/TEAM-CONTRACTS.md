@@ -32,6 +32,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Gateway (T07).** `mcp_catalog_entry` ganhou `tool_specs` (classificação e regras de argumentos por ferramenta, definidas pelo operador). Detalhes em [TEAM-GATEWAY.md](TEAM-GATEWAY.md).
 - **Políticas de modelo (T08).** `model_policy` (modelos, regras de roteamento, fallbacks, limites; provedor externo desligado por padrão). Detalhes em [TEAM-RUNTIME.md](TEAM-RUNTIME.md).
 - **Demandas (T09).** `case` ganhou `priority` e `origin` (opcionais) e a regra de responsável único após a triagem; `evidence` ganhou tipo, confiabilidade e autor; novo `case_entry` (histórico somente de acréscimo). Detalhes em [TEAM-CASES.md](TEAM-CASES.md).
+- **Encaminhamentos (T11).** `handoff` ganhou envelope (`objective`, `expected_result`, `evidence_ids`, `return_to`), `attention` e `resolution` (opcionais). Detalhes em [TEAM-HANDOFFS.md](TEAM-HANDOFFS.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

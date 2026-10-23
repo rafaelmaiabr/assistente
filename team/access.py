@@ -91,8 +91,14 @@ class AccessService:
             return kind in RESOURCE_KINDS or kind == "access_grant"
         if kind not in RESOURCE_KINDS:
             return False
+        return self.principal_allowed(session, ctx.principal_id, action, kind, resource_id)
+
+    def principal_allowed(self, session, principal_id, action, kind, resource_id=None) -> bool:
+        """Grant lookup for a principal that is not the caller (for example the recipient of a handoff)."""
+        if kind not in RESOURCE_KINDS:
+            return False
         now = datetime.now(timezone.utc)
-        for grant in session.list("access_grant", principal_id=ctx.principal_id, resource_kind=kind, limit=1000):
+        for grant in session.list("access_grant", principal_id=principal_id, resource_kind=kind, limit=1000):
             if action in grant["actions"] and _not_expired(grant, now) and (
                     grant["resource_id"] is None or grant["resource_id"] == resource_id):
                 return True
