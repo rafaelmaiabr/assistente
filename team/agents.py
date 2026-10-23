@@ -110,6 +110,25 @@ class AgentService:
         if not isinstance(ctx, AccessContext) or ctx.role != "operator":
             raise PermissionDenied()
 
+    def validate(self, ctx, *, agent_id=None, **fields):
+        """Dry run for a form: apply the same checks as publishing, without saving anything."""
+        self._operator(ctx)
+        with self.repository.transaction(ctx.tenant_id) as session:
+            base = {}
+            if agent_id is not None:
+                base = session.get("agent_definition", agent_id)
+                if base is None:
+                    raise NotFound()
+            now = _now()
+            doc = {"kind": "agent_definition", "schema_version": 1, "id": agent_id or new_id("agent_definition"),
+                   "tenant_id": ctx.tenant_id, "revision": 1, "created_at": now, "updated_at": now,
+                   "agent_version": 1, "routing_policy": "encaminhar", "voice_profile_ref": None, "status": "ativo",
+                   "skill_grant_ids": [], "handoff_target_ids": [], "capabilities": [], "goals": [], **base, **fields}
+            self._check(session, doc)
+            from .schema import validate as validate_contract
+            validate_contract("agent_definition", doc)
+        return True
+
     # -- CRUD ------------------------------------------------------------------------------------------
     def create_agent(self, ctx, *, department_id, name, goals, personality, scope, out_of_scope, model_policy_ref,
                      routing_policy="encaminhar", voice_profile_ref=None, handoff_target_ids=(), skill_grant_ids=(),

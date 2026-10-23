@@ -1,0 +1,91 @@
+import React, {useCallback, useEffect, useState} from 'react';
+import {api} from './api.js';
+import {describeError} from './model.js';
+import {Notice, useList} from './shared.jsx';
+import {PersistenceSettings} from '../PersistenceSettings.jsx';
+import {AgentsSection} from './AgentsSection.jsx';
+import {SkillsSection} from './SkillsSection.jsx';
+import {ConnectionsSection} from './ConnectionsSection.jsx';
+
+const TABS = [['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões']];
+
+function Departments({base}) {
+  const {data, error, reload} = useList(`${base}/departments`);
+  const [form, setForm] = useState({name: '', scope: ''}), [message, setMessage] = useState({}), [busy, setBusy] = useState(false);
+  const run = async (action, ok) => {
+    setBusy(true); setMessage({});
+    try {await action(); setMessage({ok}); await reload();} catch (e) {setMessage({error: describeError(e)});}
+    finally {setBusy(false);}
+  };
+  return <section aria-labelledby="dep-title">
+    <h2 id="dep-title">Departamentos</h2>
+    <Notice error={error || message.error} ok={message.ok}/>
+    <ul className="team-list">
+      {data.map(d => <li key={d.id}><div><strong>{d.name}</strong> <span className={`badge ${d.status === 'ativo' ? '' : 'off'}`}>{d.status}</span><p>{d.scope}</p></div>
+        <button disabled={busy} onClick={() => run(() => api.patch(`${base}/departments/${d.id}`, {status: d.status === 'ativo' ? 'inativo' : 'ativo', expected_revision: d.revision}),
+          d.status === 'ativo' ? 'Departamento desativado.' : 'Departamento reativado.')}>{d.status === 'ativo' ? 'Desativar' : 'Reativar'}</button></li>)}
+      {!data.length && <li className="team-empty">Nenhum departamento ainda.</li>}
+    </ul>
+    <form className="team-form" onSubmit={e => {e.preventDefault(); run(async () => {await api.post(`${base}/departments`, form); setForm({name: '', scope: ''});}, 'Departamento criado.');}}>
+      <h3>Novo departamento</h3>
+      <label>Nome<input required maxLength={120} value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
+      <label>O que ele cuida<input required maxLength={500} value={form.scope} onChange={e => setForm({...form, scope: e.target.value})}/></label>
+      <button type="submit" disabled={busy}>Criar departamento</button>
+    </form>
+  </section>;
+}
+
+export function TeamPanel({onOpenMenu}) {
+  const [overview, setOverview] = useState(null), [error, setError] = useState(''), [companyId, setCompanyId] = useState('');
+  const [tab, setTab] = useState('departments'), [name, setName] = useState(''), [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    try {const data = await api.get('/state'); setOverview(data); setError('');
+      setCompanyId(current => data.companies.some(c => c.id === current) ? current : (data.companies[0]?.id || ''));}
+    catch (e) {setError(describeError(e));}
+  }, []);
+  useEffect(() => {void load();}, [load]);
+  const company = overview?.companies.find(c => c.id === companyId);
+  const base = company ? `/companies/${company.id}` : '';
+  const create = async e => {
+    e.preventDefault(); setBusy(true);
+    try {const created = await api.post('/companies', {name}); setName(''); await load(); setCompanyId(created.id); setError('');}
+    catch (err) {setError(describeError(err));} finally {setBusy(false);}
+  };
+  return <main className="team">
+    <header>
+      <div className="header-left"><button className="menu-button" aria-label="Abrir menu" onClick={onOpenMenu}>☰</button><span className="page-title">Equipe</span></div>
+      <div className="team-company" aria-live="polite">{company ? <>Empresa: <strong>{company.name}</strong></> : 'Nenhuma empresa selecionada'}</div>
+    </header>
+    <div className="team-body">
+      {overview && !overview.enabled && <section className="team-callout" aria-label="Atendimento persistente desligado">
+        <h2>Ative o atendimento persistente</h2>
+        <p>A equipe fica salva neste computador e é opcional. Ative abaixo; o chat continua funcionando sem isso.</p>
+        <PersistenceSettings/><button onClick={load}>Já ativei, recarregar</button>
+      </section>}
+      <Notice error={error}/>
+      {overview?.enabled && <>
+        <section className="team-company-bar" aria-label="Empresa">
+          <label>Empresa
+            <select value={companyId} onChange={e => setCompanyId(e.target.value)}>
+              {!overview.companies.length && <option value="">Crie uma empresa para começar</option>}
+              {overview.companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select></label>
+          <form onSubmit={create}><label>Nova empresa<input required maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Nome da empresa"/></label>
+            <button type="submit" disabled={busy}>Criar</button></form>
+          <p className="demo-note">Os dados de demonstração são fictícios. Nenhuma conta paga ou real é conectada automaticamente.</p>
+        </section>
+        {company ? <>
+          <div role="tablist" aria-label="Seções da equipe" className="team-tabs">
+            {TABS.map(([id, label]) => <button key={id} role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`}
+              className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}
+          </div>
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} key={company.id + tab}>
+            {tab === 'departments' && <Departments base={base}/>}
+            {tab === 'agents' && <AgentsSection base={base}/>}
+            {tab === 'skills' && <SkillsSection base={base}/>}
+            {tab === 'connections' && <ConnectionsSection base={base}/>}
+          </div></> : <p className="team-empty">Crie ou selecione uma empresa para configurar a equipe.</p>}
+      </>}
+    </div>
+  </main>;
+}

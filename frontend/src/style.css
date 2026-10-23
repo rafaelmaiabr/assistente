@@ -711,3 +711,55 @@ h1{
 .voice-settings input:not([type=checkbox]):not([type=range]),.voice-settings select{width:100%;min-width:0;border:1px solid #42554d;border-radius:8px;background:#101a16;color:#edf2ef;padding:10px;font:inherit}
 .voice-settings button,.voice-settings-button{border:1px solid #42554d;border-radius:8px;background:#23382e;color:#edf2ef;padding:9px 12px;cursor:pointer;font:inherit;font-size:13px}.voice-settings button:disabled{opacity:.45;cursor:default}
 .voice-settings-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.voice-settings .voice-consent{flex-direction:row;align-items:center;line-height:1.5}.voice-settings input[type=range]{width:100%;accent-color:#9ac6ac}.voice-settings input[type=checkbox]{accent-color:#9ac6ac}
+
+/* ---- Equipe (painel de configuração) ---- */
+button.nav-item{width:100%;background:transparent;border:0;color:inherit;text-align:left}
+button.nav-item:hover{background:#1f2129}
+button.nav-item.active{background:#23252e}
+.team{flex:1;display:flex;flex-direction:column;min-width:0;height:100dvh}
+.team-company{font-size:12px;color:#a8b1a2}
+.team-company strong{color:#e9e9ed}
+.team-body{flex:1;overflow:auto;padding:22px clamp(16px,4vw,48px) 60px;display:flex;flex-direction:column;gap:18px}
+.team h2{font-size:20px;margin:0 0 10px}
+.team h3{font-size:15px;margin:22px 0 8px}
+.team h4,.team h5{font-size:13px;margin:12px 0 6px}
+.team p{margin:6px 0;line-height:1.5}
+.team label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#a8b1a2}
+.team label.check{flex-direction:row;align-items:center;gap:8px;color:#d7e8cf}
+.team input:not([type=checkbox]),.team select,.team textarea{background:#14161c;color:#e9e9ed;border:1px solid #4e5e47;border-radius:8px;padding:9px 10px;font:inherit;font-size:13px;width:100%}
+.team textarea{resize:vertical}
+.team button{background:#252c27;color:#d7e8cf;border:1px solid #4e5e47;border-radius:8px;padding:8px 12px;font-size:12px}
+.team button:hover:not(:disabled){background:#303b2e}
+.team button.primary{background:#3d5a37;border-color:#6c9162;color:#fff}
+.team button.link{background:transparent;border:0;padding:6px 0;text-align:left;font-size:13px}
+.team button:focus-visible,.team input:focus-visible,.team select:focus-visible,.team textarea:focus-visible{outline:2px solid #b8d8b0;outline-offset:2px}
+.team-company-bar{display:flex;flex-wrap:wrap;gap:16px;align-items:end;background:#1d2027;border:1px solid #2e323d;border-radius:12px;padding:14px}
+.team-company-bar form{display:flex;gap:8px;align-items:end}
+.team-company-bar select,.team-company-bar input{min-width:220px}
+.team-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #2e323d}
+.team-tabs button{border-radius:8px 8px 0 0;border-bottom:0}
+.team-tabs button.active,.team-tabs button[aria-selected=true]{background:#3d5a37;color:#fff}
+.team-list{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:8px}
+.team-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;background:#1d2027;border:1px solid #2e323d;border-radius:10px;padding:12px}
+.team-list li.stack{flex-direction:column;align-items:stretch}
+.team-list li.selected{border-color:#6c9162}
+.team-list.compact li{padding:8px 12px}
+.team-list p{color:#a8b1a2;font-size:12px;margin:4px 0 0}
+.team-empty,.hint{color:#8e939d;font-size:12px}
+.team-split{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:24px;align-items:start}
+.team-form{display:flex;flex-direction:column;gap:12px;background:#1d2027;border:1px solid #2e323d;border-radius:12px;padding:16px;max-width:760px}
+.team-form fieldset{border:1px solid #2e323d;border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+.team-form legend{font-size:12px;color:#a8b1a2;padding:0 6px}
+.team-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.team-actions{display:flex;gap:8px;flex-wrap:wrap}
+.team-notice{min-height:0}
+.team-error{color:#ffb4a8;font-size:13px}
+ul.team-error{padding-left:18px;margin:0}
+.team-ok{color:#b8d8b0;font-size:13px}
+.team-callout,.team-review,.team-credential{background:#222a22;border:1px solid #4e5e47;border-radius:12px;padding:14px}
+.team-credential{margin:8px 0;background:#181b21;border-color:#2e323d}
+.badge{display:inline-block;font-size:10px;letter-spacing:.4px;padding:2px 7px;border-radius:99px;background:#2d3a2b;color:#cfe6c7;margin-left:6px}
+.badge.off{background:#3a2f2f;color:#e8c4bd}
+.badge.demo{background:#3b3a24;color:#ece7a8}
+.demo-note{flex-basis:100%;margin:0;font-size:11px;color:#a8b1a2}
+@media(max-width:900px){.team-split{grid-template-columns:1fr}.team-company-bar form{flex-wrap:wrap}.team-company-bar select,.team-company-bar input{min-width:0;width:100%}.team-body{padding-left:16px;padding-right:16px}}

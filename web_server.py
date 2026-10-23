@@ -7,6 +7,8 @@ import uuid
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
 from team import persistence
+from team import web as team_web
+from team.app import TeamApp
 from speech_service import SpeechService, decode_audio
 
 PORT = 8765
@@ -25,11 +27,14 @@ TURN_TIMEOUT = 120
 async def local_only(request, handler):
     if request.host not in ALLOWED_HOSTS:
         raise web.HTTPForbidden(text="Host não permitido")
-    if request.path.startswith(('/api/voices', '/api/persistence')):
+    if request.path.startswith(('/api/voices', '/api/persistence', '/api/team')):
         # Includes GET: another origin must not inspect local configuration.
-        if request.headers.get('Origin') != f'http://{request.host}':
+        origin = request.headers.get('Origin')
+        # Browsers omit Origin on same-site GETs; Sec-Fetch-Site (set by the browser, not scripts) proves the same.
+        same_site = origin is None and request.headers.get('Sec-Fetch-Site') == 'same-origin'
+        if not same_site and origin != f'http://{request.host}':
             raise web.HTTPForbidden(text='Origem não permitida')
-        if request.method == 'POST' and request.content_type != 'application/json':
+        if request.method in ('POST', 'PUT', 'PATCH') and request.content_type != 'application/json':
             raise web.HTTPUnsupportedMediaType()
     response = await handler(request)
     if not response.prepared:
@@ -239,7 +244,7 @@ async def chat(request):
     return ws
 
 
-def create_app(factory=None, config=None, speech=None, data_root=None):
+def create_app(factory=None, config=None, speech=None, data_root=None, team_app=None):
     if factory is None:
         from browser_agent import BrowserAgent
         factory = BrowserAgent
@@ -250,6 +255,7 @@ def create_app(factory=None, config=None, speech=None, data_root=None):
     app[SPEECH] = speech or SpeechService(app[CONFIG])
     app[VOICE_OPERATION] = asyncio.Lock()
     app[DATA_DIR] = data_root or DATA_ROOT
+    team_web.register(app, team_app or TeamApp(app[DATA_DIR], app[CONFIG]))
     app.router.add_get("/", index)
     app.router.add_get("/api/health", health)
     app.router.add_get('/api/voices', voices)

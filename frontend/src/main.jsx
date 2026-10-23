@@ -4,6 +4,7 @@ import './style.css';
 import {useVoice} from './useVoice.js';
 import {VoiceSettings} from './VoiceSettings.jsx';
 import {PersistenceSettings} from './PersistenceSettings.jsx';
+import {TeamPanel} from './team/TeamPanel.jsx';
 
 function Icon({name, ...props}) {
   const paths = {
@@ -28,6 +29,7 @@ function App() {
   const [fatal, setFatal] = useState(false);
   const [tools, setTools] = useState([]);
   const [menu, setMenu] = useState(false);
+  const [view, setView] = useState('chat');
   const [speak, setSpeak] = useState(true);
   const speakRef = useRef(true);
   const voiceRef = useRef(null);
@@ -108,7 +110,9 @@ function App() {
     socket.current.send(JSON.stringify({type: 'message', text: content, speak: speakRef.current}));
     setText(''); input.current?.focus();
   };
-  const reset = () => {setMessages([]); setText(''); setTools([]); setMenu(false); setEpoch(n => n + 1);};
+  const reset = () => {setMessages([]); setText(''); setTools([]); setMenu(false); setView('chat'); setEpoch(n => n + 1);};
+  // Leaving the conversation always turns the microphone off: capture never continues out of sight.
+  const go = next => {if (next !== 'chat') voiceRef.current.stopAll(); setView(next); setMenu(false);};
 
   return <div className="app">
     {menu && <button className="scrim" aria-label="Fechar menu" onClick={() => setMenu(false)}/>}
@@ -116,14 +120,15 @@ function App() {
       <a className="brand" href="#" onClick={e => e.preventDefault()}><span className="brand-mark"><Icon name="spark"/></span> assistente<span className="beta">LOCAL</span></a>
       <button className="new-chat" onClick={reset}><Icon name="plus"/> Nova conversa</button>
       <div className="nav-label">SEU ESPAÇO</div>
-      <div className="nav-item active"><Icon name="chat"/><span>Conversa atual</span><span className="nav-dot"/></div>
+      <button className={view === 'chat' ? 'nav-item active' : 'nav-item'} aria-current={view === 'chat' ? 'page' : undefined} onClick={() => go('chat')}><Icon name="chat"/><span>Conversa atual</span>{view === 'chat' && <span className="nav-dot"/>}</button>
+      <button className={view === 'team' ? 'nav-item active' : 'nav-item'} aria-current={view === 'team' ? 'page' : undefined} onClick={() => go('team')}><Icon name="shield"/><span>Equipe</span></button>
       <div className="sidebar-note">Um espaço para pensar,<br/>perguntar e fazer.</div>
       <div className="sidebar-bottom">
         <div className="privacy"><Icon name="shield"/><div><strong>Feito para rodar localmente</strong><p>Histórico apenas nesta sessão.</p></div></div>
         <div className="profile"><span className="profile-icon">EU</span><div><strong>Meu espaço</strong><small>Validação do assistente</small></div><span className="online-dot"/></div>
       </div>
     </aside>
-    <main>
+    {view === 'team' ? <TeamPanel onOpenMenu={() => setMenu(true)}/> : <main>
       <header>
         <div className="header-left"><button className="menu-button" aria-label="Abrir menu" onClick={() => setMenu(true)}><Icon name="menu"/></button><span className="page-title">Conversa</span><span className="separator">/</span><span className="model">{model}</span></div>
         <div className={`connection ${state === 'offline' ? 'off' : ''}`}><span/> {state === 'offline' ? 'Desconectado' : state === 'connecting' ? 'Conectando' : 'Sessão local'}</div>
@@ -168,7 +173,7 @@ function App() {
         </form>
         <p className="footer-note">A IA pode cometer erros. Ao iniciar uma nova conversa ou atualizar a página, o histórico é descartado.</p>
       </div>
-    </main>
+    </main>}
   </div>;
 }
 
