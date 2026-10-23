@@ -138,6 +138,8 @@ SCHEMAS = {
         "knowledge_document", department_id="ref:department?", doc_key="slug", version="posint", title="str", body="text",
         source="str", topic="slug?", status="enum:DocStatus", valid_until="ts?", published_by="actor",
         content_hash="sha256", suspicious="bool?"),
+    # A host the company authorizes for network diagnostics; nothing outside this list is ever probed.
+    "monitored_asset": _entity("monitored_asset", hostname="str", note="str?", status="enum:Status", created_by="actor"),
     # Memory: preferences and dated facts. Anything inferred is only a proposal until the operator confirms it.
     "memory_item": _entity(
         "memory_item", scope="enum:MemoryScope", department_id="ref:department?", subject="str?",
@@ -376,7 +378,14 @@ def _rule_memory(doc):
     return errors
 
 
-_RULES = {"memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+_HOSTNAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+
+
+def _rule_asset(doc):
+    return [] if _HOSTNAME.match(doc["hostname"]) else ["$.hostname: use um nome DNS minusculo (ex.: exemplo.com.br)"]
+
+
+_RULES = {"monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 

@@ -38,6 +38,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Comunicação externa (T14).** Novo `outbound_message` (rascunho/outbox); `case` ganhou `owner_version`; `connection` ganhou `allowed_recipient_domains`. Detalhes em [TEAM-OUTBOUND.md](TEAM-OUTBOUND.md).
 - **Conhecimento e memória (T17).** Novos `knowledge_document` (versionado, com fonte e validade) e `memory_item` (proposta/confirmada, escopo, validade). Detalhes em [TEAM-KNOWLEDGE.md](TEAM-KNOWLEDGE.md).
 - **IMAP somente leitura (T18).** O transporte de catálogo `local` (servidor embutido, sem `url` nem `launcher`) foi adicionado a `McpTransport`. Detalhes em [TEAM-IMAP.md](TEAM-IMAP.md).
+- **Ativos monitorados (T23).** Novo `monitored_asset`: host que a empresa autoriza para diagnósticos de rede. Detalhes em [TEAM-DIAGNOSTICS.md](TEAM-DIAGNOSTICS.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga
