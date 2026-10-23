@@ -83,6 +83,12 @@ class ApprovalService:
         self.repository, self.access, self.cases, self.clock = repository, access, cases, clock
 
     # -- helpers ---------------------------------------------------------------------------------------------------
+    @staticmethod
+    def _assigned(session, case_id, agent_id, *, open_only):
+        """Whether ``agent_id`` was given (or still holds) a delegated subtask of this case."""
+        return any(t["assignee_agent_id"] == agent_id and (not open_only or t["state"] in ("pendente", "em_execucao", "aguardando"))
+                   for t in session.list("task", case_id=case_id, limit=1000))
+
     def _ctx(self, ctx):
         if not isinstance(ctx, AccessContext):
             raise PermissionDenied()
@@ -136,8 +142,9 @@ class ApprovalService:
         reason = clean_text(justification) if justification else None
         with self.repository.transaction(ctx.tenant_id) as session:
             case = self._case(session, case_id)
-            if ctx.role == "agent" and (case["owner_agent_id"] != ctx.principal_id or case.get("operator_control")):
-                raise NotFound()
+            if ctx.role == "agent" and (case.get("operator_control") or not (
+                    case["owner_agent_id"] == ctx.principal_id or self._assigned(session, case_id, ctx.principal_id, open_only=True))):
+                raise NotFound()  # the owner, or the agent working an open delegated subtask, may ask; nobody else
             if case["state"] in TERMINAL_STATES:
                 raise ApprovalRejected("A demanda esta encerrada.")
             normalized = normalize_request(ctx.tenant_id, case_id, action, resource=resource, recipients=recipients,
@@ -254,7 +261,8 @@ class ApprovalService:
                                                params=request.get("params"))
             except (ApprovalRejected, KeyError):
                 raise ApprovalInvalid() from None
-            same_owner = approval["requested_by"] == case["owner_agent_id"] or approval["requested_by"] == self.access.operator_id
+            same_owner = (approval["requested_by"] == case["owner_agent_id"] or approval["requested_by"] == self.access.operator_id
+                          or self._assigned(session, case["id"], approval["requested_by"], open_only=False))
             if (content_hash(normalized) != approval["payload_hash"] or normalized["case_id"] != approval["case_id"]
                     or _parse(approval["expires_at"]) <= self.clock() or case["state"] in TERMINAL_STATES
                     or case["state"] == "pausada" or case.get("operator_control") or not same_owner):
