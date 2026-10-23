@@ -1,0 +1,22 @@
+{
+ "corpus_version": 1,
+ "description": "Regras sobre o que conta como prova. Um resumo gerado, uma afirmacao ou um fato sem origem tecnica nunca e evidencia verificada.",
+ "evidence": [
+  {"id": "evd-01", "actor": "agente", "evidence_type": "documento", "reliability": "verificada", "with_hash": true, "expect": "ok"},
+  {"id": "evd-02", "actor": "agente", "evidence_type": "recibo", "reliability": "verificada", "with_hash": true, "expect": "ok"},
+  {"id": "evd-03", "actor": "agente", "evidence_type": "resultado_ferramenta", "reliability": "verificada", "with_hash": true, "expect": "ok"},
+  {"id": "evd-04", "actor": "agente", "evidence_type": "fato", "reliability": "verificada", "with_hash": true, "expect": "recusada"},
+  {"id": "evd-05", "actor": "agente", "evidence_type": "documento", "reliability": "verificada", "with_hash": false, "expect": "recusada"},
+  {"id": "evd-06", "actor": "agente", "evidence_type": "recibo", "reliability": "verificada", "with_hash": false, "expect": "recusada"},
+  {"id": "evd-07", "actor": "agente", "evidence_type": "fato", "reliability": "declarada", "with_hash": false, "expect": "ok"},
+  {"id": "evd-08", "actor": "agente", "evidence_type": "fato", "reliability": "inferida", "with_hash": false, "expect": "ok"},
+  {"id": "evd-09", "actor": "operador", "evidence_type": "fato", "reliability": "verificada", "with_hash": false, "expect": "ok"}
+ ],
+ "resolution": [
+  {"id": "res-01", "actor": "agente", "evidence": [], "summary_only": true, "expect": "recusada"},
+  {"id": "res-02", "actor": "agente", "evidence": [{"evidence_type": "fato", "reliability": "declarada"}], "summary_only": false, "expect": "recusada"},
+  {"id": "res-03", "actor": "agente", "evidence": [{"evidence_type": "recibo", "reliability": "verificada", "with_hash": true}], "summary_only": false, "expect": "ok"},
+  {"id": "res-04", "actor": "agente", "evidence": [], "manual": true, "expect": "recusada"},
+  {"id": "res-05", "actor": "operador", "evidence": [], "manual": true, "expect": "ok"}
+ ]
+}

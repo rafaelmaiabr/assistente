@@ -80,7 +80,11 @@ _INJECTION = [re.compile(p) for p in (
     r"\b(ignor\w*|esqueca|desconsidere)\b.{0,30}\b(instrucoes|regras|prompt|politicas)\b",
     r"\b(instrucoes|regras) anteriores\b", r"\bsystem\s*:", r"\b(novo )?prompt do sistema\b",
     r"\bvoce (agora )?e (um )?(administrador|admin|root)\b", r"\b(conceda|libere|de) acesso\b",
-    r"\b(use|usar|revele|mostre) (a |as |suas? )?(credencial|credenciais|instrucoes|senha|chave)\b", r"</?\w+>")]
+    r"\b(use|usar|revele|revelar|mostre|mostrar|divulgue|divulgar) (a |as |o |os |suas? )?(credencial|credenciais|instrucoes|senha|senhas|chave|chaves|prompt)\b",
+    # found by the evals (T33): the same attacks in English, impersonation, "total access" and requests for other customers' data
+    r"\b(disregard|forget|override)\b.{0,30}\b(instructions|rules|prompt|policies)\b", r"\b(previous|prior|above) (instructions|rules)\b",
+    r"\b(send|email|forward|leak|dump)\b.{0,40}\b(database|passwords?|credentials)\b", r"\bfinja (que )?(voce )?(sou|e|ser)\b",
+    r"\bacesso (total|irrestrito|completo)\b", r"\b(dados|historico|conversas) de outros clientes\b", r"</?\w+>")]
 
 
 def looks_like_injection(text):

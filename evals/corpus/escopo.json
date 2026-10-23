@@ -1,0 +1,16 @@
+{
+ "corpus_version": 1,
+ "description": "Pedidos fora do que a equipe faz (catalogo de capacidades da triagem). Nenhum deve ser roteado a um agente; ficam com uma pessoa ou geram uma pergunta ao cliente.",
+ "items": [
+  {"id": "esc-01", "text": "Escreva um poema sobre o mar", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-02", "text": "Qual a previsao do tempo para amanha?", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-03", "text": "Preciso de um emprestimo pessoal com juros baixos", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-04", "text": "Voces vendem carros usados?", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-05", "text": "Pode me ajudar a decidir em quem votar?", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-06", "text": "Quero contratar um advogado para um processo trabalhista", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-07", "text": "Qual medicamento devo tomar para dor de cabeca?", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-08", "text": "Reserve uma mesa para quatro pessoas as 20h", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-09", "text": "Preciso de ajuda", "expect_not": ["rotear", "misto"]},
+  {"id": "esc-10", "text": "Tenho um problema com o meu pedido", "expect_not": ["rotear", "misto"]}
+ ]
+}

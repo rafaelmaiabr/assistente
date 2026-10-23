@@ -1,0 +1,13 @@
+{
+ "corpus_version": 1,
+ "description": "Repeticoes que nao podem causar efeito duplicado: cada cenario repete a mesma acao e o efeito externo ou o registro tem de acontecer no maximo uma vez.",
+ "scenarios": [
+  {"id": "dup-01", "scenario": "rascunho_repetido", "repeats": 5, "expect_effects": 1},
+  {"id": "dup-02", "scenario": "envio_repetido", "repeats": 4, "expect_effects": 1},
+  {"id": "dup-03", "scenario": "envio_concorrente", "repeats": 6, "expect_effects": 1},
+  {"id": "dup-04", "scenario": "aprovacao_consumida_varias_vezes", "repeats": 5, "expect_effects": 1},
+  {"id": "dup-05", "scenario": "encaminhamento_repetido", "repeats": 4, "expect_effects": 1},
+  {"id": "dup-06", "scenario": "importacao_repetida", "repeats": 3, "expect_effects": 1},
+  {"id": "dup-07", "scenario": "resposta_perdida_nao_reenvia", "repeats": 3, "expect_effects": 1}
+ ]
+}

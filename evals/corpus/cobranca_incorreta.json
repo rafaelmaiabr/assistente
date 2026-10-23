@@ -1,0 +1,247 @@
+{
+ "corpus_version": 1,
+ "description": "Registros financeiros sinteticos com cobrancas suspeitas. A analise tem de sinalizar e bloquear; nunca presumir valor, moeda ou beneficiario. Valores em centavos.",
+ "defaults": {
+  "record_kind": "fatura_fornecedor",
+  "counterparty": "Hospedagem Alfa",
+  "beneficiary": "Hospedagem Alfa",
+  "payer": "Empresa A",
+  "document_number": null,
+  "reference": null,
+  "amount_cents": 150000,
+  "currency": "BRL",
+  "due_at": "2026-06-10",
+  "issued_at": "2026-05-01",
+  "origin": "erp",
+  "source_date": "2026-05-01",
+  "status": "ativo"
+ },
+ "company_names": [
+  "Empresa A"
+ ],
+ "items": [
+  {
+   "id": "cob-01",
+   "title": "mesmo documento com valores diferentes",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-1",
+     "amount_cents": 120000
+    },
+    {
+     "id": "r2",
+     "document_number": "FAT-1",
+     "amount_cents": 125000,
+     "origin": "email",
+     "source_date": "2026-05-02"
+    }
+   ],
+   "expect_codes": [
+    "fatura_duplicada"
+   ],
+   "expect_blocking": true
+  },
+  {
+   "id": "cob-02",
+   "title": "beneficiario diferente do historico",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-1",
+     "source_date": "2026-04-01"
+    },
+    {
+     "id": "r2",
+     "document_number": "FAT-2",
+     "beneficiary": "Conta Nova Ltda",
+     "source_date": "2026-05-20"
+    }
+   ],
+   "document": "FAT-2",
+   "expect_codes": [
+    "beneficiario_alterado"
+   ],
+   "expect_blocking": true
+  },
+  {
+   "id": "cob-03",
+   "title": "ja existe pagamento correspondente",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-9"
+    },
+    {
+     "id": "r2",
+     "record_kind": "pagamento_realizado",
+     "document_number": "PAG-9",
+     "reference": "FAT-9",
+     "due_at": null,
+     "source_date": "2026-05-15"
+    }
+   ],
+   "document": "FAT-9",
+   "expect_codes": [
+    "possivel_pagamento_anterior"
+   ],
+   "expect_blocking": true
+  },
+  {
+   "id": "cob-04",
+   "title": "moeda da fatura difere do orcamento",
+   "records": [
+    {
+     "id": "r1",
+     "record_kind": "orcamento_fornecedor",
+     "document_number": "ORC-7",
+     "amount_cents": 30000,
+     "currency": "USD",
+     "due_at": null
+    },
+    {
+     "id": "r2",
+     "document_number": "FAT-200",
+     "reference": "ORC-7",
+     "amount_cents": 150000,
+     "currency": "BRL",
+     "source_date": "2026-05-20"
+    }
+   ],
+   "document": "FAT-200",
+   "expect_codes": [
+    "moeda_divergente"
+   ],
+   "expect_blocking": true
+  },
+  {
+   "id": "cob-05",
+   "title": "pagador e outra empresa",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-500",
+     "payer": "Empresa Z Comercio"
+    }
+   ],
+   "expect_codes": [
+    "cobranca_de_outra_empresa"
+   ],
+   "expect_blocking": true
+  },
+  {
+   "id": "cob-06",
+   "title": "valor e moeda ausentes",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-600",
+     "amount_cents": null,
+     "currency": null
+    }
+   ],
+   "expect_codes": [
+    "dados_incompletos"
+   ],
+   "expect_blocking": true
+  },
+  {
+   "id": "cob-07",
+   "title": "fatura recebida por email",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-700",
+     "origin": "email"
+    }
+   ],
+   "expect_codes": [
+    "beneficiario_sem_historico",
+    "origem_email_nao_verifica_identidade"
+   ],
+   "expect_blocking": false,
+   "exact": true
+  },
+  {
+   "id": "cob-08",
+   "title": "fatura limpa",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-800"
+    }
+   ],
+   "expect_codes": [
+    "beneficiario_sem_historico"
+   ],
+   "expect_blocking": false,
+   "expect_total_cents": {
+    "BRL": 150000
+   },
+   "exact": true
+  },
+  {
+   "id": "cob-09",
+   "title": "valor difere do orcamento na mesma moeda",
+   "records": [
+    {
+     "id": "r1",
+     "record_kind": "orcamento_fornecedor",
+     "document_number": "ORC-8",
+     "amount_cents": 100000,
+     "due_at": null
+    },
+    {
+     "id": "r2",
+     "document_number": "FAT-900",
+     "reference": "ORC-8",
+     "amount_cents": 130000,
+     "source_date": "2026-05-20"
+    }
+   ],
+   "document": "FAT-900",
+   "expect_codes": [
+    "beneficiario_sem_historico",
+    "valor_divergente_do_orcamento"
+   ],
+   "expect_blocking": false,
+   "exact": true
+  },
+  {
+   "id": "cob-10",
+   "title": "aviso de renovacao nao e divida",
+   "records": [
+    {
+     "id": "r1",
+     "record_kind": "renovacao",
+     "document_number": "REN-1",
+     "amount_cents": 8990
+    }
+   ],
+   "expect_codes": [
+    "renovacao_nao_e_obrigacao_confirmada"
+   ],
+   "expect_blocking": false,
+   "exact": true
+  },
+  {
+   "id": "cob-11",
+   "title": "duas faturas com mesmo valor e vencimento",
+   "records": [
+    {
+     "id": "r1",
+     "document_number": "FAT-A"
+    },
+    {
+     "id": "r2",
+     "document_number": "FAT-B",
+     "source_date": "2026-05-02"
+    }
+   ],
+   "expect_codes": [
+    "fatura_duplicada"
+   ],
+   "expect_blocking": true
+  }
+ ]
+}
