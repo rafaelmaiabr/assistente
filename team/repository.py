@@ -6,6 +6,7 @@ Another backend (PostgreSQL, T34) implements the same two abstract classes.
 """
 import json
 import sqlite3
+import unicodedata
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -22,7 +23,7 @@ TABLES = {
     "contact_address": "contact_addresses", "contact_link": "contact_links", "access_grant": "access_grants",
     "credential": "credentials", "mcp_catalog_entry": "mcp_catalog",
     "agent_profile_version": "agent_profile_versions", "model_policy": "model_policies", "case_entry": "case_entries", "capability": "capabilities", "triage_decision": "triage_decisions",
-    "outbound_message": "outbound_messages", "knowledge_document": "knowledge_documents", "monitored_asset": "monitored_assets",
+    "outbound_message": "outbound_messages", "knowledge_document": "knowledge_documents", "monitored_asset": "monitored_assets", "financial_record": "financial_records",
     "memory_item": "memory_items",
 }
 # Lookup columns that are not plain references; ``address_key`` is derived (see column_value).
@@ -30,7 +31,8 @@ EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal
                  "agent_profile_version": ["agent_version", "status", "content_hash"], "agent_run": ["agent_version"],
                  "model_policy": ["name"], "capability": ["name"],
                  "outbound_message": ["dedup_key", "provider_id"], "knowledge_document": ["status", "doc_key"],
-                 "memory_item": ["scope"], "monitored_asset": ["status", "hostname"]}
+                 "memory_item": ["scope"], "monitored_asset": ["status", "hostname"],
+                 "financial_record": ["record_kind", "counterparty_key", "document_number", "batch_id", "status"]}
 DELETABLE = ("contact_address", "contact_link", "access_grant", "credential", "memory_item")
 GLOBAL_KINDS = ("tenant", "skill_definition", "mcp_catalog_entry")
 MAX_LIST = 1000
@@ -65,9 +67,17 @@ def address_key(channel: str, address: str) -> str:
     return f"{channel}:{address.strip().lower()}"
 
 
+def party_key(name: str) -> str:
+    """Normalized identity of a counterparty (accent- and case-insensitive, single spaces)."""
+    plain = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode().lower()
+    return " ".join(plain.split())
+
+
 def column_value(doc, name):
     if name == "address_key":
         return address_key(doc["channel"], doc["address"])
+    if name == "counterparty_key":
+        return party_key(doc["counterparty"])
     return doc.get(name)
 
 

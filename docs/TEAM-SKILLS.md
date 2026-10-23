@@ -14,7 +14,7 @@ Recusados: JSON inválido, campos desconhecidos, tamanhos acima de 64 KB (manife
 
 `install(operador, caminho, hash_revisado)` exige o hash visto na revisão (o conteúdo não pode mudar entre revisar e instalar), é idempotente, impede reinstalar a mesma versão com conteúdo diferente ou instalar versão menor, e **recusa upgrade que pede permissões novas** sem `accept_new_permissions=True` (mostrando quais).
 
-Pacotes de demonstração claramente fictícios (`fictitious: true`, descrição "[DEMONSTRACAO - dados ficticios]"): `team/skills_demo/secretaria`, `suporte` e `financeiro`. O pacote Windows leva a pasta `team/` inteira.
+Pacotes de demonstração claramente fictícios (`fictitious: true`, descrição "[DEMONSTRACAO - dados ficticios]"): `team/skills_demo/secretaria`, `suporte`, `financeiro` e `financeiro-analise`. O pacote Windows leva a pasta `team/` inteira.
 
 ## Concessões (`skill_grant`)
 

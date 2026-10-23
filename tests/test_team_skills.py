@@ -71,7 +71,7 @@ class SkillCase(unittest.TestCase):
 class PackageTests(SkillCase):
     def test_demo_packages_are_fictitious_and_reviewable(self):
         names = sorted(p.name for p in DEMOS.iterdir())
-        self.assertEqual(names, ["financeiro", "secretaria", "suporte"])
+        self.assertEqual(names, ["financeiro", "financeiro-analise", "secretaria", "suporte"])
         for name in names:
             review = self.skills.review_package(DEMOS / name)
             self.assertTrue(review.fictitious)

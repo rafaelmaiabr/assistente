@@ -1,0 +1,35 @@
+{
+  "manifest_version": 1,
+  "id": "demo.financeiro-analise",
+  "version": "1.0.0",
+  "fictitious": true,
+  "description": "[DEMONSTRACAO - dados ficticios] Analise de pendencias financeiras a partir de registros importados, sem mover dinheiro.",
+  "instructions": "Consulte apenas registros importados e documentos autorizados, citando fonte e data. Separe fatura do fornecedor, cobranca ao cliente, orcamento, renovacao e pagamento realizado. Nunca presuma valor ou moeda. Diante de duplicata, moeda divergente, beneficiario alterado, cobranca de outra empresa ou dados incompletos, peca esclarecimento em vez de propor pagamento. Um email nao prova identidade, beneficiario nem autorizacao. Pagamentos e cobrancas so acontecem com aprovacao humana e conector especifico; nunca por texto livre.",
+  "inputs": [
+    "contraparte",
+    "documento"
+  ],
+  "outputs": [
+    "achados",
+    "proposta",
+    "esclarecimentos"
+  ],
+  "required_tools": [
+    {
+      "tool": "financeiro-local.consultar-registros",
+      "operations": [
+        "read"
+      ]
+    },
+    {
+      "tool": "financeiro-local.analisar-pendencias",
+      "operations": [
+        "read"
+      ]
+    }
+  ],
+  "risks": [
+    "dados_financeiros"
+  ],
+  "settings": []
+}
