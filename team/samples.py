@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("sch", "sch"), ("ntf", "ntf"), ("mem", "mem"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("sch", "sch"), ("ntf", "ntf"), ("oap", "oap"), ("oag", "oag"), ("mem", "mem"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -115,6 +115,9 @@ def bundle():
              title="Politica de cobranca", body="Boletos vencem em 10 dias; renegociacao exige aprovacao.",
              source="manual interno", topic="cobranca", status="publicado", valid_until=None, published_by=IDS["user"],
              content_hash=hashlib.sha256(b"politica").hexdigest(), suspicious=False),
+        _doc("oauth_app", "oap", provider="google", client_id="exemplo.apps.googleusercontent.com", secret_ref="oauth-app-google", label="Aplicativo de exemplo", status="ativo"),
+        _doc("oauth_grant", "oag", connection_id=IDS["conn"], app_id=IDS["oap"], provider="google", account="atendimento@exemplo.invalid",
+             scopes=["https://mail.google.com/"], state="conectada", granted_at=NOW, refreshed_at=None, error_code=None),
         _doc("schedule", "sch", name="Checagem do site", job_kind="asset_check", payload={"hostname": "exemplo.com.br"}, timezone="America/Sao_Paulo",
              frequency="diaria", time_of_day="08:00", weekday=None, interval_minutes=None, catch_up="uma_vez", max_runs_per_day=2, state="ativo",
              state_reason=None, next_run_at=NOW, last_run_at=None, last_job_id=None, runs_day=None, runs_today=0, overlaps=0, budget_skips=0,

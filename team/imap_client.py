@@ -52,8 +52,11 @@ class ImapConfig:
     timeout: float = 15.0
     max_bytes: int = MAX_BYTES
     ca_file: str | None = None  # an extra trusted CA (private servers); verification stays on
+    auth: str = "password"  # "password" (LOGIN, an app password) or "xoauth2" (the secret is an OAuth access token)
 
     def validate(self):
+        if self.auth not in ("password", "xoauth2"):
+            raise ImapError("config_invalida", "Metodo de autenticacao invalido.")
         if not (isinstance(self.host, str) and _HOST.match(self.host)):
             raise ImapError("config_invalida", "Servidor IMAP invalido.")
         if not (isinstance(self.port, int) and not isinstance(self.port, bool) and 1 <= self.port <= 65535):
@@ -157,10 +160,17 @@ class ReadOnlyImap:
                                                                   timeout=self.config.timeout)
             else:
                 self._conn = (self._factory or imaplib.IMAP4)(self.config.host, self.config.port, timeout=self.config.timeout)
-            self.sent.append("LOGIN")
-            self._conn.login(self.config.username, self._secret)
+            if self.config.auth == "xoauth2":
+                self.sent.append("AUTHENTICATE")
+                token, user = self._secret, self.config.username
+                self._conn.authenticate("XOAUTH2", lambda _: f"user={user}\x01auth=Bearer {token}\x01\x01".encode("utf-8"))
+            else:
+                self.sent.append("LOGIN")
+                self._conn.login(self.config.username, self._secret)
         except imaplib.IMAP4.error:
             self.close()
+            if self.config.auth == "xoauth2":
+                raise ImapError("autenticacao_recusada", "O servidor recusou o acesso OAuth (token invalido, IMAP desativado na conta ou permissao negada); autorize a conexao de novo.") from None
             raise ImapError("autenticacao_recusada", "O servidor recusou o usuario ou a senha (use uma senha de aplicativo, se o provedor exigir).") from None
         except ssl.SSLCertVerificationError:
             raise ImapError("tls_invalido", "O certificado do servidor nao foi aceito (confira o endereco e a validade).") from None

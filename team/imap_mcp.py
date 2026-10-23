@@ -66,7 +66,7 @@ class ImapAccountRegistry:
         accounts = self._load()
         accounts[connection_id] = {"tenant_id": tenant_id, "host": config.host, "port": config.port, "username": config.username,
                                    "folders": list(config.folders), "tls": config.tls, "timeout": config.timeout,
-                                   "ca_file": config.ca_file}
+                                   "ca_file": config.ca_file, "auth": config.auth}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_suffix(".tmp")
         temp.write_text(json.dumps({"accounts": accounts}, indent=2), encoding="utf-8")
@@ -77,7 +77,7 @@ class ImapAccountRegistry:
         if not raw or raw.get("tenant_id") != tenant_id:
             return None
         return ImapConfig(host=raw["host"], port=raw["port"], username=raw["username"], folders=tuple(raw["folders"]),
-                          tls=raw["tls"], timeout=raw["timeout"], ca_file=raw.get("ca_file"))
+                          tls=raw["tls"], timeout=raw["timeout"], ca_file=raw.get("ca_file"), auth=raw.get("auth", "password"))
 
 
 class ImapTransport(McpTransport):
@@ -130,9 +130,10 @@ class ImapAccounts:
             raise NotFound()
         return connection
 
-    def configure(self, operator, ctx, connection_id, *, host, username, folders, port=993, tls=True, timeout=15.0, ca_file=None):
+    def configure(self, operator, ctx, connection_id, *, host, username, folders, port=993, tls=True, timeout=15.0, ca_file=None,
+                  auth="password"):
         self._connection(ctx, connection_id)
-        config = ImapConfig(host=host, port=port, username=username, folders=tuple(folders), tls=tls, timeout=timeout, ca_file=ca_file)
+        config = ImapConfig(host=host, port=port, username=username, folders=tuple(folders), tls=tls, timeout=timeout, ca_file=ca_file, auth=auth)
         self.registry.register(operator, ctx.tenant_id, connection_id, config)
 
     def test(self, ctx, connection_id):
