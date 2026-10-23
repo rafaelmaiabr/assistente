@@ -120,6 +120,7 @@ class CaseService:
             raise InvalidTransition("Estado desconhecido.")
         with self.repository.transaction(ctx.tenant_id) as session:
             case = self._case(session, ctx, case_id, "write")
+            self._owner_only(ctx, case)
             if case["revision"] != expected_revision:
                 raise RevisionConflict("revisao desatualizada")
             current = case["state"]
@@ -158,6 +159,15 @@ class CaseService:
             kind = "case.reopened" if payload.get("reopened") else "case.state-changed"
             return self._save(ctx, session, case, changes, kind, payload)
 
+    def commit_change(self, ctx, session, case, changes, event_type, payload):
+        """Bump the case revision, save ``changes`` and record the event, all in the caller's transaction."""
+        return self._save(ctx, session, case, changes, event_type, payload)
+
+    def _owner_only(self, ctx, case):
+        """Agents act on a case only while they are its owner (a former owner loses that right at transfer)."""
+        if ctx.role == "agent" and case["owner_agent_id"] != ctx.principal_id:
+            raise PermissionDenied("apenas o responsavel atual da demanda pode fazer isto")
+
     def _save(self, ctx, session, case, changes, event_type, payload):
         now = _now()
         updated = {**case, **changes, "revision": case["revision"] + 1, "updated_at": now}
@@ -183,7 +193,9 @@ class CaseService:
                "revision": 1, "created_at": now, "updated_at": now, "case_id": case_id, "entry_type": entry_type,
                "direction": direction, "channel": channel, "author": ctx.principal_id, "body": body}
         with self.repository.transaction(ctx.tenant_id) as session:
-            self._case(session, ctx, case_id, "write")
+            case = self._case(session, ctx, case_id, "write")
+            if direction == "saida":
+                self._owner_only(ctx, case)  # only the current owner speaks to the customer
             return session.save(doc)
 
     def add_note(self, ctx, case_id, body):
