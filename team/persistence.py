@@ -10,6 +10,8 @@ from pathlib import Path
 from .db import MigrationError
 from .access import AccessService
 from .agents import AgentService
+from .approvals import ApprovalService
+from .cases import CaseService
 from .gateway import Gateway
 from .jobs import JobQueue
 from .llm import ModelPolicyService
@@ -139,7 +141,8 @@ def build_runtime(root, config, transports=None, client_factory=None, vault=None
     agents = AgentService(repo, access, voices or (lambda: frozenset()), policies.known_names)
     skills = SkillService(repo, access, agents)
     connections = connection_service(root, vault=vault, legacy_elevenlabs=legacy_elevenlabs or None)
-    gateway = Gateway(repo, access, skills, connections, transports or {})
+    approvals = ApprovalService(repo, access, CaseService(repo, access))
+    gateway = Gateway(repo, access, skills, connections, transports or {}, approvals=approvals)
     return AgentRuntime(repo, access, agents, skills, gateway, policies, config, client_factory=client_factory,
                         connections=connections)
 

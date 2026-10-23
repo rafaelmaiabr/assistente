@@ -20,7 +20,8 @@ CASE_TRANSITIONS = {
 }
 TASK_STATES = ("pendente", "em_execucao", "aguardando", "concluida", "falhou", "cancelada")
 RUN_STATES = ("enfileirada", "em_execucao", "pausada", "concluida", "falhou", "cancelada", "expirada")
-APPROVAL_STATES = ("pendente", "aprovada", "negada", "expirada", "usada", "cancelada")
+APPROVAL_STATES = ("pendente", "aprovada", "negada", "expirada", "consumida", "cancelada")
+EFFECT_OUTCOMES = ("desconhecido", "confirmado", "falhou")
 HANDOFF_KINDS = ("delegacao", "transferencia")
 HANDOFF_STATES = ("proposto", "aceito", "recusado", "expirado", "devolvido", "cancelado")
 OPERATIONS = ("read", "write", "send", "spend")
@@ -56,7 +57,7 @@ ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
+    "Status": STATUSES, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }

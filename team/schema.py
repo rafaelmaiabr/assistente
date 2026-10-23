@@ -104,14 +104,16 @@ SCHEMAS = {
     "case": _entity(
         "case", department_id="ref:department", state="enum:CaseState",
         owner_agent_id="ref:agent_definition?", customer_ref="str?", objective="text", closed_at="ts?",
-        priority="enum:Priority?", origin="enum:Origin?"),
+        priority="enum:Priority?", origin="enum:Origin?", operator_control="bool?"),
     "task": _entity(
         "task", case_id="ref:case", parent_task_id="ref:task?", assignee_agent_id="ref:agent_definition",
         state="enum:TaskState", objective="text", expected_result="text", due_at="ts?"),
     "approval_request": _entity(
-        "approval_request", case_id="ref:case", requested_by="actor", action="slug",
+        "approval_request", case_id="ref:case", requested_by="actor", action="str",
         payload_hash="sha256", expires_at="ts", state="enum:ApprovalState", single_use="bool",
-        decided_by="actor?"),
+        decided_by="actor?", resource="str?", recipient="obj?", amount_cents="int?", currency="slug?",
+        normalized_action="obj?", policy_ref="slug?", decided_at="ts?", consumed_at="ts?", reason="text?",
+        effect_outcome="enum:EffectOutcome?", effect_detail="text?"),
     "handoff": _entity(
         "handoff", case_id="ref:case", task_id="ref:task?", handoff_kind="enum:HandoffKind",
         from_agent_id="ref:agent_definition", to_agent_id="ref:agent_definition", reason="text",

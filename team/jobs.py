@@ -306,6 +306,26 @@ class JobQueue:
                 raise NotFound()
             return job
 
+    def _case_job_ids(self, tenant_id, case_id, states):
+        marks = ", ".join("?" * len(states))
+        with self._tx() as conn:
+            return [r[0] for r in conn.execute(
+                f"SELECT id FROM jobs WHERE tenant_id = ? AND case_id = ? AND state IN ({marks}) ORDER BY rowid",
+                (tenant_id, case_id, *states))]
+
+    def pause_case(self, tenant_id, case_id):
+        """Pause every live job of a case (operator took over); running ones stop at their next heartbeat."""
+        for job_id in self._case_job_ids(tenant_id, case_id, ("pendente", "em_execucao")):
+            self.pause(tenant_id, job_id)
+
+    def resume_case(self, tenant_id, case_id):
+        for job_id in self._case_job_ids(tenant_id, case_id, ("pausado", "em_execucao")):
+            self.resume(tenant_id, job_id)
+
+    def cancel_case(self, tenant_id, case_id):
+        for job_id in self._case_job_ids(tenant_id, case_id, ("pendente", "em_execucao", "pausado")):
+            self.cancel(tenant_id, job_id)
+
     def retry_exhausted(self, operator, tenant_id, job_id):
         """Give an exhausted/failed job another round of attempts (explicit human intervention)."""
         self._operator(operator)

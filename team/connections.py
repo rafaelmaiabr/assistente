@@ -40,6 +40,7 @@ _RESERVED_ARGUMENTS = {"tenant_id", "company", "empresa", "connection_id", "cred
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 ARGUMENT_TYPES = ("string", "integer", "number", "boolean")
 TOOL_LIMITS = {"timeout_seconds": (1, 120), "max_result_bytes": (1, 1_048_576), "max_items": (1, 1000)}
+APPROVAL_BINDINGS = ("recipient_argument", "amount_argument", "currency_argument")
 
 
 def _check_tool_specs(tools, specs):
@@ -50,7 +51,7 @@ def _check_tool_specs(tools, specs):
         raise ConnectionRejected("tool_specs deve descrever apenas ferramentas listadas em tools.")
     clean = {}
     for name, spec in specs.items():
-        if not isinstance(spec, dict) or set(spec) - {"operation", "arguments", *TOOL_LIMITS}                 or spec.get("operation") not in OPERATIONS:
+        if not isinstance(spec, dict) or set(spec) - {"operation", "arguments", *TOOL_LIMITS, *APPROVAL_BINDINGS}                 or spec.get("operation") not in OPERATIONS:
             raise ConnectionRejected(f"Especificacao invalida para {str(name)[:40]}: informe operation (read/write/send/spend).")
         arguments = spec.get("arguments", {})
         if not isinstance(arguments, dict) or len(arguments) > 20:
@@ -60,6 +61,9 @@ def _check_tool_specs(tools, specs):
                 raise ConnectionRejected(f"Nome de parametro invalido ou reservado: {str(arg)[:40]}.")
             if not isinstance(rule, dict) or set(rule) - {"type", "required", "max_length", "minimum", "maximum", "enum"}                     or rule.get("type") not in ARGUMENT_TYPES:
                 raise ConnectionRejected(f"Regra invalida para o parametro {arg}.")
+        for key in APPROVAL_BINDINGS:  # which argument carries the recipient / amount shown to the approver
+            if key in spec and spec[key] not in arguments:
+                raise ConnectionRejected(f"{key} deve nomear um argumento da ferramenta.")
         for key, (low, high) in TOOL_LIMITS.items():
             if key in spec and not (isinstance(spec[key], int) and not isinstance(spec[key], bool) and low <= spec[key] <= high):
                 raise ConnectionRejected(f"{key} deve estar entre {low} e {high}.")

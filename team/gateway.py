@@ -16,6 +16,7 @@ import time
 from abc import ABC, abstractmethod
 
 from .access import AccessContext, AccessError, OperatorContext, PermissionDenied
+from .approvals import ApprovalInvalid, ApprovalRejected, normalize_request
 from .prompting import ExternalItem
 from .schema import redact_secrets
 from .skills import SkillDenied
@@ -39,6 +40,10 @@ class GatewayError(AccessError):
 
 class ToolNotFound(GatewayError):
     code, message = "not_found", "Ferramenta nao disponivel."
+
+
+class ApprovalRequired(GatewayError):
+    code, message = "approval_required", "Esta acao exige aprovacao humana; uma solicitacao foi registrada."
 
 
 class ToolDenied(GatewayError):
@@ -144,8 +149,10 @@ def validate_arguments(rules, arguments):
 
 
 class Gateway:
-    def __init__(self, repository, access, skills, connections, transports, max_calls=DEFAULT_MAX_CALLS):
+    def __init__(self, repository, access, skills, connections, transports, max_calls=DEFAULT_MAX_CALLS,
+                 approvals=None):
         self.repository, self.access, self.skills, self.connections = repository, access, skills, connections
+        self.approvals = approvals  # without it, every non-read tool stays blocked (fail closed)
         self.transports = transports  # catalog transport kind ("http", "sse", "stdio") -> McpTransport
         self.max_calls = max_calls
         self._operator = access.local_operator()
@@ -220,7 +227,7 @@ class Gateway:
             result = await self._call(execution, alias, arguments, started)
         except GatewayError as error:
             self._record(execution, alias, getattr(error, "operation", None), "denied" if isinstance(
-                error, (ToolDenied, ToolNotFound, InvalidArguments, BudgetExceeded)) else "error", error.code,
+                error, (ToolDenied, ToolNotFound, InvalidArguments, BudgetExceeded, ApprovalRequired)) else "error", error.code,
                 started=started)
             raise
         self._record(execution, alias, result.operation, "allowed", "ok", result.size, started)
@@ -244,6 +251,7 @@ class Gateway:
         transport = self.transports.get(route["entry"]["transport"])
         if transport is None:
             raise ToolUnavailable()
+        release = self._release(execution, route, arguments) if operation != "read" else None
         server = {"transport": route["entry"]["transport"], "url": route["entry"]["url"],
                   "argv": self.connections.stdio_command(route["entry"]["id"]) if route["entry"]["transport"] == "stdio" else None,
                   "key": route["entry"]["catalog_key"]}
@@ -252,12 +260,15 @@ class Gateway:
         timeout = min(spec.get("timeout_seconds", DEFAULT_TIMEOUT), max(execution.deadline - time.monotonic(), 0.001))
         execution.calls += 1
 
+        progress = {"invoked": False}
+
         async def invoke(secret):
             meta = await transport.describe(server, route["tool"])
             if meta is None:
                 raise ToolUnavailable()
             if operation == "read" and meta.get("read_only") is False:
                 raise ToolDenied()  # the remote server disagrees with the approved classification: fail closed
+            progress["invoked"] = True
             return await transport.call_tool(server, route["tool"], arguments, identity=identity, secret=secret)
 
         work = asyncio.ensure_future(self._with_credential(route, invoke))
@@ -267,13 +278,18 @@ class Gateway:
             if work not in done:
                 work.cancel()
                 await asyncio.gather(work, return_exceptions=True)
+                self._record_effect(execution, release, progress, False)
                 raise ToolCancelled() if stop in done else ToolTimeout()
             raw = work.result()
-        except GatewayError:
-            raise
+        except GatewayError as error:
+            if release is not None and not release.get("recorded"):
+                self._record_effect(execution, release, progress, False)
+            raise error
         except AccessError:
+            self._record_effect(execution, release, progress, False)
             raise ToolDenied() from None  # revoked or unavailable credential, connection or connector
         except Exception:
+            self._record_effect(execution, release, progress, False)
             raise ToolUnavailable() from None
         finally:
             stop.cancel()
@@ -284,10 +300,60 @@ class Gateway:
             self.skills.authorize_use(execution.ctx, execution.agent_id, route["skill"]["skill_key"], operation,
                                       connection_id=route["connection"]["id"], agent_version=execution.agent_version)
         except SkillDenied:
+            self._record_effect(execution, release, progress, True, "resultado descartado: concessao revogada durante a execucao")
             raise ToolDenied() from None
         if execution.cancelled:
+            self._record_effect(execution, release, progress, True, "resultado descartado: execucao cancelada")
             raise ToolCancelled()
-        return self._shape(alias, operation, spec, raw)
+        shaped = self._shape(alias, operation, spec, raw)
+        self._record_effect(execution, release, progress, True)
+        return shaped
+
+    # -- approvals for anything that is not a read ------------------------------------------------------------------
+    def _release(self, execution, route, arguments):
+        """Spend an exact, unexpired, single-use approval for this call, or create the request and stop."""
+        run = execution.run
+        if self.approvals is None or run.get("case_id") is None:
+            raise ToolDenied()  # no approval service, or nothing to bind the approval to
+        spec, ctx = route["spec"], route["ctx"]
+        take = lambda key: arguments.get(spec[key]) if key in spec else None  # noqa: E731
+        recipient = take("recipient_argument")
+        try:
+            normalized = normalize_request(
+                execution.tenant_id, run["case_id"], f"ferramenta:{route['skill']['skill_key']}:{route['tool']}",
+                resource=route["connection"]["id"], recipients=[recipient] if recipient else (),
+                amount_cents=take("amount_argument"), currency=take("currency_argument"), params=arguments)
+        except ApprovalRejected:
+            raise InvalidArguments() from None
+        approval = self.approvals.find_approved(ctx, run["case_id"], normalized)
+        if approval is None:
+            self.approvals.request(
+                ctx, run["case_id"], normalized["action"], resource=normalized["resource"],
+                recipients=normalized["recipients"], amount_cents=normalized["amount_cents"],
+                currency=normalized["currency"], params=arguments,
+                justification=f"Solicitada pelo agente na execucao {execution.run_id}")
+            raise ApprovalRequired()
+        try:
+            self.approvals.consume(ctx, approval["id"], normalized)
+        except ApprovalInvalid:
+            raise ToolDenied() from None
+        return {"approval_id": approval["id"], "ctx": ctx}
+
+    def _record_effect(self, execution, release, progress, completed, detail=None):
+        """After a released call: confirmed when it answered, failed if it never left, unknown otherwise."""
+        if release is None or release.get("recorded"):
+            return
+        release["recorded"] = True
+        if completed:
+            outcome = "confirmado"
+        else:
+            outcome = "desconhecido" if progress["invoked"] else "falhou"
+            detail = detail or ("a chamada saiu mas a resposta nao foi confirmada" if progress["invoked"]
+                                else "a chamada nao chegou a sair")
+        try:
+            self.approvals.record_effect(release["ctx"], release["approval_id"], outcome, detail)
+        except (ApprovalRejected, AccessError):
+            pass
 
     async def _with_credential(self, route, invoke):
         return await self.connections.use_credential_async(
