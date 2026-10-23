@@ -33,8 +33,15 @@ class OperatorControl:
 
     def _withdraw_agent_work(self, ctx, case_id):
         """Cancel what agents had in flight for the case: open handoffs, pending/approved approvals, live jobs."""
+        with self.repository.transaction(ctx.tenant_id) as session:
+            open_tasks = {t["id"] for t in session.list("task", case_id=case_id, limit=1000)
+                          if t["state"] in ("pendente", "em_execucao", "aguardando")}
         for handoff in self.handoffs.list_handoffs(ctx, case_id=case_id):
-            if handoff["state"] in ("proposto", "aceito"):
+            # only work still in flight: a pending proposal, or a delegation whose subtask is open.
+            # A finished transfer or a returned delegation is history and cannot (and need not) be cancelled.
+            in_flight = handoff["state"] == "proposto" or (
+                handoff["state"] == "aceito" and handoff["handoff_kind"] == "delegacao" and handoff.get("task_id") in open_tasks)
+            if in_flight:
                 self.handoffs.cancel(ctx, handoff["id"], "operador assumiu a demanda")
         for approval in self.approvals.list_approvals(ctx, case_id=case_id):
             if approval["state"] in ("pendente", "aprovada"):
