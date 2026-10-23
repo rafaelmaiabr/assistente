@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("mem", "mem"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("sch", "sch"), ("ntf", "ntf"), ("mem", "mem"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -115,6 +115,12 @@ def bundle():
              title="Politica de cobranca", body="Boletos vencem em 10 dias; renegociacao exige aprovacao.",
              source="manual interno", topic="cobranca", status="publicado", valid_until=None, published_by=IDS["user"],
              content_hash=hashlib.sha256(b"politica").hexdigest(), suspicious=False),
+        _doc("schedule", "sch", name="Checagem do site", job_kind="asset_check", payload={"hostname": "exemplo.com.br"}, timezone="America/Sao_Paulo",
+             frequency="diaria", time_of_day="08:00", weekday=None, interval_minutes=None, catch_up="uma_vez", max_runs_per_day=2, state="ativo",
+             state_reason=None, next_run_at=NOW, last_run_at=None, last_job_id=None, runs_day=None, runs_today=0, overlaps=0, budget_skips=0,
+             catchup_skipped=0, failures=0, opt_in=True, created_by=IDS["user"]),
+        _doc("notification", "ntf", severity="atencao", topic="ativo-fora-do-ar", dedupe_key="ativo:exemplo.com.br:dominio_expirado",
+             message="O dominio exemplo.com.br parece vencido.", subject_ref="exemplo.com.br", state="nova", count=1, last_seen_at=NOW),
         _doc("mailbox_cursor", "mbx", connection_id=IDS["conn"], department_id=IDS["dep_sup"], folder="INBOX", uidvalidity=11, last_uid=3, resets=0, status="ativo"),
         _doc("email_message", "eml", connection_id=IDS["conn"], folder="INBOX", uidvalidity=11, uid=3, message_id="<m1@exemplo.invalid>", in_reply_to=None,
              references=[], sender="cliente@exemplo.invalid", sender_name="Cliente", recipients=["atendimento@exemplo.invalid"], classification="nova_demanda",

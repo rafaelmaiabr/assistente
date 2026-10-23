@@ -43,6 +43,11 @@ TRIAGE_DECISIONS = ("rotear", "misto", "esclarecer", "fila_humana")
 TRIAGE_METHODS = ("regra", "llm")
 MESSAGE_STATES = ("rascunho", "aguardando_aprovacao", "enviando", "enviada", "falhou", "desconhecido", "bloqueada", "cancelada")
 OUTBOUND_CHANNELS = ("email", "chat")
+SCHEDULE_FREQUENCIES = ("intervalo", "diaria", "semanal")
+CATCH_UP_POLICIES = ("pular", "uma_vez")
+SCHEDULE_STATES = ("ativo", "pausado", "desativado")
+NOTIFY_SEVERITIES = ("info", "atencao", "acao")
+NOTIFY_STATES = ("nova", "lida")
 EMAIL_CLASSES = ("nova_demanda", "resposta", "resposta_nao_confirmada", "ignorada_autoresposta", "ignorada_loop", "duplicada")
 IDENTITY_STATES = ("nao_verificada", "contato_vinculado")
 RECORD_KINDS = ("fatura_fornecedor", "cobranca_cliente", "pagamento_realizado", "orcamento_fornecedor", "renovacao")
@@ -67,7 +72,8 @@ ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "EmailClass": EMAIL_CLASSES, "IdentityState": IDENTITY_STATES, "RecordKind": RECORD_KINDS, "RecordOrigin": RECORD_ORIGINS, "DocStatus": DOC_STATUSES, "MemoryScope": MEMORY_SCOPES, "MemoryKind": MEMORY_KINDS,
+    "Status": STATUSES, "ScheduleFrequency": SCHEDULE_FREQUENCIES, "CatchUp": CATCH_UP_POLICIES, "ScheduleState": SCHEDULE_STATES,
+    "NotifySeverity": NOTIFY_SEVERITIES, "NotifyState": NOTIFY_STATES, "EmailClass": EMAIL_CLASSES, "IdentityState": IDENTITY_STATES, "RecordKind": RECORD_KINDS, "RecordOrigin": RECORD_ORIGINS, "DocStatus": DOC_STATUSES, "MemoryScope": MEMORY_SCOPES, "MemoryKind": MEMORY_KINDS,
     "MemoryState": MEMORY_STATES, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
