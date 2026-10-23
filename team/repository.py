@@ -24,14 +24,14 @@ TABLES = {
     "credential": "credentials", "mcp_catalog_entry": "mcp_catalog",
     "agent_profile_version": "agent_profile_versions", "model_policy": "model_policies", "case_entry": "case_entries", "capability": "capabilities", "triage_decision": "triage_decisions",
     "outbound_message": "outbound_messages", "knowledge_document": "knowledge_documents", "monitored_asset": "monitored_assets", "financial_record": "financial_records", "email_message": "email_messages", "mailbox_cursor": "mailbox_cursors", "schedule": "schedules", "notification": "notifications", "oauth_app": "oauth_apps", "oauth_grant": "oauth_grants",
-    "memory_item": "memory_items",
+    "memory_item": "memory_items", "capability_gap": "capability_gaps",
 }
 # Lookup columns that are not plain references; ``address_key`` is derived (see column_value).
 EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal_id", "resource_kind"],
                  "agent_profile_version": ["agent_version", "status", "content_hash"], "agent_run": ["agent_version"],
                  "model_policy": ["name"], "capability": ["name"],
                  "outbound_message": ["dedup_key", "provider_id"], "knowledge_document": ["status", "doc_key"],
-                 "memory_item": ["scope"], "monitored_asset": ["status", "hostname"],
+                 "memory_item": ["scope"], "capability_gap": ["topic"], "monitored_asset": ["status", "hostname"],
                  "financial_record": ["record_kind", "counterparty_key", "document_number", "batch_id", "status"],
                  "email_message": ["folder", "uidvalidity", "uid", "message_id", "classification"], "mailbox_cursor": ["folder", "status"],
                  "schedule": ["state", "next_run_at", "job_kind"], "notification": ["state", "dedupe_key", "severity", "topic"],

@@ -40,7 +40,7 @@ O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. Em *
 
 ## Evolução para uma equipe
 
-O [plano #15](https://github.com/rafaelmaiabr/assistente/issues/15) organiza 36 entregas para empresas/departamentos, agentes com personalidade e skills, Secretaria, Suporte e Financeiro, demandas persistentes, delegação/transferência, aprovações e integrações MCP. A arquitetura começa local e modular, preserva Ollama gratuito e permite evoluir para workers separados e A2A. **Esse plano ainda não está implementado.**
+O [plano #15](https://github.com/rafaelmaiabr/assistente/issues/15) organiza 37 entregas para empresas/departamentos, agentes com personalidade e skills, Secretaria, Suporte e Financeiro, demandas persistentes, delegação/transferência, aprovações e integrações MCP. A arquitetura começa local e modular, preserva Ollama gratuito e permite evoluir para workers separados e A2A. **Esse plano ainda não está implementado.**
 
 Consulte [arquitetura e fluxo do atendimento](docs/TEAM-ARCHITECTURE.md), [issues e dependências](docs/TEAM-BACKLOG.md) e [como Codex/Claude executam uma issue por vez](docs/TEAM-IMPLEMENTATION.md). A primeira entrega é [#16 / T01](https://github.com/rafaelmaiabr/assistente/issues/16). Renovação de domínio e integração financeira reais exigem escolher os respectivos fornecedores; o fluxo manual rastreado permite validar a equipe antes disso.
 

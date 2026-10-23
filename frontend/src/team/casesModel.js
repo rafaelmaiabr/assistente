@@ -57,6 +57,16 @@ const EVENTS = {
 };
 export const describeEvent = type => EVENTS[type] || type;
 
+export const GAP_TYPE_LABEL = {instrucao: 'falta uma instrução (skill em .md)', ferramenta: 'falta uma ferramenta (script ou conector)'};
+export const GAP_DECISIONS = [['criar_skill', 'Criar uma skill'], ['criar_ferramenta', 'Criar uma ferramenta'], ['nao_atender', 'Não atender']];
+export const gapDecisionLabel = decision => Object.fromEntries(GAP_DECISIONS)[decision] || '';
+export const canDecideGap = gap => gap.state === 'aberta';
+export const canFulfillGap = gap => gap.state === 'decidida' && gap.decision !== 'nao_atender';
+/** A decision always carries a reason; the reference to the follow-up work is optional. */
+export const gapDecisionBody = (gap, decision, note, followUp) => ({expected_revision: gap.revision, decision, note: note.trim(),
+  ...(followUp && followUp.trim() ? {follow_up: followUp.trim()} : {})});
+export const gapState = gap => gap.state === 'aberta' ? 'Aguardando decisão' : gap.state === 'decidida' ? `Decidida: ${gapDecisionLabel(gap.decision)}` : 'Atendida';
+
 export const STATE_LABEL = {recebida: 'Recebida', triagem: 'Triagem', em_execucao: 'Em execução', aguardando_cliente: 'Aguardando cliente',
   aguardando_aprovacao: 'Aguardando aprovação', aguardando_subtarefa: 'Aguardando subtarefa', pausada: 'Pausada', resolvida: 'Resolvida',
   falhou: 'Falhou', cancelada: 'Cancelada'};

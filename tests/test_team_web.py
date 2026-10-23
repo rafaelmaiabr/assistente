@@ -202,7 +202,7 @@ class SkillsAndConnectionsTests(TeamWebCase):
     async def test_demo_skills_are_labelled_reviewed_and_installed_only_with_the_reviewed_hash(self):
         company, agent = await self.setup_agent()
         status, demos = await self.call('GET', self.t(company, '/skills/demos'))
-        self.assertEqual((status, sorted(d['demo'] for d in demos)), (200, ['financeiro', 'financeiro-analise', 'secretaria', 'suporte']))
+        self.assertEqual((status, sorted(d['demo'] for d in demos)), (200, ['diagnostico-dominio', 'financeiro', 'financeiro-analise', 'secretaria', 'suporte']))
         self.assertTrue(all(d['fictitious'] and 'DEMONSTRACAO' in d['description'] for d in demos))
         status, review = await self.call('POST', self.t(company, '/skills/review'), {'demo': 'financeiro'})
         self.assertEqual(review['permissions'], [{'tool': 'erp-demo.listar-cobrancas', 'operations': ['read']}])

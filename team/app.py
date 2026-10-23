@@ -12,7 +12,9 @@ from .approvals import ApprovalService
 from .cases import CaseService
 from .control import OperatorControl
 from .handoffs import HandoffService
+from .gaps import GapService
 from .jobs import JobQueue
+from .knowledge import KnowledgeService
 from .outbound import OutboundGateway
 from .connections import ConnectionService, LauncherRegistry
 from .llm import ModelPolicyService
@@ -63,10 +65,12 @@ class TeamApp:
             handoffs = HandoffService(repo, access, cases)
             approvals = ApprovalService(repo, access, cases)
             queue = JobQueue(repo, access)
+            knowledge = KnowledgeService(repo, access)
             self._built = SimpleNamespace(
                 repo=repo, access=access, operator=access.local_operator(), team=TeamService(repo, access),
                 policies=policies, agents=agents, connections=connections, skills=SkillService(repo, access, agents),
                 cases=cases, handoffs=handoffs, approvals=approvals, queue=queue,
+                knowledge=knowledge, gaps=GapService(repo, access, cases, knowledge),
                 control=OperatorControl(repo, access, cases, approvals, handoffs, queue),
                 outbound=OutboundGateway(repo, access, cases, approvals, connections, {}, handoffs=handoffs))
         return self._built

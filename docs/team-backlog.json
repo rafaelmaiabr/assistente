@@ -713,7 +713,7 @@
       ],
       "tests": "Contrato do provedor com fixtures: preço mudou, aprovação expirada, resposta perdida e domínio de outra empresa; sandbox se disponível, sem compra real obrigatória.",
       "areas": "Novo adapter MCP por registrador; política e workflow de renovação",
-      "decision": "Decisão externa obrigatória: qual registrador e quais credenciais/ambiente serão usados? Esta issue fica bloqueada para integração real até a resposta.",
+      "decision": "Decisão externa obrigatória: qual registrador e quais credenciais/ambiente serão usados? Esta issue fica bloqueada para integração real até a resposta. Decisão do operador (2026-10-23): conector sob demanda; só construir se uma lacuna de capacidade (#82) decidir por criar uma ferramenta para este fornecedor.",
       "issue": 41,
       "url": "https://github.com/rafaelmaiabr/assistente/issues/41",
       "depends_on_issues": [
@@ -745,7 +745,7 @@
       ],
       "tests": "Contrato fake: assinatura inválida, evento duplicado/fora de ordem, status pendente, estorno, cliente incorreto e resposta perdida; sandbox escolhido quando houver.",
       "areas": "Novo adapter financeiro MCP; reconciliação e comunicação externa",
-      "decision": "Decisão externa obrigatória: sistema financeiro/ERP, disponibilidade de API/sandbox e operações desejadas; sem esses dados não declarar integração pronta.",
+      "decision": "Decisão externa obrigatória: sistema financeiro/ERP, disponibilidade de API/sandbox e operações desejadas; sem esses dados não declarar integração pronta. Decisão do operador (2026-10-23): conector sob demanda; só construir se uma lacuna de capacidade (#82) decidir por criar uma ferramenta para este fornecedor.",
       "issue": 42,
       "url": "https://github.com/rafaelmaiabr/assistente/issues/42",
       "depends_on_issues": [
@@ -1009,6 +1009,44 @@
         29,
         47,
         48
+      ]
+    },
+    {
+      "code": "T37",
+      "phase": "Operação contínua",
+      "title": "Lacunas de capacidade: evolução por demanda (skill, ferramenta ou não atender)",
+      "dependencies": [
+        "T06",
+        "T09",
+        "T12",
+        "T13",
+        "T16",
+        "T17",
+        "T29"
+      ],
+      "goal": "Quando a equipe não tem instrução nem ferramenta para um pedido, o agente para, registra a lacuna e uma pessoa decide criar uma skill, criar uma ferramenta ou não atender.",
+      "acceptance": [
+        "Entidade capability_gap versionada e persistida com pedido, tentativas, tipo, estado, decisão, autor e data; sem segredos nem conteúdo de cliente além de um trecho curto.",
+        "Somente o responsável atual (agente) ou o operador registra a lacuna; a demanda para e aparece como aguardando uma pessoa, na central e na caixa de atenção.",
+        "Lacunas iguais (mesmo assunto, mesma empresa) são agrupadas em uma pendência com contagem de ocorrências e demandas ligadas.",
+        "Três decisões só do operador, com revisão esperada e justificativa: criar_skill, criar_ferramenta (pausam a demanda e guardam a referência do trabalho) e nao_atender (cancela e grava memória confirmada de fora do escopo).",
+        "A triagem consulta as memórias de fora do escopo e encaminha direto à fila humana com o motivo fora_do_escopo.",
+        "Retomar a demanda depois que a capacidade existir marca a lacuna como atendida e respeita o controle do operador.",
+        "Exposta em /api/team e no painel de demandas; isolamento entre empresas; documentação e exemplo de skill em .md."
+      ],
+      "tests": "Agente sem skill declara lacuna e para; agrupamento; decisão por não operador recusada; revisão desatualizada; cada decisão e seus efeitos; triagem reconhece o assunto recusado; isolamento entre empresas; nenhum segredo no registro.",
+      "areas": "team/gaps.py, migração, schema/enums/samples, triagem, central de demandas, API e painel React, docs e skill de exemplo",
+      "decision": "",
+      "issue": 82,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/82",
+      "depends_on_issues": [
+        21,
+        24,
+        27,
+        28,
+        31,
+        32,
+        44
       ]
     },
     {

@@ -20,7 +20,7 @@ Entrega da issue [#27](https://github.com/rafaelmaiabr/assistente/issues/27): `t
 - `rotear`: a Secretaria vira dona na triagem e **propõe a transferência** ao agente da capacidade; ele precisa aceitar (T11).
 - `misto`: a Secretaria continua dona única e cria **uma subtarefa por capacidade** (delegação, T11); ninguém mais vira dono.
 - `esclarecer`: a Secretaria é a dona, a demanda vai a `aguardando_cliente` com a pergunta registrada como nota (rascunho). Uma nova passada retoma e decide.
-- `fila_humana`: a demanda fica em `triagem` sem dono; `human_queue` a lista. Falha ao executar a ação (limites, destino que mudou) também cai aqui.
+- `fila_humana`: a demanda fica em `triagem` sem dono; `human_queue` a lista. Falha ao executar a ação (limites, destino que mudou) também cai aqui. Um pedido que uma pessoa já decidiu não atender (lacuna `nao_atender` com memória confirmada, [TEAM-GAPS.md](TEAM-GAPS.md)) também vai direto para cá, com o motivo `fora_do_escopo`, sem classificar.
 
 ## Registro verificável
 
