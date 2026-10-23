@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from .access import AccessContext, NotFound, PermissionDenied
 from .cases import CaseRejected, clean_text
+from .gaps import declined_match
 from .ids import new_id
 from .prompting import escape
 from .repository import IntegrityViolation
@@ -238,11 +239,16 @@ class TriageService:
             if case["owner_agent_id"] not in (None, secretaria_agent_id):
                 raise TriageRejected("A demanda ja tem outro responsavel.")
             capabilities = [c for c in session.list("capability", limit=1000) if c["status"] == "ativo"]
+            declined = declined_match(session, text)
             rounds = len(session.list("triage_decision", case_id=case_id, limit=1000)) + 1
         catalog_hash = content_hash(sorted(
             ({"name": c["name"], "keywords": c["keywords"], "description": c["description"],
               "requires_customer": bool(c.get("requires_customer"))} for c in capabilities), key=lambda x: x["name"]))
-        if rounds > MAX_ROUNDS:
+        if declined is not None:
+            # a person already decided not to serve this kind of request: no routing, straight to the human queue
+            assessment = Assessment("fila_humana", [], 100, "regra", [
+                {"tipo": "fora_do_escopo", "lacuna": declined["id"], "memoria": declined["memory_id"], "assunto": declined["topic"]}])
+        elif rounds > MAX_ROUNDS:
             assessment = Assessment("fila_humana", reasons=[{"tipo": "limite_de_rodadas", "max": MAX_ROUNDS}])
         else:
             assessment = await self.evaluate(text, capabilities)

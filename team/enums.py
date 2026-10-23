@@ -57,6 +57,9 @@ DOC_STATUSES = ("publicado", "substituido", "revogado", "expirado", "excluido")
 MEMORY_SCOPES = ("empresa", "departamento", "cliente")
 MEMORY_KINDS = ("preferencia", "fato")
 MEMORY_STATES = ("proposta", "confirmada", "rejeitada", "expirada")
+GAP_TYPES = ("instrucao", "ferramenta")
+GAP_STATES = ("aberta", "decidida", "atendida")
+GAP_DECISIONS = ("criar_skill", "criar_ferramenta", "nao_atender")
 ENTRY_CHANNELS = ("chat", "email", "telefone", "interno")
 CHANNELS = ("email", "telefone")
 # observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
@@ -75,7 +78,7 @@ ENUMS = {
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
     "Status": STATUSES, "OAuthState": OAUTH_STATES, "ScheduleFrequency": SCHEDULE_FREQUENCIES, "CatchUp": CATCH_UP_POLICIES, "ScheduleState": SCHEDULE_STATES,
     "NotifySeverity": NOTIFY_SEVERITIES, "NotifyState": NOTIFY_STATES, "EmailClass": EMAIL_CLASSES, "IdentityState": IDENTITY_STATES, "RecordKind": RECORD_KINDS, "RecordOrigin": RECORD_ORIGINS, "DocStatus": DOC_STATUSES, "MemoryScope": MEMORY_SCOPES, "MemoryKind": MEMORY_KINDS,
-    "MemoryState": MEMORY_STATES, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
+    "MemoryState": MEMORY_STATES, "GapType": GAP_TYPES, "GapState": GAP_STATES, "GapDecision": GAP_DECISIONS, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }

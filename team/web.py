@@ -18,6 +18,7 @@ from .agents import ProfileRejected
 from . import overview
 from .approvals import ApprovalInvalid, ApprovalRejected
 from .cases import CaseRejected, InvalidTransition
+from .gaps import GapRejected
 from .handoffs import HandoffRejected
 from .outbound import OutboundError
 from .connections import ConnectionRejected
@@ -30,7 +31,7 @@ MAX_BODY = 64 * 1024
 TEAM = web.AppKey("team_app", object)
 DEMOS = Path(__file__).resolve().parent / "skills_demo"
 SAFE_ERRORS = (ProfileRejected, SkillRejected, ConnectionRejected, PolicyRejected, CaseRejected, ApprovalRejected,
-               HandoffRejected, OutboundError)
+               HandoffRejected, OutboundError, GapRejected)
 
 
 def _json(data, status=200):
@@ -435,6 +436,36 @@ async def approval_decision(request):
 
 
 @api
+async def gaps_list(request):
+    services, ctx = _tenant(request)
+    return _json({"gaps": [overview.gap_view(g) for g in services.gaps.list_gaps(ctx, state=request.query.get("state"))]})
+
+
+@api
+async def gap_report(request):
+    """The operator records a gap on a case (agents call the service directly)."""
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("case_id", "requested", "tried", "gap_type", "topic"))
+    gap = services.gaps.report(ctx, data["case_id"], data["requested"], **{k: v for k, v in data.items() if k in ("tried", "gap_type", "topic")})
+    return _json(overview.gap_view(gap), 201)
+
+
+@api
+async def gap_action(request):
+    services, ctx = _tenant(request)
+    action, gap_id = request.match_info["action"], request.match_info["id"]
+    if action == "decide":
+        data = _fields(await _body(request), ("expected_revision", "decision", "note", "follow_up"))
+        gap = services.gaps.decide(ctx, gap_id, data["expected_revision"], data["decision"], data["note"], follow_up=data.get("follow_up"))
+    elif action == "fulfill":
+        data = _fields(await _body(request), ("expected_revision", "note", "resume"))
+        gap = services.gaps.fulfill(ctx, gap_id, data["expected_revision"], data["note"], resume=data.get("resume", True) is True)
+    else:
+        raise NotFound()
+    return _json(overview.gap_view(gap))
+
+
+@api
 async def message_resolve(request):
     services, ctx = _tenant(request)
     data = _fields(await _body(request), ("outcome", "provider_id", "detail"))
@@ -484,6 +515,9 @@ def register(app, team_app):
     r.add_get(f"{t}/attention", attention_inbox)
     r.add_post(f"{t}/approvals/{{id}}/{{action}}", approval_decision)
     r.add_post(f"{t}/messages/{{id}}/resolve", message_resolve)
+    r.add_get(f"{t}/gaps", gaps_list)
+    r.add_post(f"{t}/gaps", gap_report)
+    r.add_post(f"{t}/gaps/{{id}}/{{action}}", gap_action)
     r.add_get(f"{t}/mcp-catalog", mcp_catalog)
     r.add_post(f"{t}/mcp-catalog", approve_mcp)
     r.add_patch(f"{t}/mcp-catalog/{{id}}", set_mcp_status)

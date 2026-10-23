@@ -1,6 +1,6 @@
 # Backlog da equipe de agentes
 
-Status: **planejado, não implementado**. Criado em 2026-10-22. [Acompanhamento #15](https://github.com/rafaelmaiabr/assistente/issues/15) contém as 36 issues filhas. [#14](https://github.com/rafaelmaiabr/assistente/issues/14) entrega somente arquitetura e planejamento.
+Status: **planejado, não implementado**. Criado em 2026-10-22. [Acompanhamento #15](https://github.com/rafaelmaiabr/assistente/issues/15) contém as 37 issues filhas (a T37 foi acrescentada em 2026-10-23, por decisão do operador, para evoluir por demanda). [#14](https://github.com/rafaelmaiabr/assistente/issues/14) entrega somente arquitetura e planejamento.
 
 Leia [TEAM-ARCHITECTURE.md](TEAM-ARCHITECTURE.md) e [TEAM-IMPLEMENTATION.md](TEAM-IMPLEMENTATION.md). O [manifesto JSON](team-backlog.json) contém o grafo, objetivo, aceite e validação de cada entrega. Estado de execução deve ser consultado no GitHub, sem inferir conclusão pela existência de documentos.
 
@@ -46,6 +46,7 @@ A sequência abaixo é topológica: cada dependência aparece antes da entrega. 
 | [T34 / #49](https://github.com/rafaelmaiabr/assistente/issues/49) | PostgreSQL e workers separados com filas e quotas por empresa | [#25](https://github.com/rafaelmaiabr/assistente/issues/25), [#44](https://github.com/rafaelmaiabr/assistente/issues/44), [#45](https://github.com/rafaelmaiabr/assistente/issues/45), [#47](https://github.com/rafaelmaiabr/assistente/issues/47), [#48](https://github.com/rafaelmaiabr/assistente/issues/48) |
 | [T35 / #50](https://github.com/rafaelmaiabr/assistente/issues/50) | Interoperabilidade A2A para equipes e agentes externos | [#22](https://github.com/rafaelmaiabr/assistente/issues/22), [#26](https://github.com/rafaelmaiabr/assistente/issues/26), [#28](https://github.com/rafaelmaiabr/assistente/issues/28), [#29](https://github.com/rafaelmaiabr/assistente/issues/29), [#47](https://github.com/rafaelmaiabr/assistente/issues/47), [#48](https://github.com/rafaelmaiabr/assistente/issues/48) |
 | [T36 / #51](https://github.com/rafaelmaiabr/assistente/issues/51) | Onboarding da equipe e pacote Windows com migrações | [#30](https://github.com/rafaelmaiabr/assistente/issues/30), [#31](https://github.com/rafaelmaiabr/assistente/issues/31), [#43](https://github.com/rafaelmaiabr/assistente/issues/43), [#45](https://github.com/rafaelmaiabr/assistente/issues/45), [#46](https://github.com/rafaelmaiabr/assistente/issues/46), [#48](https://github.com/rafaelmaiabr/assistente/issues/48) |
+| [T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82) | Lacunas de capacidade: evolução por demanda (skill, ferramenta ou não atender) | [#21](https://github.com/rafaelmaiabr/assistente/issues/21), [#24](https://github.com/rafaelmaiabr/assistente/issues/24), [#27](https://github.com/rafaelmaiabr/assistente/issues/27), [#28](https://github.com/rafaelmaiabr/assistente/issues/28), [#31](https://github.com/rafaelmaiabr/assistente/issues/31), [#32](https://github.com/rafaelmaiabr/assistente/issues/32), [#44](https://github.com/rafaelmaiabr/assistente/issues/44) |
 
 ## Portas de entrega
 
@@ -55,7 +56,7 @@ A sequência abaixo é topológica: cada dependência aparece antes da entrega. 
 | Equipe demonstrável com responsabilidade e intervenção | T09–T16 | Contas fictícias e transporte fake |
 | Conhecimento e email real autorizado | T17–T22 | Auth específica por provedor; SMTP aprovado |
 | Diagnóstico, Financeiro e domínio | T23–T28 | Fluxo manual disponível; registrador/ERP reais exigem escolha |
-| Operação contínua e experiência de voz | T29–T31 | Computador/backend precisam estar ativos para executar |
+| Operação contínua e experiência de voz | T29–T31, T37 | Computador/backend precisam estar ativos para executar |
 | Acesso remoto, avaliação e escala | T32–T35 | Identidade e isolamento antes de expor rede |
 | Onboarding e distribuição da equipe | T36 | Preservar configurações e dados locais no upgrade |
 
@@ -65,8 +66,8 @@ Agrupamentos não impõem dependências extras. T36 pode ser entregue sem Postgr
 
 - [T19 / #34](https://github.com/rafaelmaiabr/assistente/issues/34): Antes de integrar conta real, operador precisa definir conta/organização e disponibilizar registro OAuth necessário; não solicitar segredo no GitHub.
 - [T20 / #35](https://github.com/rafaelmaiabr/assistente/issues/35): Antes da validação real, definir organização/conta e registro de aplicativo; políticas corporativas podem exigir administrador.
-- [T26 / #41](https://github.com/rafaelmaiabr/assistente/issues/41): Decisão externa obrigatória: qual registrador e quais credenciais/ambiente serão usados? Esta issue fica bloqueada para integração real até a resposta.
-- [T27 / #42](https://github.com/rafaelmaiabr/assistente/issues/42): Decisão externa obrigatória: sistema financeiro/ERP, disponibilidade de API/sandbox e operações desejadas; sem esses dados não declarar integração pronta.
+- [T26 / #41](https://github.com/rafaelmaiabr/assistente/issues/41): **Sob demanda** (decisão do operador, 2026-10-23): só será construída se uma lacuna de capacidade ([T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82)) decidir por criar uma ferramenta para um registrador específico. Nesse caso, a decisão externa continua obrigatória: qual registrador e quais credenciais/ambiente. A consulta pública de registro já existe em T23.
+- [T27 / #42](https://github.com/rafaelmaiabr/assistente/issues/42): **Sob demanda** (decisão do operador, 2026-10-23): só será construída se uma lacuna de capacidade ([T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82)) decidir por criar uma ferramenta para um sistema financeiro/ERP específico. Nesse caso, a decisão externa continua obrigatória: sistema, disponibilidade de API/sandbox e operações desejadas; sem esses dados não declarar integração pronta.
 - [T32 / #47](https://github.com/rafaelmaiabr/assistente/issues/47): Escolher provedor de identidade e destino de implantação antes da validação remota; modo local deve continuar sem serviço pago.
 
 Nenhuma pendência exige publicar senha, chave, token ou dados de cliente em issue. Conta/provedor são decisões; credenciais entram somente pela interface/cofre apropriados.

@@ -9,6 +9,7 @@ Entrega da issue [#31](https://github.com/rafaelmaiabr/assistente/issues/31): ab
 - **Detalhe**: responsável, subtarefas, trilha de transferências/delegações (com quem propôs e para quem), aprovações, mensagens ao cliente com estado (`enviada` = aceita pelo provedor; `desconhecido` destacado), e linha do tempo com notas, mensagens, evidências (fonte, data, confiabilidade; resumos de IA marcados como "não é prova") e eventos.
 - **Aprovação**: cartão com a ação concreta, destinatário(s), valor/moeda, recurso, parâmetros, validade, estado e identificação (hash) do conteúdo. **Aprovar** exige marcar que conferiu ação/destinatário/valor e envia o hash exibido (o servidor recusa se não coincidir); negar e revogar exigem motivo.
 - **Intervenção**: assumir, pausar, devolver à equipe e rejeitar, sempre com motivo e com a **revisão** vista na tela; se outra pessoa mudou a demanda, o servidor responde 409 e a tela pede para recarregar. A checagem de permissão é do backend (`OperatorControl`, `ApprovalService`), não da interface.
+- **Lacunas de capacidade** (T37): o detalhe lista o que a equipe não soube atender, com as decisões *criar skill*, *criar ferramenta* e *não atender*; a lista marca as demandas com lacuna aberta e a caixa de atenção as reúne. Ver [TEAM-GAPS.md](TEAM-GAPS.md).
 - **Reconciliação**: operações com resultado desconhecido mostram alerta e formulário para registrar, após conferir o sistema externo, que aconteceu ou não (nada é desfeito automaticamente).
 
 ## Atualização, reconexão e snapshot autoritativo

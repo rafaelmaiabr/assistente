@@ -45,6 +45,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Agendamentos e notificações (T29).** Novos `schedule` (rotina opt-in que só enfileira jobs) e `notification` (alerta com contador). Detalhes em [TEAM-SCHEDULER.md](TEAM-SCHEDULER.md).
 - **Saída por SMTP (T22).** `outbound_message` ganha campos opcionais `cc`, `bcc`, `attachments`, `message_id`, `in_reply_to`, `references`, `provider_result` e `simulated`. Detalhes em [TEAM-SMTP.md](TEAM-SMTP.md).
 - **OAuth (T19).** Novos `oauth_app` (cliente OAuth registrado; segredo no cofre) e `oauth_grant` (metadados da concessão por conexão) e o tipo de credencial `oauth` (T20 acrescenta `directory`, o tenant permitido, em `oauth_app`). Detalhes em [TEAM-OAUTH.md](TEAM-OAUTH.md).
+- **Lacunas de capacidade (T37).** Novo `capability_gap`: pedido que a equipe não soube atender, tentativas, tipo (`instrucao` ou `ferramenta`), assunto, demandas ligadas e a decisão do operador (`criar_skill`, `criar_ferramenta`, `nao_atender`); a recusa guarda uma `memory_item` confirmada. Detalhes em [TEAM-GAPS.md](TEAM-GAPS.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

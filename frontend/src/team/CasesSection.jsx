@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {api} from './api.js';
 import {describeError} from './model.js';
 import {PHASE_CLASS, PHASE_LABEL, STATE_LABEL, approvalLines, canDecide, canRevoke, describeEvent, mergeEvents, needsRefresh, nextDelay,
-  shortHash} from './casesModel.js';
+  GAP_DECISIONS, GAP_TYPE_LABEL, canDecideGap, canFulfillGap, gapDecisionBody, gapState, shortHash} from './casesModel.js';
 import {Notice} from './shared.jsx';
 
 const PHASES = ['', 'aguardando_humano', 'andamento', 'aguardando_cliente', 'falha', 'concluida', 'cancelada'];
@@ -72,6 +72,30 @@ function Approval({base, approval, onChanged}) {
   </article>;
 }
 
+function Gap({base, gap, onChanged}) {
+  const [note, setNote] = useState(''), [followUp, setFollowUp] = useState(''), [message, setMessage] = useState({}), [busy, setBusy] = useState(false);
+  const run = async (action, body) => {
+    setBusy(true); setMessage({});
+    try {await api.post(`${base}/gaps/${gap.id}/${action}`, body); setNote(''); setFollowUp(''); await onChanged();}
+    catch (e) {setMessage({error: describeError(e)});} finally {setBusy(false);}
+  };
+  return <article className={`team-approval state-${gap.state}`} aria-label={`Lacuna: ${gap.topic}`}>
+    <p><strong>{gap.requested}</strong><br/><span className="badge human">{gapState(gap)}</span> <small>{GAP_TYPE_LABEL[gap.gap_type]} · {gap.occurrences} ocorrência(s)</small></p>
+    {gap.tried.length > 0 && <ul className="team-list compact">{gap.tried.map(t => <li key={t}><span>Tentado: {t}</span></li>)}</ul>}
+    {gap.decision_note && <p className="hint">Justificativa: {gap.decision_note}{gap.follow_up && <> · acompanhamento: {gap.follow_up}</>}</p>}
+    {(canDecideGap(gap) || canFulfillGap(gap)) && <>
+      <label>Justificativa<input value={note} maxLength={300} onChange={e => setNote(e.target.value)}/></label>
+      {canDecideGap(gap) && <label>Referência do trabalho (opcional)<input value={followUp} maxLength={120} onChange={e => setFollowUp(e.target.value)}/></label>}
+      <div className="team-actions">
+        {canDecideGap(gap) && GAP_DECISIONS.map(([value, label]) => <button key={value} disabled={busy || !note.trim()}
+          onClick={() => run('decide', gapDecisionBody(gap, value, note, followUp))}>{label}</button>)}
+        {canFulfillGap(gap) && <button className="primary" disabled={busy || !note.trim()} onClick={() => run('fulfill', {expected_revision: gap.revision, note: note.trim()})}>Capacidade pronta: retomar</button>}
+      </div>
+      {canDecideGap(gap) && <p className="hint">Não atender cancela as demandas ligadas e guarda uma memória para a triagem reconhecer o pedido; as outras duas mantêm a demanda pausada.</p>}</>}
+    <Notice error={message.error}/>
+  </article>;
+}
+
 function Detail({base, snap, reload}) {
   const {case: c} = snap;
   const [reason, setReason] = useState(''), [message, setMessage] = useState({}), [busy, setBusy] = useState(false);
@@ -95,6 +119,7 @@ function Detail({base, snap, reload}) {
         <button disabled={busy || !reason.trim()} onClick={() => act('reject')}>Rejeitar demanda</button></div>
       <p className="hint">Cada ação usa a revisão {c.revision}; se outra pessoa mudou a demanda, você será avisado para recarregar.</p>
       <Notice error={message.error}/></div>}
+    {snap.gaps?.length > 0 && <><h4>Lacunas de capacidade</h4>{snap.gaps.map(g => <Gap key={g.id} base={base} gap={g} onChanged={reload}/>)}</>}
     <h4>Aprovações</h4>
     {snap.approvals.map(a => <Approval key={a.id} base={base} approval={a} onChanged={reload}/>)}
     {!snap.approvals.length && <p className="team-empty">Nenhuma aprovação.</p>}
@@ -133,6 +158,7 @@ export function CasesSection({base, openRequest = ''}) {
         <button className="link" onClick={() => setOpenId(c.id)} aria-current={c.id === openId ? 'true' : undefined}>
           <strong>{c.objective}</strong><br/><Badge phase={c.phase}/> <small>{c.owner_name || 'sem responsável'}</small>
           {c.pending_approvals > 0 && <span className="badge human">{c.pending_approvals} aprovação(ões)</span>}
+          {c.open_gaps > 0 && <span className="badge human">lacuna</span>}
           {c.reconciliation > 0 && <span className="badge human">reconciliar</span>}</button></li>)}
         {!cases.length && <li className="team-empty">Nenhuma demanda neste filtro.</li>}</ul>
     </div>

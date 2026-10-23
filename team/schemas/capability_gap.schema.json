@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "capability_gap",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "case_id",
+    "reported_by",
+    "requested",
+    "tried",
+    "gap_type",
+    "topic",
+    "occurrences",
+    "related_case_ids",
+    "state",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "capability_gap"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^gap_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^cas_[0-9a-f]{32}$"
+    },
+    "reported_by": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "requested": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "tried": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      }
+    },
+    "gap_type": {
+      "type": "string",
+      "enum": [
+        "instrucao",
+        "ferramenta"
+      ]
+    },
+    "topic": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "occurrences": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "related_case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^cas_[0-9a-f]{32}$"
+      }
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "aberta",
+        "decidida",
+        "atendida"
+      ]
+    },
+    "decision": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "criar_skill",
+            "criar_ferramenta",
+            "nao_atender"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decision_note": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decided_by": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decided_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "follow_up": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "memory_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^mem_[0-9a-f]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fulfilled_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

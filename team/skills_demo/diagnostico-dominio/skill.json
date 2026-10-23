@@ -1,0 +1,32 @@
+{
+  "manifest_version": 1,
+  "id": "demo.diagnostico-dominio",
+  "version": "1.0.0",
+  "fictitious": true,
+  "description": "[DEMONSTRACAO - dados ficticios] Primeira verificacao de um dominio quando o cliente diz que o site nao funciona, com regra de lacuna de capacidade.",
+  "instructions_file": "instrucoes.md",
+  "inputs": [
+    "dominio"
+  ],
+  "outputs": [
+    "evidencias",
+    "hipotese",
+    "lacuna"
+  ],
+  "required_tools": [
+    {
+      "tool": "diagnostico-rede.consultar-registro",
+      "operations": [
+        "read"
+      ]
+    },
+    {
+      "tool": "diagnostico-rede.verificar-dns",
+      "operations": [
+        "read"
+      ]
+    }
+  ],
+  "risks": [],
+  "settings": []
+}

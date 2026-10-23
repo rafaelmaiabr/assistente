@@ -175,6 +175,13 @@ SCHEMAS = {
     # A host the company authorizes for network diagnostics; nothing outside this list is ever probed.
     "monitored_asset": _entity("monitored_asset", hostname="str", note="str?", status="enum:Status", created_by="actor"),
     # Memory: preferences and dated facts. Anything inferred is only a proposal until the operator confirms it.
+    # Something the team was asked to do and could not: no instruction (skill) or no tool. The agent stops and a person
+    # decides whether to write a skill, build a tool or decline (the refusal is kept as a confirmed memory).
+    "capability_gap": _entity(
+        "capability_gap", case_id="ref:case", reported_by="actor", requested="text", tried="list:str", gap_type="enum:GapType",
+        topic="slug", occurrences="posint", related_case_ids="list:ref:case", state="enum:GapState",
+        decision="enum:GapDecision?", decision_note="text?", decided_by="actor?", decided_at="ts?", follow_up="str?",
+        memory_id="ref:memory_item?", fulfilled_at="ts?"),
     "memory_item": _entity(
         "memory_item", scope="enum:MemoryScope", department_id="ref:department?", subject="str?",
         memory_kind="enum:MemoryKind", text="text", state="enum:MemoryState", source="str", proposed_by="actor",
@@ -401,6 +408,22 @@ def _rule_triage(doc):
     return errors
 
 
+def _rule_gap(doc):
+    errors = []
+    if doc["case_id"] not in doc["related_case_ids"] or len(doc["related_case_ids"]) > 20:
+        errors.append("$.related_case_ids: deve conter a demanda de origem e no maximo 20 demandas")
+    if doc["occurrences"] < len(doc["related_case_ids"]) or len(doc["tried"]) > 10:
+        errors.append("$.occurrences/tried: contagem inconsistente ou tentativas demais")
+    decided = doc["state"] != "aberta"
+    if decided != all(doc.get(k) is not None for k in ("decision", "decision_note", "decided_by", "decided_at")):
+        errors.append("$.decision: decisao, justificativa, autor e data existem somente depois de decidida")
+    if doc["state"] == "atendida" and (doc["decision"] == "nao_atender" or doc.get("fulfilled_at") is None):
+        errors.append("$.state: so uma lacuna com skill ou ferramenta pode ser atendida, com data")
+    if (doc.get("decision") == "nao_atender") != (doc.get("memory_id") is not None):
+        errors.append("$.memory_id: obrigatoria so quando a decisao e nao atender")
+    return errors
+
+
 def _rule_memory(doc):
     errors = []
     if (doc["scope"] == "departamento") != (doc["department_id"] is not None):
@@ -457,7 +480,7 @@ def _rule_asset(doc):
     return [] if _HOSTNAME.match(doc["hostname"]) else ["$.hostname: use um nome DNS minusculo (ex.: exemplo.com.br)"]
 
 
-_RULES = {"schedule": _rule_schedule, "financial_record": _rule_financial, "monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+_RULES = {"capability_gap": _rule_gap, "schedule": _rule_schedule, "financial_record": _rule_financial, "monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 

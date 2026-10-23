@@ -40,7 +40,9 @@ def _signals(session, case):
     messages = session.list("outbound_message", case_id=case_id, limit=1000)
     handoffs = session.list("handoff", case_id=case_id, limit=1000)
     decisions = session.list("triage_decision", case_id=case_id, limit=1000) if case["state"] in ("recebida", "triagem") else []
+    open_gaps = sum(1 for g in session.list("capability_gap", state="aberta", limit=1000) if case_id in g["related_case_ids"])
     return {
+        "open_gaps": open_gaps,
         "pending_approvals": sum(1 for a in approvals if a["state"] == "pendente"),
         "reconciliation": sum(1 for a in approvals if a.get("effect_outcome") == "desconhecido")
         + sum(1 for m in messages if m["state"] == "desconhecido"),
@@ -50,7 +52,7 @@ def _signals(session, case):
 
 
 def _needs_human(signals):
-    return bool(signals["pending_approvals"] or signals["reconciliation"] or signals["handoff_attention"]
+    return bool(signals["pending_approvals"] or signals["open_gaps"] or signals["reconciliation"] or signals["handoff_attention"]
                 or signals["human_queue"])
 
 
@@ -92,6 +94,7 @@ def snapshot(services, ctx, case_id):
         entries += [("evidencia", e) for e in session.list("evidence", case_id=case_id, limit=1000)]
         events = [("evento", e) for _, e in session.events(case_id, 0, 1000)]
         decisions = session.list("triage_decision", case_id=case_id, limit=1000)
+        gaps = [g for g in session.list("capability_gap", limit=1000) if case_id in g["related_case_ids"]]
         cursor = session.last_event_seq(case_id)
     key = {"entrada": "created_at", "evidencia": "created_at", "evento": "occurred_at"}
     timeline = [{"tipo": kind, "em": doc[key[kind]], "item": _public(kind, doc)}
@@ -107,6 +110,7 @@ def snapshot(services, ctx, case_id):
         "approvals": [_approval_view(a) for a in sorted(approvals, key=lambda a: a["created_at"])],
         "messages": [{k: m[k] for k in ("id", "state", "channel", "to", "subject", "provider_id", "last_error", "created_at")}
                      for m in sorted(messages, key=lambda m: m["created_at"])],
+        "gaps": [gap_view(g) for g in sorted(gaps, key=lambda g: g["created_at"])],
         "triage": [{k: d[k] for k in ("decision", "method", "capabilities", "confidence_pct", "reasons", "question", "created_at")}
                    for d in decisions],
     }
@@ -118,6 +122,12 @@ def summarize_from(case, names, signals):
             "owner_agent_id": case["owner_agent_id"], "owner_name": names.get(case["owner_agent_id"]),
             "operator_control": bool(case.get("operator_control")), "customer_ref": case["customer_ref"],
             "updated_at": case["updated_at"], "closed_at": case.get("closed_at"), **signals}
+
+
+def gap_view(gap):
+    """A capability gap as the operator sees it (the text is already short and sanitized)."""
+    return {k: gap.get(k) for k in ("id", "gap_type", "topic", "requested", "tried", "occurrences", "related_case_ids", "state",
+                                     "decision", "decision_note", "follow_up", "decided_at", "fulfilled_at", "revision", "created_at")}
 
 
 def _approval_view(approval):
@@ -157,6 +167,7 @@ def attention(services, ctx):
         approvals = session.list("approval_request", limit=1000)
         messages = session.list("outbound_message", limit=1000)
         handoffs = session.list("handoff", limit=1000)
+        gaps = session.list("capability_gap", state="aberta", limit=1000)
         cases = {c["id"]: c for c in session.list("case", limit=1000)}
     return {
         "pending_approvals": [_approval_view(a) | {"case_id": a["case_id"]} for a in approvals if a["state"] == "pendente"],
@@ -166,5 +177,7 @@ def attention(services, ctx):
            for m in messages if m["state"] == "desconhecido"],
         "handoffs": [{"id": h["id"], "case_id": h["case_id"], "state": h["state"], "resolution": h.get("resolution")}
                      for h in handoffs if h.get("attention")],
+        "gaps": [{"id": g["id"], "case_id": g["case_id"], "topic": g["topic"], "gap_type": g["gap_type"],
+                  "occurrences": g["occurrences"], "requested": g["requested"][:200], "revision": g["revision"]} for g in gaps],
         "paused": [c["id"] for c in cases.values() if c.get("operator_control")],
     }
