@@ -38,6 +38,8 @@ EVIDENCE_TYPES = ("fato", "resultado_ferramenta", "recibo", "documento")
 RELIABILITY = ("verificada", "declarada", "inferida")
 ENTRY_TYPES = ("nota_interna", "mensagem_externa", "resumo_ia")
 DIRECTIONS = ("entrada", "saida")
+TRIAGE_DECISIONS = ("rotear", "misto", "esclarecer", "fila_humana")
+TRIAGE_METHODS = ("regra", "llm")
 ENTRY_CHANNELS = ("chat", "email", "telefone", "interno")
 CHANNELS = ("email", "telefone")
 # observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
@@ -54,7 +56,7 @@ ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
+    "Status": STATUSES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }

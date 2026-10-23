@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "triage_decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "case_id",
+    "decision",
+    "method",
+    "capabilities",
+    "confidence_pct",
+    "reasons",
+    "message_hash",
+    "catalog_hash",
+    "threshold_route",
+    "threshold_clarify",
+    "rounds",
+    "decided_by",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "triage_decision"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^tri_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^cas_[0-9a-f]{32}$"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "rotear",
+        "misto",
+        "esclarecer",
+        "fila_humana"
+      ]
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "regra",
+        "llm"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      }
+    },
+    "confidence_pct": {
+      "type": "integer"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "question": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "message_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "catalog_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "threshold_route": {
+      "type": "integer"
+    },
+    "threshold_clarify": {
+      "type": "integer"
+    },
+    "rounds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "decided_by": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

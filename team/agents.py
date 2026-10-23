@@ -15,7 +15,7 @@ from .repository import IntegrityViolation, RevisionConflict
 from .schema import content_hash
 
 EDITABLE = ("department_id", "name", "goals", "personality", "scope", "out_of_scope", "routing_policy",
-            "model_policy_ref", "voice_profile_ref", "handoff_target_ids", "skill_grant_ids", "status")
+            "model_policy_ref", "voice_profile_ref", "handoff_target_ids", "skill_grant_ids", "status", "capabilities")
 DEFAULT_MODEL_POLICIES = frozenset({"local-primeiro", "legacy-local"})  # built-in; companies add their own (T08)
 
 # Defense in depth, not a guarantee: profile text that tries to cancel product rules or approvals is refused.
@@ -76,6 +76,9 @@ class AgentService:
                 raise ProfileRejected("Um agente nao pode encaminhar para si mesmo.")
             if session.get("agent_definition", target) is None:
                 raise NotFound()
+        for name in doc.get("capabilities") or []:
+            if not session.list("capability", name=name, limit=1):
+                raise ProfileRejected(f"Capacidade desconhecida: {name[:40]}.")
         for grant_id in doc["skill_grant_ids"]:
             grant = session.get("skill_grant", grant_id)
             if grant is None or grant["agent_id"] != doc["id"]:
@@ -109,7 +112,8 @@ class AgentService:
 
     # -- CRUD ------------------------------------------------------------------------------------------
     def create_agent(self, ctx, *, department_id, name, goals, personality, scope, out_of_scope, model_policy_ref,
-                     routing_policy="encaminhar", voice_profile_ref=None, handoff_target_ids=(), skill_grant_ids=()):
+                     routing_policy="encaminhar", voice_profile_ref=None, handoff_target_ids=(), skill_grant_ids=(),
+                     capabilities=()):
         self._operator(ctx)
         now = _now()
         doc = {"kind": "agent_definition", "schema_version": 1, "id": new_id("agent_definition"),
@@ -117,7 +121,8 @@ class AgentService:
                "department_id": department_id, "agent_version": 1, "name": name, "goals": list(goals),
                "personality": personality, "scope": scope, "out_of_scope": out_of_scope,
                "routing_policy": routing_policy, "skill_grant_ids": list(skill_grant_ids),
-               "handoff_target_ids": list(handoff_target_ids), "model_policy_ref": model_policy_ref,
+               "handoff_target_ids": list(handoff_target_ids), "capabilities": list(capabilities),
+               "model_policy_ref": model_policy_ref,
                "voice_profile_ref": voice_profile_ref, "status": "ativo"}
         with self.repository.transaction(ctx.tenant_id) as session:
             self._publish(ctx, session, doc, created=True)

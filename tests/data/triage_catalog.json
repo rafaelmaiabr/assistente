@@ -1,0 +1,34 @@
+[
+ {
+  "name": "financeiro",
+  "description": "Cobrancas, boletos, faturas, pagamentos e notas fiscais",
+  "keywords": [
+   "boleto",
+   "cobranca",
+   "fatura",
+   "pagamento",
+   "pagar",
+   "nota fiscal",
+   "reembolso",
+   "mensalidade"
+  ],
+  "requires_customer": true
+ },
+ {
+  "name": "suporte",
+  "description": "Problemas tecnicos de site, dominio, servidor e certificados",
+  "keywords": [
+   "site",
+   "fora do ar",
+   "erro",
+   "dns",
+   "dominio",
+   "servidor",
+   "lentidao",
+   "lento",
+   "certificado",
+   "ssl"
+  ],
+  "requires_customer": false
+ }
+]
