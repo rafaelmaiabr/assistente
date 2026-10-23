@@ -14,72 +14,7 @@ from team.llm import (
     EXTERNAL_NOTICE, LlmClient, LlmReply, LlmTimeout, LlmUnavailable, ModelPolicyService, NoModelAvailable,
     OpenAICompatClient, PolicyRejected, route)
 from team.runtime import AgentRuntime
-from tests.team_fixtures import SECRET, GatewayCase
-
-CONFIG = {"model": "qwen2.5:7b", "ollama_url": "http://127.0.0.1:11435/v1", "max_concurrent_generations": 1}
-BUDGET = {"max_steps": 6, "token_budget": 10000, "deadline_seconds": 30}
-TOOL = "erp-demo_listar-cobrancas"  # the model sees a provider-safe name for erp-demo.listar-cobrancas
-
-
-class FakeLlm(LlmClient):
-    def __init__(self, script=None, delay=0):
-        self.script, self.delay, self.calls, self.active, self.peak, self.cancelled = list(script or []), delay, [], 0, 0, False
-
-    async def complete(self, messages, tools, *, model, max_tokens):
-        self.calls.append({"messages": copy.deepcopy(messages), "tools": tools, "model": model, "max_tokens": max_tokens})
-        self.active += 1
-        self.peak = max(self.peak, self.active)
-        try:
-            if self.delay:
-                await asyncio.sleep(self.delay)
-            step = self.script.pop(0) if self.script else LlmReply("fim")
-            if isinstance(step, Exception):
-                raise step
-            return step
-        except asyncio.CancelledError:
-            self.cancelled = True
-            raise
-        finally:
-            self.active -= 1
-
-
-def tool_call(arguments=None, name=TOOL, call_id="c1", usage=None):
-    return LlmReply("", [{"id": call_id, "name": name, "arguments": {"cliente": "Acme"} if arguments is None else arguments}],
-                    usage or {})
-
-
-class RuntimeCase(GatewayCase):
-    def setUp(self):
-        super().setUp()
-        self.policies = ModelPolicyService(self.repo, self.access, CONFIG)
-        self.agents.model_policies = self.policies.known_names
-        self.llms = {"local": FakeLlm()}
-        self.factory_secrets = []
-
-        def factory(choice, secret):
-            self.factory_secrets.append((choice.name, secret))
-            return self.llms[choice.name]
-
-        self.runtime = AgentRuntime(self.repo, self.access, self.agents, self.skills, self.gateway, self.policies,
-                                    CONFIG, client_factory=factory, connections=self.connections)
-
-    def new_run(self, budget=None):
-        return self.agents.start_run(self.ca, self.agent["id"], budget=budget or BUDGET)
-
-    def state(self, run):
-        with self.repo.transaction(self.a["id"]) as session:
-            return session.get("agent_run", run["id"])
-
-    async def go(self, run=None, message="Quais cobrancas estao abertas?", **kwargs):
-        run = run or self.new_run()
-        return run, await self.runtime.run(self.a["id"], run["id"], message, **kwargs)
-
-    def use_policy(self, **kwargs):
-        policy = self.policies.create_policy(self.ca, **kwargs)
-        agent = self.agents.get_agent(self.ca, self.agent["id"])
-        self.agents.update_agent(self.ca, self.agent["id"], agent["revision"], model_policy_ref=policy["name"])
-        return policy
-
+from tests.team_fixtures import BUDGET, CONFIG, SECRET, TOOL, FakeLlm, GatewayCase, RuntimeCase, tool_call
 
 class LoopTests(RuntimeCase):
     async def test_simple_turn_builds_layered_context_and_persists_state(self):

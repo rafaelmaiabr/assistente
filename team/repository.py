@@ -111,6 +111,9 @@ class TenantSession(ABC):
     @abstractmethod
     def mark_dispatched(self, outbox_ids): ...
 
+    @abstractmethod
+    def record_outbox_failure(self, outbox_ids): ...
+
 
 class Repository(ABC):
     @abstractmethod
@@ -262,6 +265,10 @@ class SqliteSession(TenantSession):
             (self.tenant_id, min(max(int(limit), 1), MAX_LIST))).fetchall()
         return [{"id": i, "topic": topic, "attempts": attempts, "event": json.loads(doc)}
                 for i, topic, attempts, doc in rows]
+
+    def record_outbox_failure(self, outbox_ids):
+        self.conn.executemany("UPDATE outbox SET attempts = attempts + 1 WHERE id = ? AND tenant_id = ?",
+                              [(i, self.tenant_id) for i in outbox_ids])
 
     def mark_dispatched(self, outbox_ids):
         self.conn.executemany(
