@@ -133,6 +133,16 @@ SCHEMAS = {
         owner_agent_id="ref:agent_definition", owner_version="posint", draft_hash="sha256",
         approval_id="ref:approval_request?", provider_id="str?", sent_at="ts?", attempts="int", last_error="str?",
         created_by="actor"),
+    # Knowledge: versioned published documents with a source; retrieval treats their text as untrusted data.
+    "knowledge_document": _entity(
+        "knowledge_document", department_id="ref:department?", doc_key="slug", version="posint", title="str", body="text",
+        source="str", topic="slug?", status="enum:DocStatus", valid_until="ts?", published_by="actor",
+        content_hash="sha256", suspicious="bool?"),
+    # Memory: preferences and dated facts. Anything inferred is only a proposal until the operator confirms it.
+    "memory_item": _entity(
+        "memory_item", scope="enum:MemoryScope", department_id="ref:department?", subject="str?",
+        memory_kind="enum:MemoryKind", text="text", state="enum:MemoryState", source="str", proposed_by="actor",
+        decided_by="actor?", decided_at="ts?", observed_at="ts", expires_at="ts?"),
     # Timeline entries are append-only: internal notes, messages exchanged with the customer, and AI summaries.
     "case_entry": _entity(
         "case_entry", case_id="ref:case", entry_type="enum:EntryType", direction="enum:Direction?",
@@ -353,7 +363,18 @@ def _rule_triage(doc):
     return errors
 
 
-_RULES = {"case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+def _rule_memory(doc):
+    errors = []
+    if (doc["scope"] == "departamento") != (doc["department_id"] is not None):
+        errors.append("$.department_id: obrigatorio so no escopo departamento")
+    if (doc["scope"] == "cliente") != (doc["subject"] is not None):
+        errors.append("$.subject: obrigatorio so no escopo cliente")
+    if doc["memory_kind"] == "fato" and doc["expires_at"] is None:
+        errors.append("$.expires_at: fatos datados precisam de validade")
+    return errors
+
+
+_RULES = {"memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 

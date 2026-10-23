@@ -43,6 +43,10 @@ TRIAGE_DECISIONS = ("rotear", "misto", "esclarecer", "fila_humana")
 TRIAGE_METHODS = ("regra", "llm")
 MESSAGE_STATES = ("rascunho", "aguardando_aprovacao", "enviando", "enviada", "falhou", "desconhecido", "bloqueada", "cancelada")
 OUTBOUND_CHANNELS = ("email", "chat")
+DOC_STATUSES = ("publicado", "substituido", "revogado", "expirado", "excluido")
+MEMORY_SCOPES = ("empresa", "departamento", "cliente")
+MEMORY_KINDS = ("preferencia", "fato")
+MEMORY_STATES = ("proposta", "confirmada", "rejeitada", "expirada")
 ENTRY_CHANNELS = ("chat", "email", "telefone", "interno")
 CHANNELS = ("email", "telefone")
 # observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
@@ -59,7 +63,8 @@ ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
+    "Status": STATUSES, "DocStatus": DOC_STATUSES, "MemoryScope": MEMORY_SCOPES, "MemoryKind": MEMORY_KINDS,
+    "MemoryState": MEMORY_STATES, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }

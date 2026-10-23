@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("mem", "mem"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -111,6 +111,13 @@ def bundle():
              state="rascunho", dedup_key="msg-exemplo-1", owner_agent_id=IDS["agt_sup"], owner_version=1,
              draft_hash=hashlib.sha256(b"rascunho de exemplo").hexdigest(), approval_id=None, provider_id=None,
              sent_at=None, attempts=0, last_error=None, created_by=IDS["agt_sup"]),
+        _doc("knowledge_document", "kdoc", department_id=IDS["dep_fin"], doc_key="politica-de-cobranca", version=1,
+             title="Politica de cobranca", body="Boletos vencem em 10 dias; renegociacao exige aprovacao.",
+             source="manual interno", topic="cobranca", status="publicado", valid_until=None, published_by=IDS["user"],
+             content_hash=hashlib.sha256(b"politica").hexdigest(), suspicious=False),
+        _doc("memory_item", "mem", scope="cliente", department_id=None, subject="cliente-exemplo", memory_kind="preferencia",
+             text="Prefere contato por email.", state="confirmada", source="confirmado pelo operador",
+             proposed_by=IDS["agt_sup"], decided_by=IDS["user"], decided_at=NOW, observed_at=NOW, expires_at=None),
         _doc("case_entry", "entry", case_id=IDS["case"], entry_type="nota_interna", direction=None, channel=None,
              author=IDS["agt_sup"], body="Cliente relatou site fora do ar desde a manha."),
         _doc("contact", "contact", display_name="Cliente Exemplo", status="ativo"),
