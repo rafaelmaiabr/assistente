@@ -41,7 +41,8 @@
       "enum": [
         "http",
         "sse",
-        "stdio"
+        "stdio",
+        "local"
       ]
     },
     "url": {

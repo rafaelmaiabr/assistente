@@ -334,6 +334,8 @@ def _rule_policy(doc):
 def _rule_catalog(doc):
     if doc["transport"] == "stdio":
         return [] if doc["launcher"] and doc["url"] is None else ["$.launcher: stdio exige launcher e proibe url"]
+    if doc["transport"] == "local":
+        return [] if doc["url"] is None and doc["launcher"] is None else ["$.url: local (servidor embutido) nao usa url nem launcher"]
     return [] if doc["url"] and doc["launcher"] is None else ["$.url: http/sse exige url e proibe launcher"]
 
 
