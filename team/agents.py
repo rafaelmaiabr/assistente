@@ -16,7 +16,7 @@ from .schema import content_hash
 
 EDITABLE = ("department_id", "name", "goals", "personality", "scope", "out_of_scope", "routing_policy",
             "model_policy_ref", "voice_profile_ref", "handoff_target_ids", "skill_grant_ids", "status")
-DEFAULT_MODEL_POLICIES = frozenset({"local-primeiro", "legacy-local"})  # placeholder until T08 defines policies
+DEFAULT_MODEL_POLICIES = frozenset({"local-primeiro", "legacy-local"})  # built-in; companies add their own (T08)
 
 # Defense in depth, not a guarantee: profile text that tries to cancel product rules or approvals is refused.
 _OVERRIDE = [re.compile(pattern) for pattern in (
@@ -55,7 +55,7 @@ def _texts(doc):
 
 class AgentService:
     def __init__(self, repository, access, voice_profile_ids=lambda: frozenset(),
-                 model_policies=lambda: DEFAULT_MODEL_POLICIES):
+                 model_policies=lambda session: DEFAULT_MODEL_POLICIES):
         self.repository, self.access = repository, access
         self.voice_profile_ids, self.model_policies = voice_profile_ids, model_policies
 
@@ -67,7 +67,7 @@ class AgentService:
                 raise ProfileRejected("O perfil contem instrucoes que tentam anular regras do produto ou aprovacoes.")
         if session.get("department", doc["department_id"]) is None:
             raise NotFound()
-        if doc["model_policy_ref"] not in self.model_policies():
+        if doc["model_policy_ref"] not in self.model_policies(session):
             raise ProfileRejected("Politica de modelo desconhecida.")
         if doc.get("voice_profile_ref") is not None and doc["voice_profile_ref"] not in self.voice_profile_ids():
             raise ProfileRejected("Perfil de voz inexistente.")

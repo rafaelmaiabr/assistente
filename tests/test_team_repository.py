@@ -14,7 +14,7 @@ from team.repository import (
 from team.samples import IDS, NOW, bundle
 
 ORDER = ["tenant", "skill_definition", "mcp_catalog_entry", "department", "credential", "connection",
-         "agent_definition", "agent_profile_version", "skill_grant", "case", "task", "agent_run", "approval_request", "handoff", "evidence",
+         "model_policy", "agent_definition", "agent_profile_version", "skill_grant", "case", "task", "agent_run", "approval_request", "handoff", "evidence",
          "contact", "contact_address", "contact_link", "access_grant"]
 
 

@@ -10,6 +10,9 @@ from pathlib import Path
 from .db import MigrationError
 from .access import AccessService
 from .agents import AgentService
+from .gateway import Gateway
+from .llm import ModelPolicyService
+from .runtime import AgentRuntime
 from .connections import ConnectionService, LauncherRegistry
 from .ids import is_id, new_id
 from .repository import SqliteRepository
@@ -116,3 +119,25 @@ def skill_service(root, agents=None) -> SkillService:
     """Skill catalog and grants; ``agents`` lets grants be attached to an agent version."""
     repo = repository(root)
     return SkillService(repo, AccessService(repo, operator_id(root)), agents)
+
+
+def build_runtime(root, config, transports=None, client_factory=None, vault=None, legacy_elevenlabs=None):
+    """Wire repository, access, agents, skills, gateway, policies and the runtime for the local database.
+
+    Independent of the web UI and of any LiveKit session. ``transports`` maps MCP transport kinds to
+    ``McpTransport`` objects (none exist for the real MCP package yet, so tools stay unavailable).
+    """
+    repo = repository(root)
+    access = AccessService(repo, operator_id(root))
+    policies = ModelPolicyService(repo, access, config)
+    voices = None
+    if legacy_elevenlabs is not False:
+        def voices():
+            from voice_profiles import VoiceProfiles  # imported lazily: only the backend has it
+            return {profile["id"] for profile in VoiceProfiles(root, secrets=object()).snapshot()["profiles"]}
+    agents = AgentService(repo, access, voices or (lambda: frozenset()), policies.known_names)
+    skills = SkillService(repo, access, agents)
+    connections = connection_service(root, vault=vault, legacy_elevenlabs=legacy_elevenlabs or None)
+    gateway = Gateway(repo, access, skills, connections, transports or {})
+    return AgentRuntime(repo, access, agents, skills, gateway, policies, config, client_factory=client_factory,
+                        connections=connections)
