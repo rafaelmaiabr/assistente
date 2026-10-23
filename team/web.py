@@ -30,6 +30,7 @@ from .skills import SkillRejected
 
 MAX_BODY = 64 * 1024
 TEAM = web.AppKey("team_app", object)
+IDENTITY = web.RequestKey("identity", object)  # set by the remote guard after it verified the session
 DEMOS = Path(__file__).resolve().parent / "skills_demo"
 SAFE_ERRORS = (ProfileRejected, SkillRejected, ConnectionRejected, PolicyRejected, CaseRejected, ApprovalRejected,
                HandoffRejected, OutboundError, GapRejected, IdentityRejected)
@@ -95,10 +96,19 @@ def _tenant(request):
     for the company in the URL (their own id is the principal). On the local listener it is the local owner, as before.
     """
     services = _services(request)
-    identity = request.get("identity")
+    identity = request.get(IDENTITY)
     if identity is not None:
         return services, services.identity.context(identity, request.match_info["tenant"])
     return services, services.access.tenant_context(services.operator, request.match_info["tenant"])
+
+
+def _in_scope(services, ctx, kind, doc_id):
+    """A department-limited person reaches only records of their departments; anything else is "not found"."""
+    if ctx.departments is None:
+        return
+    with services.repo.transaction(ctx.tenant_id) as session:
+        if not services.access.allowed(ctx, session, "read", kind, doc_id):
+            raise NotFound()
 
 
 def _fields(data, allowed):
@@ -115,7 +125,7 @@ async def state(request):
     if not app.enabled():
         return _json({"enabled": False, "companies": []})
     services = _services(request)
-    identity = request.get("identity")
+    identity = request.get(IDENTITY)
     if identity is not None:  # remote: only the companies this person belongs to, with their role; nothing global
         companies = [{**company, "role": identity.memberships[company["id"]]} for company in services.team.list_companies(services.operator)
                      if company["id"] in identity.memberships]
@@ -415,6 +425,7 @@ async def case_control(request):
     services, ctx = _tenant(request)
     action = request.match_info["action"]
     data = _fields(await _body(request), ("expected_revision", "reason"))
+    _in_scope(services, ctx, "case", request.match_info["id"])
     method = {"pause": services.control.pause, "take-over": services.control.take_over, "reject": services.control.reject,
               "return": services.control.return_to_team}.get(action)
     if method is None:
@@ -427,6 +438,7 @@ async def case_control(request):
 async def case_assign(request):
     services, ctx = _tenant(request)
     data = _fields(await _body(request), ("expected_revision", "agent_id"))
+    _in_scope(services, ctx, "case", request.match_info["id"])
     services.cases.assign_owner(ctx, request.match_info["id"], data["expected_revision"], data["agent_id"])
     return _json(overview.snapshot(services, ctx, request.match_info["id"]))
 
@@ -435,6 +447,7 @@ async def case_assign(request):
 async def approval_decision(request):
     services, ctx = _tenant(request)
     action, approval_id = request.match_info["action"], request.match_info["id"]
+    _in_scope(services, ctx, "approval_request", approval_id)
     data = await _body(request)
     if action == "approve":
         done = services.approvals.approve(ctx, approval_id, data["shown_hash"], data.get("comment"))
@@ -489,20 +502,22 @@ async def members_list(request):
 @api
 async def member_invite(request):
     services, ctx = _tenant(request)
-    data = _fields(await _body(request), ("email", "role", "name"))
-    return _json(services.identity.invite(ctx, ctx.tenant_id, data["email"], data["role"], data.get("name")), 201)
+    data = _fields(await _body(request), ("email", "role", "name", "departments"))
+    return _json(services.identity.invite(ctx, ctx.tenant_id, data["email"], data["role"], data.get("name"), data.get("departments")), 201)
 
 
 @api
 async def member_update(request):
     services, ctx = _tenant(request)
-    data = _fields(await _body(request), ("role", "status"))
+    data = _fields(await _body(request), ("role", "status", "departments"))
     user_id = request.match_info["user_id"]
     if not data:
         raise ValueError("campos")
     member = None
     if "role" in data:
         member = services.identity.set_role(ctx, ctx.tenant_id, user_id, data["role"])
+    if "departments" in data:
+        member = services.identity.set_departments(ctx, ctx.tenant_id, user_id, data["departments"])
     if "status" in data:
         member = services.identity.set_member_status(ctx, ctx.tenant_id, user_id, data["status"])
     return _json(member)
@@ -512,6 +527,7 @@ async def member_update(request):
 async def message_resolve(request):
     services, ctx = _tenant(request)
     data = _fields(await _body(request), ("outcome", "provider_id", "detail"))
+    _in_scope(services, ctx, "outbound_message", request.match_info["id"])
     message = services.outbound.resolve_unknown(ctx, request.match_info["id"], data["outcome"],
                                                 data.get("provider_id"), data.get("detail"))
     return _json(overview.snapshot(services, ctx, message["case_id"]))

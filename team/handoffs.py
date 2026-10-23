@@ -307,7 +307,7 @@ class HandoffService:
 
     def expire_due(self, tenant_id, now=None):
         """Backend sweep (scheduler): proposals past their deadline expire and the owner keeps the case."""
-        ctx = self.access.tenant_context(self.access.local_operator(), tenant_id)
+        ctx = self.access.service_context(tenant_id, "expiracao")
         limit, expired = now or self._now(), []
         with self.repository.transaction(tenant_id) as session:
             for handoff in session.list("handoff", state="proposto", limit=1000):

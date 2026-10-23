@@ -124,8 +124,8 @@ class GapService:
             case = session.get("case", case_id) if isinstance(case_id, str) else None
             if case is None or not self.access.allowed(ctx, session, "write", "case", case_id):
                 raise NotFound()
-            if ctx.role == "operator":
-                self._operator(ctx)
+            if ctx.role == "operator" and not self.access.is_operator(ctx, "atendente"):
+                raise PermissionDenied("apenas o operador confiavel ou quem atende registra lacunas")
             self.cases._owner_only(ctx, case)
             if case["state"] in TERMINAL_STATES:
                 raise GapRejected("A demanda esta encerrada.")

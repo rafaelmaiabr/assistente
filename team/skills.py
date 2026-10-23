@@ -177,7 +177,7 @@ class SkillService:
             raise PermissionDenied()
 
     def _operator_ctx(self, ctx):
-        if not isinstance(ctx, AccessContext) or ctx.role != "operator":
+        if not self.access.is_operator(ctx, "admin"):
             raise PermissionDenied()
 
     def _installed(self, key):

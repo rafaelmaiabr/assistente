@@ -33,6 +33,14 @@ export function loginErrorFrom(search) {
   return code && Object.hasOwn(LOGIN_ERRORS, code) ? code : '';
 }
 
+/** What a member can reach: the whole company, or the named departments (ids the company no longer has are shown as removed). */
+export function scopeLabel(member, departments = []) {
+  const ids = member?.departments || [];
+  if (!ids.length) return 'a empresa inteira';
+  const names = new Map(departments.map(d => [d.id, d.name]));
+  return ids.map(id => names.get(id) || 'departamento removido').join(', ');
+}
+
 /** Which tabs a role sees. Members is for administrators (and the local owner). */
 export function visibleTabs(tabs, role) {
   const needs = {cases: 'leitor', departments: 'admin', agents: 'admin', skills: 'admin', connections: 'admin', members: 'admin'};

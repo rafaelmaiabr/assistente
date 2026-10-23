@@ -131,8 +131,6 @@ def agent_run_handler(runtime, agents, access):
     Finished runs are never re-run; a run left ``em_execucao`` by a crashed worker is executed again; a run
     cancelled by a pause request is replaced by a fresh run of the same agent version when the job resumes.
     """
-    operator = access.local_operator()
-
     async def handler(job, control):
         payload, tenant_id = job["payload"], job["tenant_id"]
         run_id = job["checkpoint"].get("run_id") or payload["run_id"]
@@ -147,7 +145,7 @@ def agent_run_handler(runtime, agents, access):
         if run["state"] == "cancelada":
             if not job["checkpoint"].get("paused"):
                 return Fail("execucao_cancelada")
-            ctx = access.tenant_context(operator, tenant_id)
+            ctx = access.service_context(tenant_id, "worker")  # the worker's own identity, not the local owner's
             run = agents.start_run(ctx, run["agent_id"], version=run["agent_version"], budget=run["budget"],
                                    case_id=run["case_id"], task_id=run["task_id"], skill_versions=run["skill_versions"])
             run_id = run["id"]

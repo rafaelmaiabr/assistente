@@ -106,8 +106,8 @@ class AgentService:
                         "content_hash": snapshot["content_hash"], "created": created}}, topic="config")
         return snapshot
 
-    def _operator(self, ctx):
-        if not isinstance(ctx, AccessContext) or ctx.role != "operator":
+    def _operator(self, ctx, minimum="admin"):
+        if not self.access.is_operator(ctx, minimum):
             raise PermissionDenied()
 
     def validate(self, ctx, *, agent_id=None, **fields):
@@ -207,7 +207,7 @@ class AgentService:
     # -- runs ----------------------------------------------------------------------------------------------------
     def start_run(self, ctx, agent_id, *, budget, version=None, case_id=None, task_id=None, skill_versions=()):
         """Create an ``agent_run`` pinned to a published, active version of an active agent."""
-        self._operator(ctx)
+        self._operator(ctx, "atendente")
         with self.repository.transaction(ctx.tenant_id) as session:
             agent = session.get("agent_definition", agent_id) if isinstance(agent_id, str) else None
             if agent is None:

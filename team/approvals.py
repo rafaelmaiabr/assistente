@@ -231,7 +231,7 @@ class ApprovalService:
         return None
 
     def expire_due(self, tenant_id, now=None):
-        ctx = self.access.tenant_context(self.access.local_operator(), tenant_id)
+        ctx = self.access.service_context(tenant_id, "expiracao")
         limit, expired = now or self.clock(), []
         with self.repository.transaction(tenant_id) as session:
             for approval in session.list("approval_request", limit=1000):

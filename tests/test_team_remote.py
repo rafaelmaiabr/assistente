@@ -290,7 +290,6 @@ class GuardTests(RemoteCase):
             self.assertEqual((await ana.raw(method, path, headers={"Origin": self.origin}))[0], 404, path)
 
     async def test_requests_are_rate_limited_per_session(self):
-        self.app["remote_state"] = None  # placeholder to keep the attribute lookup explicit below
         state = self.app[__import__("team.remote", fromlist=["STATE"]).STATE]
         state.api_limiter, state.write_limiter = RateLimiter(5, 60), RateLimiter(2, 60)
         ana, bia = await self.person("ana@empresa.invalid", "admin"), await self.person("bia@empresa.invalid", "admin")
@@ -335,6 +334,15 @@ class PolicyTests(RemoteCase):
                                    ("PATCH", self.t(self.a, "/mcp-catalog/mcp_x"), {})):
             self.assertEqual((await ana.call(method, path, body))[0], 403, path)
         self.assertEqual(sorted(c["name"] for c in self.s.team.list_companies(self.s.operator)), ["Empresa A", "Empresa B"])
+
+    async def test_files_exports_search_streams_and_tools_have_no_remote_route(self):
+        ana = await self.person("ana@empresa.invalid", "admin")
+        for method, tail in (("GET", "/export"), ("GET", "/search?q=segredo"), ("GET", "/files/relatorio.csv"), ("GET", "/knowledge"), ("GET", "/backup"),
+                             ("POST", "/backup"), ("GET", "/audit"), ("POST", "/tools/call"), ("GET", "/stream"), ("GET", "/memory"), ("POST", "/finance/import")):
+            status, _ = await ana.call(method, self.t(self.a, tail), {} if method == "POST" else None)
+            self.assertIn(status, (403, 404, 405), tail)
+        for path in ("/ws", "/api/team/ws", "/api/team/stream"):
+            self.assertIn((await ana.raw("GET", path, headers={"Origin": self.origin}))[0], (403, 404))
 
     async def test_each_role_reaches_exactly_what_it_should(self):
         people = {role: await self.person(f"{role}@empresa.invalid", role) for role in ("leitor", "atendente", "aprovador", "admin")}
@@ -505,6 +513,11 @@ class ConfigTests(unittest.TestCase):
         RemoteConfig.from_config({"remote": {**base, "public_origin": "http://localhost:8766"}})                      # http only for localhost
         with self.assertRaises(ConfigError):
             RemoteConfig.from_config({"remote": "sim"})
+
+    def test_direct_tls_is_off_unless_a_certificate_is_configured(self):
+        from team.remote import ssl_context
+        self.assertIsNone(ssl_context(RemoteConfig.from_config({"remote": {"enabled": True, "public_origin": "https://pc.example.invalid",
+                                                                            "google_client_id": "id"}})))
 
     def test_the_rate_limiter_is_a_sliding_window(self):
         now = [0.0]

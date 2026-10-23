@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canAt, loginErrorFrom, loginMessage, sessionKind, visibleTabs} from '../src/team/authModel.js';
+import {canAt, loginErrorFrom, loginMessage, scopeLabel, sessionKind, visibleTabs} from '../src/team/authModel.js';
 
 const TABS = [['cases', 'Demandas'], ['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões'], ['members', 'Membros']];
 
@@ -39,4 +39,12 @@ test('the page learns from the server whether it is local, remote signed in, or 
   assert.equal(sessionKind(401, {mode: 'remote', authenticated: false}), 'login');
   assert.equal(sessionKind(404, null), 'unreachable');
   assert.equal(sessionKind(200, {app: 'antigo'}), 'local');
+});
+
+test('a member scope is shown as the whole company or as the named departments', () => {
+  const departments = [{id: 'dep_1', name: 'Suporte'}, {id: 'dep_2', name: 'Financeiro'}];
+  assert.equal(scopeLabel({departments: []}, departments), 'a empresa inteira');
+  assert.equal(scopeLabel({}, departments), 'a empresa inteira');
+  assert.equal(scopeLabel({departments: ['dep_2', 'dep_1']}, departments), 'Financeiro, Suporte');
+  assert.equal(scopeLabel({departments: ['dep_9']}, departments), 'departamento removido');
 });
