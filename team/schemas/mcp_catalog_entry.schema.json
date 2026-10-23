@@ -85,6 +85,16 @@
         "inativo"
       ]
     },
+    "tool_specs": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1

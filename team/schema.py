@@ -86,7 +86,7 @@ SCHEMAS = {
     "mcp_catalog_entry": _entity(
         "mcp_catalog_entry", tenant=False, catalog_key="slug", entry_version="semver",
         transport="enum:McpTransport", url="url?", launcher="slug?", tools="list:slug", approved_by="actor",
-        status="enum:Status"),
+        status="enum:Status", tool_specs="obj?"),
     "case": _entity(
         "case", department_id="ref:department", state="enum:CaseState",
         owner_agent_id="ref:agent_definition?", customer_ref="str?", objective="text", closed_at="ts?"),
@@ -326,6 +326,19 @@ def validate_bundle(docs):
     if errors:
         raise ContractError(errors)
     return docs
+
+
+def redact_secrets(value):
+    """Copy of ``value`` with secret-looking keys and values replaced by ``***`` (for tool results)."""
+    if isinstance(value, dict):
+        return {key: "***" if (key not in _SAFE_KEYS and not key.endswith(("_ref", "_id", "_ids", "_hash"))
+                               and _SECRET_KEY.search(str(key))) else redact_secrets(item)
+                for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_secrets(item) for item in value]
+    if isinstance(value, str):
+        return _SECRET_VALUE.sub("***", value)
+    return value
 
 
 def _json_type(spec):
