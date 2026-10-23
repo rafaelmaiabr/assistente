@@ -35,6 +35,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Encaminhamentos (T11).** `handoff` ganhou envelope (`objective`, `expected_result`, `evidence_ids`, `return_to`), `attention` e `resolution` (opcionais). Detalhes em [TEAM-HANDOFFS.md](TEAM-HANDOFFS.md).
 - **Triagem (T12).** Novos `capability` e `triage_decision` (somente de acréscimo); `agent_definition` ganhou `capabilities` (opcional). Detalhes em [TEAM-TRIAGE.md](TEAM-TRIAGE.md).
 - **Aprovações (T13).** `approval_request` ganhou payload normalizado, destinatário, valor/moeda, política, decisão, consumo e resultado do efeito; o estado final é `consumida`; `case` ganhou `operator_control`. Detalhes em [TEAM-APPROVALS.md](TEAM-APPROVALS.md).
+- **Comunicação externa (T14).** Novo `outbound_message` (rascunho/outbox); `case` ganhou `owner_version`; `connection` ganhou `allowed_recipient_domains`. Detalhes em [TEAM-OUTBOUND.md](TEAM-OUTBOUND.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

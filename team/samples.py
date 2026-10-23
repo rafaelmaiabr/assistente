@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -106,6 +106,11 @@ def bundle():
              question=None, message_hash=hashlib.sha256(b"mensagem de exemplo").hexdigest(),
              catalog_hash=hashlib.sha256(b"catalogo de exemplo").hexdigest(), threshold_route=70, threshold_clarify=40,
              rounds=1, decided_by=IDS["user"]),
+        _doc("outbound_message", "msg", case_id=IDS["case"], channel="email", account_id=IDS["conn"],
+             to=["cliente@exemplo.invalid"], subject="Atualizacao do seu chamado", body="Estamos verificando o seu site.",
+             state="rascunho", dedup_key="msg-exemplo-1", owner_agent_id=IDS["agt_sup"], owner_version=1,
+             draft_hash=hashlib.sha256(b"rascunho de exemplo").hexdigest(), approval_id=None, provider_id=None,
+             sent_at=None, attempts=0, last_error=None, created_by=IDS["agt_sup"]),
         _doc("case_entry", "entry", case_id=IDS["case"], entry_type="nota_interna", direction=None, channel=None,
              author=IDS["agt_sup"], body="Cliente relatou site fora do ar desde a manha."),
         _doc("contact", "contact", display_name="Cliente Exemplo", status="ativo"),

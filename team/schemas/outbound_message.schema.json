@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "outbound_message",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "tenant_id",
+    "case_id",
+    "channel",
+    "account_id",
+    "to",
+    "body",
+    "state",
+    "dedup_key",
+    "owner_agent_id",
+    "owner_version",
+    "draft_hash",
+    "attempts",
+    "created_by",
+    "revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "outbound_message"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^msg_[0-9a-f]{32}$"
+    },
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^ten_[0-9a-f]{32}$"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^cas_[0-9a-f]{32}$"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "email",
+        "chat"
+      ]
+    },
+    "account_id": {
+      "type": "string",
+      "pattern": "^con_[0-9a-f]{32}$"
+    },
+    "to": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      }
+    },
+    "subject": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "aguardando_aprovacao",
+        "enviando",
+        "enviada",
+        "falhou",
+        "desconhecido",
+        "bloqueada",
+        "cancelada"
+      ]
+    },
+    "dedup_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "owner_agent_id": {
+      "type": "string",
+      "pattern": "^agt_[0-9a-f]{32}$"
+    },
+    "owner_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "draft_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "approval_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^apr_[0-9a-f]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sent_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "attempts": {
+      "type": "integer"
+    },
+    "last_error": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_by": {
+      "type": "string",
+      "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

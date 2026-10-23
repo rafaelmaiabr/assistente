@@ -42,6 +42,7 @@ def _parse(value):
 class HandoffService:
     def __init__(self, repository, access, cases, clock=lambda: datetime.now(timezone.utc)):
         self.repository, self.access, self.cases, self.clock = repository, access, cases, clock
+        self.owner_hooks = []  # called inside the transfer transaction (for example to block stale outbound drafts)
 
     # -- helpers ---------------------------------------------------------------------------------------------------
     def _ctx(self, ctx):
@@ -274,7 +275,9 @@ class HandoffService:
                                f"Responsabilidade transferida: {handoff['reason']}")
                     self._bump(ctx, session, case, "case.transferred",
                                {"handoff_id": handoff["id"], "from": handoff["from_agent_id"], "to": target["id"]},
-                               owner_agent_id=target["id"])
+                               owner_agent_id=target["id"], owner_version=(case.get("owner_version") or 0) + 1)
+                    for hook in self.owner_hooks:
+                        hook(ctx, session, case["id"])
                     return accepted
                 task = session.get("task", handoff["task_id"])
                 session.save({**task, "state": "em_execucao", "revision": task["revision"] + 1,

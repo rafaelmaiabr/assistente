@@ -60,7 +60,7 @@ class OperatorControl:
             self.queue.pause_case(ctx.tenant_id, case_id)
         with self.repository.transaction(ctx.tenant_id) as session:
             case = session.get("case", case_id)
-            changes = {"operator_control": True}
+            changes = {"operator_control": True, "owner_version": (case.get("owner_version") or 0) + 1}
             if case["state"] != "pausada" and can_transition(case["state"], "pausada"):
                 changes["state"] = "pausada"
             taken = self.cases.commit_change(ctx, session, case, changes, "case.operator-took-over", {"reason": text})
@@ -87,7 +87,7 @@ class OperatorControl:
             raise CaseRejected("A demanda nao esta sob controle do operador.")
         with self.repository.transaction(ctx.tenant_id) as session:
             current = session.get("case", case_id)
-            changes = {"operator_control": False}
+            changes = {"operator_control": False, "owner_version": (current.get("owner_version") or 0) + 1}
             if current["state"] == "pausada" and current["owner_agent_id"] is not None:
                 changes["state"] = "em_execucao"
             elif current["state"] == "pausada":

@@ -41,6 +41,8 @@ ENTRY_TYPES = ("nota_interna", "mensagem_externa", "resumo_ia")
 DIRECTIONS = ("entrada", "saida")
 TRIAGE_DECISIONS = ("rotear", "misto", "esclarecer", "fila_humana")
 TRIAGE_METHODS = ("regra", "llm")
+MESSAGE_STATES = ("rascunho", "aguardando_aprovacao", "enviando", "enviada", "falhou", "desconhecido", "bloqueada", "cancelada")
+OUTBOUND_CHANNELS = ("email", "chat")
 ENTRY_CHANNELS = ("chat", "email", "telefone", "interno")
 CHANNELS = ("email", "telefone")
 # observado: remetente visto numa mensagem, sem identidade; vinculado: o operador associou a um contato.
@@ -50,14 +52,14 @@ ACCESS_ACTIONS = ("read", "write", "relate", "export")
 # Recursos que uma concessao pode alcancar (empresa e a propria concessao nunca sao concediveis a agentes).
 RESOURCE_KINDS = (
     "department", "agent_definition", "agent_run", "skill_grant", "connection", "case", "task",
-    "approval_request", "handoff", "evidence", "case_entry", "agent_profile_version", "contact", "contact_address", "contact_link", "event",
+    "approval_request", "handoff", "evidence", "case_entry", "outbound_message", "agent_profile_version", "contact", "contact_address", "contact_link", "event",
 )
 
 ENUMS = {
     "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
-    "Status": STATUSES, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
+    "Status": STATUSES, "MessageState": MESSAGE_STATES, "OutboundChannel": OUTBOUND_CHANNELS, "EffectOutcome": EFFECT_OUTCOMES, "TriageDecision": TRIAGE_DECISIONS, "TriageMethod": TRIAGE_METHODS, "Priority": PRIORITIES, "Origin": ORIGINS, "EvidenceType": EVIDENCE_TYPES,
     "Reliability": RELIABILITY, "EntryType": ENTRY_TYPES, "Direction": DIRECTIONS, "EntryChannel": ENTRY_CHANNELS, "RiskTag": RISK_TAGS, "RoutingPolicy": ROUTING_POLICIES, "CredentialStore": CREDENTIAL_STORES, "CredentialState": CREDENTIAL_STATES, "Channel": CHANNELS, "LinkState": LINK_STATES, "Relation": RELATIONS,
     "AccessAction": ACCESS_ACTIONS, "ResourceKind": RESOURCE_KINDS,
 }

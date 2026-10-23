@@ -110,8 +110,9 @@ class CaseService:
                 raise NotFound()
             if agent["status"] != "ativo":
                 raise CaseRejected("Agente desativado.")
-            return self._save(ctx, session, case, {"owner_agent_id": agent_id}, "case.owner-assigned",
-                              {"owner_agent_id": agent_id})
+            return self._save(ctx, session, case, {"owner_agent_id": agent_id,
+                                                  "owner_version": (case.get("owner_version") or 0) + 1},
+                              "case.owner-assigned", {"owner_agent_id": agent_id})
 
     def transition(self, ctx, case_id, expected_revision, target, *, reason=None, owner_agent_id=None,
                    manual_resolution=False):

@@ -479,6 +479,34 @@
     "updated_at": "2026-01-15T12:00:00Z"
   },
   {
+    "kind": "outbound_message",
+    "schema_version": 1,
+    "id": "msg_00000000000000000000000000000020",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "case_id": "cas_0000000000000000000000000000000a",
+    "channel": "email",
+    "account_id": "con_00000000000000000000000000000008",
+    "to": [
+      "cliente@exemplo.invalid"
+    ],
+    "subject": "Atualizacao do seu chamado",
+    "body": "Estamos verificando o seu site.",
+    "state": "rascunho",
+    "dedup_key": "msg-exemplo-1",
+    "owner_agent_id": "agt_00000000000000000000000000000005",
+    "owner_version": 1,
+    "draft_hash": "cc086d18792fcd964219bd0ed2cfec89fddf43973c35fcd1bf2973f3818409d8",
+    "approval_id": null,
+    "provider_id": null,
+    "sent_at": null,
+    "attempts": 0,
+    "last_error": null,
+    "created_by": "agt_00000000000000000000000000000005",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
     "kind": "case_entry",
     "schema_version": 1,
     "id": "ent_0000000000000000000000000000001d",

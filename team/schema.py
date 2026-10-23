@@ -89,7 +89,8 @@ SCHEMAS = {
     "connection": _entity(
         "connection", label="str", provider="slug", connection_kind="enum:ConnectionKind",
         transport="enum:McpTransport?", endpoint="url?", credential_ref="ref:credential?",
-        catalog_entry_id="ref:mcp_catalog_entry?", scopes="list:slug?", status="enum:Status"),
+        catalog_entry_id="ref:mcp_catalog_entry?", scopes="list:slug?", status="enum:Status",
+        allowed_recipient_domains="list:str?"),
     # Routing rules and models for the LLM; external providers stay off until the company enables and acknowledges.
     "model_policy": _entity(
         "model_policy", name="slug", models="obj", rules="list:obj", default="slug", fallbacks="list:slug",
@@ -104,7 +105,7 @@ SCHEMAS = {
     "case": _entity(
         "case", department_id="ref:department", state="enum:CaseState",
         owner_agent_id="ref:agent_definition?", customer_ref="str?", objective="text", closed_at="ts?",
-        priority="enum:Priority?", origin="enum:Origin?", operator_control="bool?"),
+        priority="enum:Priority?", origin="enum:Origin?", operator_control="bool?", owner_version="posint?"),
     "task": _entity(
         "task", case_id="ref:case", parent_task_id="ref:task?", assignee_agent_id="ref:agent_definition",
         state="enum:TaskState", objective="text", expected_result="text", due_at="ts?"),
@@ -125,6 +126,13 @@ SCHEMAS = {
         "evidence", case_id="ref:case", source="str", collected_at="ts", summary="text",
         content_hash="sha256?", evidence_type="enum:EvidenceType?", reliability="enum:Reliability?",
         recorded_by="actor?"),
+    # Outbound messages: a draft is data; sending is a separate, gated step (the table doubles as the outbox).
+    "outbound_message": _entity(
+        "outbound_message", case_id="ref:case", channel="enum:OutboundChannel", account_id="ref:connection",
+        to="list:str", subject="str?", body="text", state="enum:MessageState", dedup_key="str",
+        owner_agent_id="ref:agent_definition", owner_version="posint", draft_hash="sha256",
+        approval_id="ref:approval_request?", provider_id="str?", sent_at="ts?", attempts="int", last_error="str?",
+        created_by="actor"),
     # Timeline entries are append-only: internal notes, messages exchanged with the customer, and AI summaries.
     "case_entry": _entity(
         "case_entry", case_id="ref:case", entry_type="enum:EntryType", direction="enum:Direction?",

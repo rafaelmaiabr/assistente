@@ -49,6 +49,9 @@ class JobControl:
     def begin_effect(self, key):
         self.queue.begin_effect(self.job["id"], self.worker_id, self.job["token"], key)
 
+    def cancel_effect(self, key):
+        self.queue.cancel_effect(self.job["id"], self.worker_id, self.job["token"], key)
+
     def finish_effect(self, key, result=None):
         self.queue.finish_effect(self.job["id"], self.worker_id, self.job["token"], key, result)
 
