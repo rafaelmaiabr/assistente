@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from email import message_from_bytes, policy
 from email.header import decode_header, make_header
-from email.utils import parseaddr
+from email.utils import getaddresses, parseaddr
 
 MAX_PAGE = 50
 MAX_BYTES = 256 * 1024
@@ -102,6 +102,12 @@ def parse_message(raw: bytes, max_chars=MAX_TEXT_CHARS):
     headers = {name.lower().replace("-", "_"): _clean(msg.get(name)) for name in
                ("From", "To", "Cc", "Subject", "Date", "Message-ID", "In-Reply-To", "References")}
     state = {"parts": 0, "limited": False, "plain": [], "html": [], "attachments": []}
+    ids = lambda value: re.findall(r"<[^<>\s]{1,250}>", str(value or ""))[:20]  # noqa: E731
+    sender_name, sender = parseaddr(str(msg.get("From") or ""))
+    recipients = [a.lower() for _, a in getaddresses([str(msg.get("To") or ""), str(msg.get("Cc") or "")]) if "@" in a][:20]
+    auto = {name.lower().replace("-", "_"): _clean(msg.get(name), 120).lower()
+            for name in ("Auto-Submitted", "Precedence", "List-Id", "X-Autoreply", "X-Autorespond", "Return-Path",
+                         "X-Auto-Response-Suppress", "X-Assistente-Origem") if msg.get(name) is not None}
 
     def visit(part, depth):
         state["parts"] += 1
@@ -126,7 +132,10 @@ def parse_message(raw: bytes, max_chars=MAX_TEXT_CHARS):
     visit(msg, 0)
     text = "\n\n".join(state["plain"]).strip() or _html_to_text("\n".join(state["html"]))
     truncated = len(text) > max_chars
-    return {**headers, "text": text[:max_chars], "truncated": truncated or state["limited"],
+    return {**headers, "sender": sender.lower()[:320], "sender_name": _clean(sender_name, 120) or None, "recipients": recipients,
+            "ids": {"message_id": (ids(msg.get("Message-ID")) or [None])[0], "in_reply_to": (ids(msg.get("In-Reply-To")) or [None])[0],
+                    "references": ids(msg.get("References"))}, "auto": auto,
+            "text": text[:max_chars], "truncated": truncated or state["limited"],
             "attachments": state["attachments"], "parts_limited": state["limited"], "untrusted": True}
 
 
@@ -270,6 +279,18 @@ class ReadOnlyImap:
         if not parts:
             raise ImapError("argumento_invalido", "Informe ao menos um criterio de busca.")
         return self._page(folder, " ".join(parts), limit, before_uid)
+
+    def validity(self, folder):
+        """UIDVALIDITY of an authorized folder (opened read-only)."""
+        return self._examine(folder)
+
+    def uids_after(self, folder, after_uid, limit=20):
+        """Oldest-first UIDs greater than ``after_uid`` with the folder's UIDVALIDITY (for incremental ingestion)."""
+        validity = self._examine(folder)
+        first = max(int(after_uid), 0) + 1
+        data = self._call("UID SEARCH", self._need().uid, "SEARCH", f"UID {first}:*")
+        uids = sorted(u for u in (int(x) for x in (data[0] or b"").split()) if u >= first)  # "n:*" always returns the last one
+        return validity, uids[: max(1, min(int(limit), MAX_PAGE))]
 
     def read_message(self, folder, uid, uidvalidity, max_bytes=None):
         """Read one message without touching its flags. UIDVALIDITY must match what the caller listed."""

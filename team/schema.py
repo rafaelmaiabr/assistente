@@ -138,6 +138,15 @@ SCHEMAS = {
         "knowledge_document", department_id="ref:department?", doc_key="slug", version="posint", title="str", body="text",
         source="str", topic="slug?", status="enum:DocStatus", valid_until="ts?", published_by="actor",
         content_hash="sha256", suspicious="bool?"),
+    # One mailbox folder bound to a department. The cursor is (UIDVALIDITY, last UID); a new UIDVALIDITY resets it.
+    "mailbox_cursor": _entity("mailbox_cursor", connection_id="ref:connection", department_id="ref:department", folder="str",
+                              uidvalidity="posint?", last_uid="int", resets="int", status="enum:Status"),
+    # Every message looked at, kept or ignored, with its identifiers so replies thread by headers (never by subject).
+    "email_message": _entity(
+        "email_message", connection_id="ref:connection", folder="str", uidvalidity="posint", uid="posint", message_id="str?",
+        in_reply_to="str?", references="list:str", sender="str", sender_name="str?", recipients="list:str",
+        classification="enum:EmailClass", case_id="ref:case?", identity="enum:IdentityState", subject_hash="sha256",
+        body_hash="sha256", reason="str?"),
     # A financial fact imported on purpose. Amount, currency and dates stay empty when the source lacks them:
     # nothing is inferred. Free text (note) is untrusted data.
     "financial_record": _entity(

@@ -41,6 +41,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Ativos monitorados (T23).** Novo `monitored_asset`: host que a empresa autoriza para diagnósticos de rede. Detalhes em [TEAM-DIAGNOSTICS.md](TEAM-DIAGNOSTICS.md).
 - **Auditoria, retenção e backup (T30).** Sem contrato novo; a migração `0015` adiciona a exclusão controlada (`erasure_guard`, `erasure_log`). Detalhes em [TEAM-OPS.md](TEAM-OPS.md).
 - **Registros financeiros (T24).** Novo `financial_record` (importação explícita, sem inferir valor ou moeda). Detalhes em [TEAM-FINANCE.md](TEAM-FINANCE.md).
+- **Entrada de emails (T21).** Novos `mailbox_cursor` (cursor UIDVALIDITY/UID por pasta) e `email_message` (mensagem ingerida ou ignorada, com identificadores de thread). Detalhes em [TEAM-EMAIL-INTAKE.md](TEAM-EMAIL-INTAKE.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

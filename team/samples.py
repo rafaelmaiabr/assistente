@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("mem", "mem"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("mem", "mem"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -115,6 +115,11 @@ def bundle():
              title="Politica de cobranca", body="Boletos vencem em 10 dias; renegociacao exige aprovacao.",
              source="manual interno", topic="cobranca", status="publicado", valid_until=None, published_by=IDS["user"],
              content_hash=hashlib.sha256(b"politica").hexdigest(), suspicious=False),
+        _doc("mailbox_cursor", "mbx", connection_id=IDS["conn"], department_id=IDS["dep_sup"], folder="INBOX", uidvalidity=11, last_uid=3, resets=0, status="ativo"),
+        _doc("email_message", "eml", connection_id=IDS["conn"], folder="INBOX", uidvalidity=11, uid=3, message_id="<m1@exemplo.invalid>", in_reply_to=None,
+             references=[], sender="cliente@exemplo.invalid", sender_name="Cliente", recipients=["atendimento@exemplo.invalid"], classification="nova_demanda",
+             case_id=IDS["case"], identity="nao_verificada", subject_hash=hashlib.sha256(b"assunto").hexdigest(),
+             body_hash=hashlib.sha256(b"corpo").hexdigest(), reason=None),
         _doc("financial_record", "fre", record_kind="fatura_fornecedor", counterparty="Fornecedor Exemplo Ltda", beneficiary="Fornecedor Exemplo Ltda",
              payer="Empresa Exemplo", document_number="FAT-001", reference=None, amount_cents=125000, currency="BRL", issued_at=NOW, due_at=NOW,
              origin="importacao", source="importacao de exemplo", source_date=NOW, batch_id="lote-exemplo", imported_by=IDS["user"], status="ativo", note=None),

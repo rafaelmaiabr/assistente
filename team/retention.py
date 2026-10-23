@@ -151,6 +151,7 @@ class RetentionService:
                     ("decisoes_de_ferramenta", f"DELETE FROM tool_decisions WHERE tenant_id = ? AND run_id IN {runs}", (tenant, tenant, case_id)),
                     ("caixa_de_saida", "DELETE FROM outbox WHERE tenant_id = ? AND event_seq IN "
                                        "(SELECT seq FROM events WHERE tenant_id = ? AND case_id = ?)", (tenant, tenant, case_id)),
+                    ("emails_registrados", "DELETE FROM email_messages WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("eventos", "DELETE FROM events WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("entradas", "DELETE FROM case_entries WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("evidencias", "DELETE FROM evidences WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
