@@ -4,11 +4,14 @@ Documents hold only ``credential_ref`` (an id), provider, status and scopes. Sec
 the vault and are handed to the authorized connector code (``use_credential``) and nowhere else:
 every response is a sanitized state view, and every failure message is fixed text.
 """
+import asyncio
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from .access import AccessContext, AccessError, NotFound, OperatorContext, PermissionDenied
+from .enums import OPERATIONS
 from .ids import new_id
 from .repository import IntegrityViolation, RevisionConflict
 from .vault import SecretVault, VaultError
@@ -28,6 +31,40 @@ class ConnectorFailed(AccessError):
 
 def _now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+_GENERIC_EXEC = re.compile(r"(^|[._-])(shell|exec|execute|eval|bash|powershell|pwsh|cmd|sh|run-?command|system)($|[._-])")
+_RESERVED_ARGUMENTS = {"tenant_id", "company", "empresa", "connection_id", "credential", "credential_ref", "account",
+                       "conta", "agent_id", "run_id", "case_id", "principal", "role", "password", "token", "secret",
+                       "api_key", "authorization"}
+_SLUG = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+ARGUMENT_TYPES = ("string", "integer", "number", "boolean")
+TOOL_LIMITS = {"timeout_seconds": (1, 120), "max_result_bytes": (1, 1_048_576), "max_items": (1, 1000)}
+
+
+def _check_tool_specs(tools, specs):
+    """Trusted per-tool classification and argument schema; validated once, when the operator approves."""
+    if specs is None:
+        return {}
+    if not isinstance(specs, dict) or set(specs) - set(tools):
+        raise ConnectionRejected("tool_specs deve descrever apenas ferramentas listadas em tools.")
+    clean = {}
+    for name, spec in specs.items():
+        if not isinstance(spec, dict) or set(spec) - {"operation", "arguments", *TOOL_LIMITS}                 or spec.get("operation") not in OPERATIONS:
+            raise ConnectionRejected(f"Especificacao invalida para {str(name)[:40]}: informe operation (read/write/send/spend).")
+        arguments = spec.get("arguments", {})
+        if not isinstance(arguments, dict) or len(arguments) > 20:
+            raise ConnectionRejected("arguments deve ser um objeto com ate 20 parametros.")
+        for arg, rule in arguments.items():
+            if not (isinstance(arg, str) and _SLUG.match(arg)) or arg in _RESERVED_ARGUMENTS:
+                raise ConnectionRejected(f"Nome de parametro invalido ou reservado: {str(arg)[:40]}.")
+            if not isinstance(rule, dict) or set(rule) - {"type", "required", "max_length", "minimum", "maximum", "enum"}                     or rule.get("type") not in ARGUMENT_TYPES:
+                raise ConnectionRejected(f"Regra invalida para o parametro {arg}.")
+        for key, (low, high) in TOOL_LIMITS.items():
+            if key in spec and not (isinstance(spec[key], int) and not isinstance(spec[key], bool) and low <= spec[key] <= high):
+                raise ConnectionRejected(f"{key} deve estar entre {low} e {high}.")
+        clean[name] = spec
+    return clean
 
 
 class LauncherRegistry:
@@ -243,8 +280,8 @@ class ConnectionService:
         except VaultError:
             raise CredentialError("Cofre de credenciais indisponivel.") from None
 
-    def use_credential(self, ctx, connection_id, connector, fn):
-        """Run ``fn(secret)`` inside an authorized connector. The secret is not returned to the caller."""
+    def _authorized_secret(self, ctx, connection_id, connector, optional=False):
+        """Checks shared by sync and async use; returns the secret (None only when ``optional`` and absent)."""
         if not isinstance(ctx, AccessContext):
             raise PermissionDenied()
         with self.repository.transaction(ctx.tenant_id) as session:
@@ -255,18 +292,45 @@ class ConnectionService:
             connection, credential = self._locate(session, connection_id)
         if connector not in self._connectors or connector != connection["provider"]:
             raise PermissionDenied("conector nao autorizado para esta conexao")
-        if connection["status"] != "ativo" or credential is None or credential["state"] != "ativa":
+        if connection["status"] != "ativo":
+            raise CredentialError("Credencial indisponivel ou revogada.")
+        if credential is None and optional:
+            return None  # a connection that needs no credential
+        if credential is None or credential["state"] != "ativa":
             raise CredentialError("Credencial indisponivel ou revogada.")
         secret = self._read_secret(ctx.tenant_id, credential)
         if secret is None:
             raise CredentialError("Credencial indisponivel ou revogada.")
+        return secret
+
+    @staticmethod
+    def _checked_result(secret, result):
+        if secret is not None and secret in repr(result):
+            raise ConnectorFailed("Resposta do conector bloqueada: continha a credencial.")
+        return result
+
+    def use_credential(self, ctx, connection_id, connector, fn):
+        """Run ``fn(secret)`` inside an authorized connector. The secret is not returned to the caller."""
+        secret = self._authorized_secret(ctx, connection_id, connector)
         try:
             result = fn(secret)
         except Exception:
             raise ConnectorFailed("Falha no conector. Detalhes omitidos para proteger a credencial.") from None
-        if secret in repr(result):
-            raise ConnectorFailed("Resposta do conector bloqueada: continha a credencial.")
-        return result
+        return self._checked_result(secret, result)
+
+    async def use_credential_async(self, ctx, connection_id, connector, fn, optional=False):
+        """Async twin used by the tool gateway; ``optional`` lets credential-less connections proceed.
+        Cancellation and timeouts pass through untouched so callers can handle them."""
+        secret = self._authorized_secret(ctx, connection_id, connector, optional)
+        try:
+            result = await fn(secret)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            if isinstance(error, (TimeoutError, AccessError)):
+                raise
+            raise ConnectorFailed("Falha no conector. Detalhes omitidos para proteger a credencial.") from None
+        return self._checked_result(secret, result)
 
     # -- ElevenLabs reuse ----------------------------------------------------------------------------
     def adopt_elevenlabs(self, ctx):
@@ -301,15 +365,19 @@ class ConnectionService:
             raise PermissionDenied()
 
     def approve_mcp_server(self, operator, *, catalog_key, entry_version, transport, url=None, launcher=None,
-                           tools=(), status="ativo"):
+                           tools=(), status="ativo", tool_specs=None):
         self._operator_only(operator)
+        for name in tools:
+            if isinstance(name, str) and _GENERIC_EXEC.search(name):
+                raise ConnectionRejected("Ferramentas genericas de shell ou execucao nao sao aprovadas.")
+        specs = _check_tool_specs(tools, tool_specs)
         if transport == "stdio" and not (isinstance(launcher, str) and self.launchers.argv(launcher)):
             raise ConnectionRejected("stdio usa apenas um launcher previamente registrado pelo operador.")
         now = _now()
         doc = {"kind": "mcp_catalog_entry", "schema_version": 1, "id": new_id("mcp_catalog_entry"),
                "revision": 1, "created_at": now, "updated_at": now, "catalog_key": catalog_key,
                "entry_version": entry_version, "transport": transport, "url": url, "launcher": launcher,
-               "tools": list(tools), "approved_by": operator.principal_id, "status": status}
+               "tools": list(tools), "approved_by": operator.principal_id, "status": status, "tool_specs": specs}
         try:
             return self.repository.save_global(doc)
         except IntegrityViolation:

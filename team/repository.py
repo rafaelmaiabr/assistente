@@ -99,6 +99,12 @@ class TenantSession(ABC):
     def events(self, case_id=None, after_seq=0, limit=100): ...
 
     @abstractmethod
+    def record_tool_decision(self, decision): ...
+
+    @abstractmethod
+    def tool_decisions(self, run_id, limit=100): ...
+
+    @abstractmethod
     def pending_outbox(self, limit=100): ...
 
     @abstractmethod
@@ -226,6 +232,27 @@ class SqliteSession(TenantSession):
             f"SELECT seq, doc FROM events WHERE tenant_id = ? AND seq > ? {clause}ORDER BY seq LIMIT ?",
             (self.tenant_id, after_seq, *args, min(max(int(limit), 1), MAX_LIST))).fetchall()
         return [(seq, json.loads(doc)) for seq, doc in rows]
+
+    def record_tool_decision(self, decision):
+        """Minimal gateway audit row: identifiers, tool name, verdict and policy version, never arguments or results."""
+        try:
+            self.conn.execute(
+                "INSERT INTO tool_decisions (tenant_id, run_id, agent_id, agent_version, tool, operation, decision, "
+                "reason, policy_version, result_bytes, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (self.tenant_id, decision["run_id"], decision["agent_id"], decision["agent_version"], decision["tool"],
+                 decision.get("operation"), decision["decision"], decision["reason"], decision["policy_version"],
+                 decision.get("result_bytes"), decision.get("duration_ms"), _now()))
+        except sqlite3.IntegrityError as error:
+            raise IntegrityViolation(str(error)) from error
+
+    def tool_decisions(self, run_id, limit=100):
+        rows = self.conn.execute(
+            "SELECT run_id, agent_id, agent_version, tool, operation, decision, reason, policy_version, result_bytes, "
+            "duration_ms FROM tool_decisions WHERE tenant_id = ? AND run_id = ? ORDER BY id LIMIT ?",
+            (self.tenant_id, run_id, min(max(int(limit), 1), MAX_LIST))).fetchall()
+        keys = ("run_id", "agent_id", "agent_version", "tool", "operation", "decision", "reason", "policy_version",
+                "result_bytes", "duration_ms")
+        return [dict(zip(keys, row)) for row in rows]
 
     def pending_outbox(self, limit=100):
         rows = self.conn.execute(

@@ -29,6 +29,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Conexões (T04).** `connection` ganhou `catalog_entry_id` e `scopes` (opcionais), `credential_ref` agora referencia um `credential` (metadados), e há o catálogo global `mcp_catalog_entry`. Detalhes em [TEAM-CONNECTIONS.md](TEAM-CONNECTIONS.md).
 - **Perfis de agentes (T05).** `agent_definition` ganhou `goals` e `routing_policy` (opcionais) e há `agent_profile_version`, snapshot imutável de cada versão publicada. Detalhes em [TEAM-AGENTS.md](TEAM-AGENTS.md).
 - **Skills (T06).** `skill_definition` ganhou campos opcionais de manifesto (descrição, entradas/saídas, riscos, configurações, operações por ferramenta) e `skill_grant` ganhou `revoked_at`. Detalhes em [TEAM-SKILLS.md](TEAM-SKILLS.md).
+- **Gateway (T07).** `mcp_catalog_entry` ganhou `tool_specs` (classificação e regras de argumentos por ferramenta, definidas pelo operador). Detalhes em [TEAM-GATEWAY.md](TEAM-GATEWAY.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

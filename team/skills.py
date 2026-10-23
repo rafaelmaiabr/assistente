@@ -326,6 +326,38 @@ class SkillService:
                     if self.access.allowed(ctx, session, "read", "skill_grant", g["id"])]
 
     # -- use (called by the tool gateway, T07) -------------------------------------------------------------
+    def usable_grants(self, ctx, agent_id, agent_version=None):
+        """``[(grant, skill)]`` valid right now for an agent (version-pinned): the basis for listing tools."""
+        if not isinstance(ctx, AccessContext):
+            raise PermissionDenied()
+        now = datetime.now(timezone.utc)
+        found = []
+        with self.repository.transaction(ctx.tenant_id) as session:
+            agent = session.get("agent_definition", agent_id) if isinstance(agent_id, str) else None
+            if agent is None or agent["status"] != "ativo":
+                return []
+            definition = agent
+            if agent_version is not None:
+                versions = session.list("agent_profile_version", agent_id=agent_id, agent_version=agent_version, limit=1)
+                if not versions:
+                    return []
+                definition = versions[0]["definition"]
+            for grant_id in definition["skill_grant_ids"]:
+                grant = session.get("skill_grant", grant_id)
+                if grant is None or grant["agent_id"] != agent_id or grant.get("revoked_at"):
+                    continue
+                if grant["expires_at"] and datetime.fromisoformat(grant["expires_at"].replace("Z", "+00:00")) <= now:
+                    continue
+                skill = self.repository.get_global("skill_definition", grant["skill_id"])
+                if skill is None or skill["status"] != "ativo":
+                    continue
+                if grant["connection_id"] is not None:
+                    connection = session.get("connection", grant["connection_id"])
+                    if connection is None or connection["status"] != "ativo":
+                        continue
+                found.append((grant, skill))
+        return found
+
     def authorize_use(self, ctx, agent_id, skill_key, operation, *, connection_id=None, resource=None,
                       agent_version=None):
         """Return the grant that allows this use, or raise ``SkillDenied``. Pins to the run's agent version."""
