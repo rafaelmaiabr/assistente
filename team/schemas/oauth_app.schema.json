@@ -64,6 +64,18 @@
         "inativo"
       ]
     },
+    "directory": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1

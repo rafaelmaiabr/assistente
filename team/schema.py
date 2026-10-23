@@ -140,7 +140,7 @@ SCHEMAS = {
         source="str", topic="slug?", status="enum:DocStatus", valid_until="ts?", published_by="actor",
         content_hash="sha256", suspicious="bool?"),
     # An OAuth client the operator registered with a provider. The client secret (if any) lives in the vault.
-    "oauth_app": _entity("oauth_app", provider="slug", client_id="str", secret_ref="str?", label="str", status="enum:Status"),
+    "oauth_app": _entity("oauth_app", provider="slug", client_id="str", secret_ref="str?", label="str", status="enum:Status", directory="str?"),
     # What one connection was granted: metadata only. The refresh token lives in the vault, access tokens in memory.
     "oauth_grant": _entity(
         "oauth_grant", connection_id="ref:connection", app_id="ref:oauth_app", provider="slug", account="str?", scopes="list:str",

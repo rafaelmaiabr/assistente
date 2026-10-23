@@ -71,11 +71,14 @@ class FakeOAuthProvider:
             self.refresh_tokens[token]["revoked"] = True
 
     # -- the endpoints -----------------------------------------------------------------------------------------------
+    def claims(self):
+        return {"email": self.email}
+
     def _tokens(self, scope, nonce=None, with_refresh=True, refresh=None):
         access = "ya29." + secrets.token_urlsafe(32)
         self.access_tokens.add(access)
         body = {"access_token": access, "expires_in": self.expires_in, "scope": scope, "token_type": "Bearer",
-                "id_token": _jwt({"aud": self.client_id, "email": self.email, "nonce": nonce, "exp": int(time.time()) + 3600})}
+                "id_token": _jwt({"aud": self.client_id, "nonce": nonce, "exp": int(time.time()) + 3600, **self.claims()})}
         if with_refresh and not self.no_refresh_token:
             refresh = refresh or "1//" + secrets.token_urlsafe(40)
             self.refresh_tokens.setdefault(refresh, {"revoked": False, "scope": scope})
@@ -115,3 +118,54 @@ class FakeOAuthProvider:
                 body.pop("refresh_token", None)
             return 200, body
         return 400, {"error": "unsupported_grant_type"}
+
+
+class FakeMicrosoft(FakeOAuthProvider):
+    """Microsoft identity platform stand-in: tenant in the path, public client, device-code flow and AADSTS errors."""
+
+    def __init__(self, tenant="11111111-2222-3333-4444-555555555555", email="ana@contoso.invalid"):
+        super().__init__(client_id="aplicativo-microsoft-1234", client_secret=None, email=email)
+        self.tenant, self.tid = tenant, tenant
+        self.devices, self.paths, self.poll_script, self.fail_token = {}, [], [], None
+        self.device_url = f"http://127.0.0.1:{self.port}/{{tenant}}/oauth2/v2.0/devicecode"
+        self.token_url = f"http://127.0.0.1:{self.port}/{{tenant}}/oauth2/v2.0/token"
+        self.revoke_url = None
+        self.authorize_url = f"http://127.0.0.1:{self.port}/{{tenant}}/oauth2/v2.0/authorize"
+
+    def claims(self):
+        return {"preferred_username": self.email, "tid": self.tid}
+
+    def approve_device(self, user_code, *, decline=False):
+        for record in self.devices.values():
+            if record["user_code"] == user_code:
+                record["state"] = "declined" if decline else "approved"
+                return
+        raise AssertionError("unknown user code")
+
+    def handle(self, path, fields):
+        self.paths.append(path)
+        parts = path.strip("/").split("/")
+        tenant, endpoint = parts[0], parts[-1]
+        if tenant not in (self.tenant, "organizations", "common", "consumers"):
+            return 400, {"error": "invalid_request", "error_description": "AADSTS90002: Tenant not found."}
+        if fields.get("client_id") != self.client_id:
+            return 400, {"error": "unauthorized_client", "error_description": "AADSTS700016: Application not found in the directory."}
+        if endpoint == "devicecode":
+            device_code, user_code = secrets.token_urlsafe(24), "ABCD" + secrets.token_hex(2).upper()
+            self.devices[device_code] = {"user_code": user_code, "state": "pending", "scope": fields.get("scope", "")}
+            return 200, {"device_code": device_code, "user_code": user_code, "verification_uri": "https://login.microsoft.invalid/device",
+                         "expires_in": 900, "interval": 5, "message": "ignored"}
+        if self.fail_token:
+            return self.fail_token
+        if fields.get("grant_type") == "urn:ietf:params:oauth:grant-type:device_code":
+            record = self.devices.get(fields.get("device_code", ""))
+            if record is None:
+                return 400, {"error": "bad_verification_code"}
+            if self.poll_script:
+                return self.poll_script.pop(0)
+            if record["state"] == "pending":
+                return 400, {"error": "authorization_pending"}
+            if record["state"] == "declined":
+                return 400, {"error": "authorization_declined"}
+            return 200, self._tokens(self.scope_override or record["scope"].replace(" offline_access", ""))
+        return super().handle("/token", fields)
