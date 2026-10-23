@@ -223,6 +223,16 @@ class JobQueue:
             effects[effect_key] = {"state": "iniciado", "at_ms": self.clock()}
             self._touch(conn, job_id, checkpoint={**job["checkpoint"], "effects": effects})
 
+    def cancel_effect(self, job_id, worker_id, token, effect_key):
+        """Withdraw an effect that was opened but provably never started (nothing left the process)."""
+        with self._tx() as conn:
+            job = self._owned(conn, job_id, worker_id, token)
+            effects = dict(job["checkpoint"].get("effects") or {})
+            if effects.get(effect_key, {}).get("state") != "iniciado":
+                raise QueueError("nenhum efeito iniciado com esta chave")
+            del effects[effect_key]
+            self._touch(conn, job_id, checkpoint={**job["checkpoint"], "effects": effects})
+
     def finish_effect(self, job_id, worker_id, token, effect_key, result=None):
         with self._tx() as conn:
             job = self._owned(conn, job_id, worker_id, token)

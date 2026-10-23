@@ -49,6 +49,7 @@
         "handoff",
         "evidence",
         "case_entry",
+        "outbound_message",
         "agent_profile_version",
         "contact",
         "contact_address",
