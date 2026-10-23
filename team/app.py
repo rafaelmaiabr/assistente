@@ -15,6 +15,8 @@ from .handoffs import HandoffService
 from .gaps import GapService
 from .identity import IdentityService
 from .jobs import JobQueue
+from .onboarding import OnboardingService
+from .triage import TriageService
 from .knowledge import KnowledgeService
 from .outbound import OutboundGateway
 from .connections import ConnectionService, LauncherRegistry
@@ -71,8 +73,11 @@ class TeamApp:
             approvals = ApprovalService(repo, access, cases)
             queue = JobQueue(repo, access)
             knowledge = KnowledgeService(repo, access)
+            team = TeamService(repo, access)
+            triage = TriageService(repo, access, cases, handoffs)
             self._built = SimpleNamespace(
-                repo=repo, access=access, operator=access.local_operator(), team=TeamService(repo, access),
+                repo=repo, access=access, operator=access.local_operator(), team=team, triage=triage,
+                onboarding=OnboardingService(access, team, agents, triage),
                 policies=policies, agents=agents, connections=connections, skills=SkillService(repo, access, agents),
                 cases=cases, handoffs=handoffs, approvals=approvals, queue=queue,
                 knowledge=knowledge, gaps=GapService(repo, access, cases, knowledge), identity=IdentityService(repo, access),

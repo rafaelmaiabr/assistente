@@ -8,6 +8,7 @@ import {SkillsSection} from './SkillsSection.jsx';
 import {ConnectionsSection} from './ConnectionsSection.jsx';
 import {CasesSection} from './CasesSection.jsx';
 import {MembersSection} from './MembersSection.jsx';
+import {DoctorSection, OnboardingSection} from './OnboardingSection.jsx';
 import {ROLE_LABEL, visibleTabs} from './authModel.js';
 
 const TABS = [['cases', 'Demandas'], ['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões'], ['members', 'Membros']];
@@ -41,7 +42,7 @@ function Departments({base}) {
 /** `remote` is set when the page is served by the remote listener: the person's role per company decides what is shown. */
 export function TeamPanel({onOpenMenu, focus, remote = false}) {
   const [overview, setOverview] = useState(null), [error, setError] = useState(''), [companyId, setCompanyId] = useState('');
-  const [tab, setTab] = useState('cases'), [name, setName] = useState(''), [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState('cases'), [name, setName] = useState(''), [busy, setBusy] = useState(false), [tool, setTool] = useState('');
   const load = useCallback(async () => {
     try {const data = await api.get('/state'); setOverview(data); setError('');
       setCompanyId(current => data.companies.some(c => c.id === current) ? current : (data.companies[0]?.id || ''));}
@@ -72,6 +73,11 @@ export function TeamPanel({onOpenMenu, focus, remote = false}) {
         <PersistenceSettings/><button onClick={load}>Já ativei, recarregar</button>
       </section>}
       <Notice error={error}/>
+      {!remote && overview && <div className="team-actions" role="group" aria-label="Ferramentas">
+        {overview.enabled && <button type="button" aria-pressed={tool === 'modelo'} onClick={() => setTool(tool === 'modelo' ? '' : 'modelo')}>Configurar por um modelo</button>}
+        <button type="button" aria-pressed={tool === 'diagnostico'} onClick={() => setTool(tool === 'diagnostico' ? '' : 'diagnostico')}>Diagnóstico da instalação</button></div>}
+      {!remote && tool === 'modelo' && overview?.enabled && <OnboardingSection onCreated={async id => {await load(); setCompanyId(id); setTool('');}}/>}
+      {!remote && tool === 'diagnostico' && <DoctorSection/>}
       {overview?.enabled && <>
         <section className="team-company-bar" aria-label="Empresa">
           <label>Empresa
@@ -95,7 +101,7 @@ export function TeamPanel({onOpenMenu, focus, remote = false}) {
             {tab === 'skills' && <SkillsSection base={base}/>}
             {tab === 'connections' && <ConnectionsSection base={base}/>}
             {tab === 'members' && <MembersSection base={base}/>}
-          </div></> : <p className="team-empty">{remote ? 'Você ainda não participa de nenhuma empresa.' : 'Crie ou selecione uma empresa para configurar a equipe.'}</p>}
+          </div></> : <p className="team-empty">{remote ? 'Você ainda não participa de nenhuma empresa.' : 'Crie ou selecione uma empresa, ou use "Configurar por um modelo", para começar.'}</p>}
       </>}
     </div>
   </main>;

@@ -35,6 +35,10 @@ from .login import LOGIN_ERRORS, LoginFailed, RateLimiter
 POLICY = {
     "GET /api/team/state": "session",
     "POST /api/team/companies": "local",
+    "GET /api/team/onboarding/templates": "local",
+    "POST /api/team/onboarding/preview": "local",
+    "POST /api/team/onboarding/apply": "local",
+    "GET /api/team/doctor": "local",
     "PATCH /api/team/companies/{tenant}": "local",
     "GET /api/team/companies/{tenant}/departments": "leitor",
     "POST /api/team/companies/{tenant}/departments": "admin",

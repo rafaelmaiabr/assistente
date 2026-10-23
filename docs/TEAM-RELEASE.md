@@ -8,6 +8,8 @@ Use antes de publicar uma versão e depois de mudar prompt, skill, modelo, esque
 - [ ] **Evals offline:** `python scripts/run_evals.py` termina com `Resultado: OK` (zero violações de gate e nenhuma regressão). Em caso de falha, anexe `--markdown` ao PR e **não** atualize a base para "fazer passar": entenda a causa.
 - [ ] Se o corpus ou o comportamento medido mudou de propósito: `python scripts/run_evals.py --update-baseline`, revisão do diff de `evals/baseline.json` e justificativa no PR.
 - [ ] Interface e desktop: `npm test` e `npm run build` em `frontend/`, `node --test desktop/tests/*.test.cjs`, `node --check` de `desktop/main.cjs` e `desktop/preload.cjs`; se tocou no desktop, `electron . --smoke-test`.
+- [ ] `python -m team.doctor` sem erros em uma instalação nova e em uma atualizada de uma versão anterior (migrações, dependências, pasta de dados, cofre, modelo).
+- [ ] Pacote Windows: `npm test --prefix desktop` (o inventário recusa arquivos privados ou inesperados) e, ao gerar o pacote, conferir o `build-manifest.json` (`containsLocalConfig` e `containsUserData` falsos; lista de migrações igual à de `team/migrations/`).
 - [ ] Esquemas exportados em dia (`python scripts/export_team_schemas.py`) e Graphify atualizado pelo wrapper (`scripts/graphify.ps1`).
 - [ ] Mudou prompt, skill ou modelo? Rode também, se houver Ollama local, `python scripts/run_evals.py --ollama` e compare latência, tokens e acertos com a versão anterior (opcional, não é gate).
 - [ ] Nenhum dado real no repositório: sem `config.json`, logs, conversas, áudio, bancos, backups, modelos ou credenciais.
