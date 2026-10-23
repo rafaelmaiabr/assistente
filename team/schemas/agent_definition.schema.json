@@ -116,6 +116,35 @@
         "inativo"
       ]
     },
+    "goals": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "routing_policy": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "encaminhar",
+            "esclarecer"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1

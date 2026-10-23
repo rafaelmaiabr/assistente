@@ -5,6 +5,8 @@ Types: str, text, int, posint, bool, ts, sha256, semver, slug, url, actor, obj,
 ``id:<kind>`` / ``ref:<kind>`` (opaque id of an entity kind; ``ref`` is also checked across a
 bundle), ``enum:<Name>`` and ``list:<type>``. Unknown fields are rejected.
 """
+import hashlib
+import json
 import re
 from datetime import datetime
 from urllib.parse import urlparse
@@ -53,7 +55,12 @@ SCHEMAS = {
         "agent_definition", department_id="ref:department", agent_version="posint", name="str",
         personality={"tone": "text", "initiative": "text"}, scope="text", out_of_scope="text",
         skill_grant_ids="list:ref:skill_grant", handoff_target_ids="list:ref:agent_definition",
-        model_policy_ref="slug", voice_profile_ref="slug?", status="enum:Status"),
+        model_policy_ref="slug", voice_profile_ref="slug?", status="enum:Status",
+        goals="list:text?", routing_policy="enum:RoutingPolicy?"),
+    # Immutable snapshot of one published agent version; only ``status`` (disabling) may change later.
+    "agent_profile_version": _entity(
+        "agent_profile_version", agent_id="ref:agent_definition", agent_version="posint", definition="obj",
+        content_hash="sha256", status="enum:Status", created_by="actor"),
     "agent_run": _entity(
         "agent_run", agent_id="ref:agent_definition", agent_version="posint", department_id="ref:department",
         case_id="ref:case?", task_id="ref:task?", state="enum:RunState",
@@ -117,6 +124,12 @@ SCHEMAS = {
         "event", envelope=True, type="slug", case_id="ref:case?", correlation_id="id:correlation",
         causation_id="id:envelope?", actor_id="actor", revision="posint", occurred_at="ts", payload="obj"),
 }
+
+
+def content_hash(definition) -> str:
+    """sha256 of the canonical JSON of a document; identifies a published version's content."""
+    canonical = json.dumps(definition, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def kinds():

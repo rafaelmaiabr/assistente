@@ -9,7 +9,7 @@ from team.connections import (
     ConnectionRejected, ConnectionService, ConnectorFailed, CredentialError, LauncherRegistry)
 from team.ids import new_id
 from team.repository import IntegrityViolation, SqliteRepository
-from team.samples import bundle
+from team.samples import bundle, profile_version
 from team.schema import ContractError
 from team.service import TeamService
 from team.vault import LegacyElevenLabsAdapter, MemoryVault, VaultError, WindowsVault
@@ -66,6 +66,7 @@ class ConnectionCase(unittest.TestCase):
                        case_id=None, task_id=None, state="em_execucao")
         with self.repo.transaction(self.a["id"]) as session:
             session.save(agent_doc)
+            session.save(profile_version(agent_doc, new_id("agent_profile_version")))
             session.save(run_doc)
         if grant_connection:
             self.team.create(self.ca, "access_grant", principal_id=agent_doc["id"], resource_kind="connection",

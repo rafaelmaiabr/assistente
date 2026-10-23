@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .db import MigrationError
 from .access import AccessService
+from .agents import AgentService
 from .connections import ConnectionService, LauncherRegistry
 from .ids import is_id, new_id
 from .repository import SqliteRepository
@@ -98,3 +99,13 @@ def connection_service(root, vault=None, legacy_elevenlabs=None) -> ConnectionSe
         legacy_elevenlabs = LegacyElevenLabsAdapter(WindowsSecrets(root))
     launchers = LauncherRegistry(data_dir(root) / "launchers.json", access.operator_id)
     return ConnectionService(repo, access, vault or WindowsVault(root), launchers, legacy_elevenlabs)
+
+
+def agent_service(root, voice_profile_ids=None) -> AgentService:
+    """Agent definitions; voice references are checked against the current voice profiles."""
+    repo = repository(root)
+    if voice_profile_ids is None:
+        def voice_profile_ids():
+            from voice_profiles import VoiceProfiles  # imported lazily: only the backend has it
+            return {profile["id"] for profile in VoiceProfiles(root, secrets=object()).snapshot()["profiles"]}
+    return AgentService(repo, AccessService(repo, operator_id(root)), voice_profile_ids)

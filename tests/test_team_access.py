@@ -7,7 +7,8 @@ from team import persistence
 from team.access import AccessContext, AccessService, NotFound, OperatorContext, PermissionDenied
 from team.ids import new_id
 from team.repository import RevisionConflict, SqliteRepository
-from team.samples import IDS, bundle
+from team.ids import new_id as _new_id
+from team.samples import IDS, bundle, profile_version
 from team.service import Conflict, TeamService
 
 
@@ -191,6 +192,7 @@ class AgentPolicyTests(AccessCase):
                    department_id=self.dep_a["id"], case_id=None, task_id=None, state=state)
         with self.repo.transaction(self.a["id"]) as session:
             session.save(agent)
+            session.save(profile_version(agent, _new_id("agent_profile_version")))
             session.save(run)
         return self.access.agent_context(self.op, self.a["id"], run["id"]), agent, run
 
