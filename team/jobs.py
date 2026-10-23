@@ -390,6 +390,21 @@ class JobQueue:
         with self._tx() as conn:
             return [_job(r) for r in conn.execute(query + " ORDER BY created_ms, id LIMIT ?", [*args, min(limit, 1000)])]
 
+    def recover_all(self):
+        """After a restore no worker is alive: settle every running job as if its lease had expired.
+
+        Jobs with an unknown external effect go to reconciliation; the rest return to the queue (or are exhausted).
+        Returns the number of jobs per resulting state."""
+        with self._tx() as conn:
+            running = [r[0] for r in conn.execute("SELECT id FROM jobs WHERE state = 'em_execucao'")]
+            conn.execute("UPDATE jobs SET lease_expires_ms = 0 WHERE state = 'em_execucao'")
+            self._reap(conn, self.clock())
+            outcome = {}
+            for job_id in running:
+                state = self._one(conn, job_id)["state"]
+                outcome[state] = outcome.get(state, 0) + 1
+        return outcome
+
     def needs_attention(self, tenant_id):
         """Jobs that need a person: exhausted retries, unknown external effects and hard failures."""
         return [j for j in self.list_jobs(tenant_id, limit=1000) if j["state"] in ATTENTION]
