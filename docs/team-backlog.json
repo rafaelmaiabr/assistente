@@ -967,7 +967,7 @@
       ],
       "tests": "Testes de contrato iguais em SQLite/Postgres, múltiplos workers, indisponibilidade do banco, saturação de uma empresa e recuperação de outbox.",
       "areas": "Adapters de persistência; worker; configuração local/servidor; documentação de capacidade",
-      "decision": "",
+      "decision": " Decisão do operador (2026-10-23): adaptador de PostgreSQL padrão, validado em um PostgreSQL local em Docker (Supabase seria só um destino opcional, sem conta criada). Subdividida: o adaptador, as migrações, a fila com quotas, a cópia dos dados e a implantação estão em TEAM-POSTGRES.md; os módulos com SQL próprio e a escolha do banco pelo aplicativo são T39 (#89). #49 só fecha com a #89.",
       "issue": 49,
       "url": "https://github.com/rafaelmaiabr/assistente/issues/49",
       "depends_on_issues": [
@@ -1076,6 +1076,37 @@
         18,
         25,
         28
+      ]
+    },
+    {
+      "code": "T39",
+      "phase": "Escala",
+      "title": "Paridade do PostgreSQL nos módulos com SQL próprio (parte 2 do T34)",
+      "dependencies": [
+        "T34",
+        "T17",
+        "T29",
+        "T30",
+        "T32"
+      ],
+      "goal": "Levar para o PostgreSQL os módulos que ainda usam SQL de SQLite e permitir que o aplicativo escolha o banco por configuração, sem mudar nada para quem usa SQLite.",
+      "acceptance": [
+        "Identidade e acesso remoto, conhecimento com busca de texto (FTS5 → tsvector), auditoria e métricas, retenção e exclusão, agendador e SLA e backup/restauração funcionam sobre PostgreSQL com o mesmo comportamento observável que no SQLite.",
+        "O aplicativo escolhe o banco por configuração (DSN no cofre, nunca em texto); SQLite continua o padrão.",
+        "Os testes de cada módulo rodam nos dois bancos; o diagnóstico cobre o PostgreSQL (versão, migrações, conexão).",
+        "Documentação atualizada; as limitações da parte 1 deixam de existir."
+      ],
+      "tests": "Os mesmos testes dos módulos contra SQLite e contra um PostgreSQL local em Docker; regressão completa. Sem contas ou serviços externos.",
+      "areas": "team/identity.py, team/knowledge.py, team/audit.py, team/retention.py, team/scheduler.py, team/backup.py, team/persistence.py, team/app.py, team/doctor.py, docs",
+      "decision": "",
+      "issue": 89,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/89",
+      "depends_on_issues": [
+        49,
+        32,
+        44,
+        45,
+        47
       ]
     },
     {

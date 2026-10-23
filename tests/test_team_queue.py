@@ -28,11 +28,15 @@ class FakeClock:
 
 
 class QueueCase(unittest.TestCase):
+    def make_repo(self):
+        """The backend under test; test_team_queue_limits.py overrides it for PostgreSQL."""
+        self.path = Path(self.temp.name) / "team.sqlite3"
+        return SqliteRepository(self.path)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.path = Path(self.temp.name) / "team.sqlite3"
-        self.repo = SqliteRepository(self.path)
+        self.repo = self.make_repo()
         self.repo.migrate()
         self.clock = FakeClock()
         self.access = AccessService(self.repo, new_id("user"))

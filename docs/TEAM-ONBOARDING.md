@@ -52,13 +52,13 @@ Pare o aplicativo e siga a restauração de [TEAM-OPS.md](TEAM-OPS.md) (`BackupS
 
 ## O pacote Windows
 
-`desktop/build.cjs` monta o backend a partir de um **inventário de arquivos** em vez de copiar pastas inteiras: dentro de `team/` só entram `.py`, `.sql`, `.json` e `.md`; qualquer outro arquivo (banco, `config.json`, log, áudio, modelo, certificado, chave, `.env`) **interrompe o build** em vez de ser empacotado em silêncio. Entram as 22 migrações, os esquemas, os modelos de equipe, as skills de demonstração e o exemplo de pacote; ficam de fora `tests/`, `evals/`, `scripts/`, o grafo e qualquer dado. O `build-manifest.json` lista as migrações, os modelos e a contagem de arquivos e declara `containsLocalConfig: false` e `containsUserData: false`.
+`desktop/build.cjs` monta o backend a partir de um **inventário de arquivos** em vez de copiar pastas inteiras: dentro de `team/` só entram `.py`, `.sql`, `.json` e `.md`; qualquer outro arquivo (banco, `config.json`, log, áudio, modelo, certificado, chave, `.env`) **interrompe o build** em vez de ser empacotado em silêncio. Entram as 23 migrações, os esquemas, os modelos de equipe, as skills de demonstração e o exemplo de pacote; ficam de fora `tests/`, `evals/`, `scripts/`, o grafo e qualquer dado. O `build-manifest.json` lista as migrações, os modelos e a contagem de arquivos e declara `containsLocalConfig: false` e `containsUserData: false`.
 
 ## Limites e integrações ainda não prontas
 
 - **Não existe conector de registrador (#41) nem de ERP/financeiro (#42)**: serão construídos sob demanda, se uma lacuna real decidir por isso.
 - **Login com Google e acesso remoto, OAuth Gmail/Microsoft, IMAP, SMTP e Ollama real não foram validados contra os serviços de verdade**: os testes usam provedores falsos. O [checklist de release](TEAM-RELEASE.md) lista cada pendência.
-- **PostgreSQL com workers separados (#49) e interoperabilidade A2A (#50) não foram feitos**: o banco é o SQLite local e não há workers fora do processo do aplicativo.
+- **O aplicativo usa o SQLite local.** O adaptador PostgreSQL, a fila com workers separados e quotas e a cópia dos dados existem ([TEAM-POSTGRES.md](TEAM-POSTGRES.md)), mas o aplicativo ainda não escolhe esse banco (#89); a interoperabilidade A2A (#50) não foi feita.
 - O **chat continua sendo o assistente local**; ele identifica a demanda e o agente, mas não executa o agente da equipe ([TEAM-CONVERSATION.md](TEAM-CONVERSATION.md)).
 - O assistente de configuração só cria a equipe (empresa, departamentos, agentes, capacidades, encaminhamentos e acesso às demandas); não instala skills, não cria conexões e não tem como desfazer: o que ele criou se edita ou se desativa nas seções da Equipe.
 - **Não foi gerado nem executado o instalador Windows completo nesta entrega** (isso grava a pasta `release/`): o inventário do pacote foi montado e importado em isolamento, com um banco novo, e o `--smoke-test` do Electron foi executado; o teste manual com microfone e voz reais continua pendente.

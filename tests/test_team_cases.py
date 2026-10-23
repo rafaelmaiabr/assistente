@@ -254,12 +254,11 @@ class HistoryTests(CaseTestBase):
                                 reliability="declarada")
         advanced = self.cases.transition(self.ca, case["id"], 1, "triagem", reason="<think>oculto</think>fila")
         self.assertEqual(advanced["state"], "triagem")
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
-        for table in ("case_entries", "evidences", "events"):
-            for (doc,) in conn.execute(f"SELECT doc FROM {table}"):
-                self.assertNotIn("raciocinio privado", doc)
-                self.assertNotIn("<think>", doc.lower())
+        with self.repo._transaction() as conn:  # the repository's own connection: the same check on every backend
+            for table in ("case_entries", "evidences", "events"):
+                for (doc,) in conn.execute(f"SELECT doc FROM {table}").fetchall():
+                    self.assertNotIn("raciocinio privado", doc)
+                    self.assertNotIn("<think>", doc.lower())
         with self.assertRaises(CaseRejected):
             self.cases.open_case(self.ca, department_id=self.dep["id"], objective="<think>nada</think>")
 

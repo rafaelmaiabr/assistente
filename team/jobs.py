@@ -1,6 +1,6 @@
 """Durable job queue: atomic claim by lease, heartbeat, checkpoint, retries with backoff and recovery.
 
-All state lives in SQLite, so a crash loses nothing: a job whose worker stops heartbeating returns to
+All state lives in the database (SQLite by default, PostgreSQL for several worker processes), so a crash loses nothing: a job whose worker stops heartbeating returns to
 the queue when its lease expires. Every worker action carries a *fencing token* (the attempt number)
 so a worker that lost its lease can no longer change the job. At most one job per case runs at a time
 (enforced by a partial unique index). An external effect that started but never confirmed is not
@@ -11,8 +11,8 @@ Contract for a future remote worker (same operations over an authenticated chann
 ``checkpoint`` | ``begin_effect``/``finish_effect`` | ``complete``/``fail``/``acknowledge``.
 """
 import json
-import sqlite3
 import time
+from dataclasses import dataclass, field
 
 from .access import AccessError, NotFound, OperatorContext, PermissionDenied
 from .ids import new_id
@@ -48,6 +48,34 @@ class BudgetError(QueueError):
     pass
 
 
+class Backpressure(QueueError):
+    """The queue is full for this company (or overall): the producer should wait and try again, not keep adding work."""
+
+    def __init__(self, scope):
+        super().__init__(f"fila cheia ({scope}); tente de novo mais tarde")
+        self.scope = scope
+
+
+@dataclass(frozen=True)
+class QueueLimits:
+    """Quotas and fairness. ``None`` (or an empty dict) means no limit, which is how the queue behaved before.
+
+    * ``max_pending_*``: backpressure on ``enqueue`` (jobs waiting), per company and in total;
+    * ``max_running_*``: how many jobs may run at once, per company, in total and per kind of job. The per-kind cap is how
+      the capacity of the model server is respected: ``{"agent_run": 1}`` keeps one model call in flight no matter how many
+      workers or companies there are;
+    * claiming always prefers the company with the fewest running jobs, so one busy company cannot starve the others.
+    """
+    max_pending_per_tenant: int | None = None
+    max_pending_total: int | None = None
+    max_running_per_tenant: int | None = None
+    max_running_total: int | None = None
+    max_running_per_kind: dict = field(default_factory=dict)
+
+
+_ENQUEUE_LOCK, _CLAIM_LOCK = 727275, 727276  # advisory-lock keys (PostgreSQL only)
+
+
 def _now_ms():
     return int(time.time() * 1000)
 
@@ -75,19 +103,31 @@ def _dump(value):
 
 
 class JobQueue:
-    def __init__(self, repository, access=None, clock=_now_ms, backoff=backoff_ms):
+    def __init__(self, repository, access=None, clock=_now_ms, backoff=backoff_ms, limits=None):
         self.repository, self.access, self.clock, self.backoff = repository, access, clock, backoff
+        self.limits = limits or QueueLimits()
 
     # -- plumbing ----------------------------------------------------------------------------------------------
-    def _tx(self):
-        return self.repository._transaction()  # BEGIN IMMEDIATE: one writer at a time
+    @property
+    def _postgres(self):
+        return getattr(self.repository, "dialect", "sqlite") == "postgres"
 
-    def _one(self, conn, job_id):
-        row = conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    def _tx(self):
+        return self.repository._transaction()  # SQLite: BEGIN IMMEDIATE (one writer); PostgreSQL: a normal transaction
+
+    def _serialize(self, conn, name):
+        """PostgreSQL has many writers: decisions that depend on counts take a transaction-scoped advisory lock first
+        (SQLite's single writer already gives the same guarantee)."""
+        if self._postgres:
+            conn.execute("SELECT pg_advisory_xact_lock(?)", (name,))
+
+    def _one(self, conn, job_id, lock=False):
+        suffix = " FOR UPDATE" if lock and self._postgres else ""
+        row = conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM jobs WHERE id = ?{suffix}", (job_id,)).fetchone()
         return _job(row) if row else None
 
     def _owned(self, conn, job_id, worker_id, token):
-        job = self._one(conn, job_id)
+        job = self._one(conn, job_id, lock=True)
         now = self.clock()
         if job is None or job["state"] != "em_execucao" or job["lease_owner"] != worker_id \
                 or job["token"] != token or job["lease_expires_ms"] <= now:
@@ -111,6 +151,7 @@ class JobQueue:
                                     (tenant_id, idempotency_key)).fetchone()
             if existing:
                 return self._one(conn, existing[0]), False
+            self._check_backpressure(conn, tenant_id)
             if parent_job_id is not None:
                 budget = self._reserve(conn, tenant_id, parent_job_id, budget)
             job_id = new_id("job")
@@ -121,9 +162,21 @@ class JobQueue:
                     "VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', ?, 0, ?, ?, ?, '{}', ?, ?, ?)",
                     (job_id, tenant_id, kind, case_id, run_id, parent_job_id, idempotency_key, priority, max_attempts,
                      now + delay_ms, _dump(payload), _dump(budget) if budget is not None else None, now, now))
-            except sqlite3.IntegrityError as error:
+            except self.repository.integrity_errors as error:
                 raise QueueError("referencia invalida para o job") from error
             return self._one(conn, job_id), True
+
+    def _check_backpressure(self, conn, tenant_id):
+        limits = self.limits
+        if limits.max_pending_per_tenant is None and limits.max_pending_total is None:
+            return
+        self._serialize(conn, _ENQUEUE_LOCK)
+        if limits.max_pending_per_tenant is not None and conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE tenant_id = ? AND state = 'pendente'", (tenant_id,)).fetchone()[0] >= limits.max_pending_per_tenant:
+            raise Backpressure("empresa")
+        if limits.max_pending_total is not None and conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE state = 'pendente'").fetchone()[0] >= limits.max_pending_total:
+            raise Backpressure("total")
 
     def enqueue_command(self, tenant_id, command, kind, payload, **options):
         """Register a command once and queue its job in the same transaction: a duplicate message adds nothing."""
@@ -151,10 +204,27 @@ class JobQueue:
 
     # -- consuming ---------------------------------------------------------------------------------------------
     def claim(self, worker_id, *, kinds=None, lease_ms=DEFAULT_LEASE_MS, tenant_id=None):
-        """Atomically take the next runnable job. Expired leases are recovered first."""
+        """Atomically take the next runnable job. Expired leases are recovered first.
+
+        Quotas (``QueueLimits``) are checked inside the same transaction as the claim, and the claim itself is serialised,
+        so two workers can never push a company, the total or a kind of job past its limit. Among the runnable jobs the one
+        of the company with the fewest running jobs goes first, then priority, then age."""
+        for _ in range(3):  # a rare clash with the one-active-job-per-case index just means: look at the queue again
+            try:
+                return self._claim_once(worker_id, kinds, lease_ms, tenant_id)
+            except self.repository.integrity_errors:
+                continue
+        return None
+
+    def _claim_once(self, worker_id, kinds, lease_ms, tenant_id):
+        limits = self.limits
         with self._tx() as conn:
+            self._serialize(conn, _CLAIM_LOCK)
             now = self.clock()
             self._reap(conn, now)
+            if limits.max_running_total is not None and conn.execute(
+                    "SELECT COUNT(*) FROM jobs WHERE state = 'em_execucao'").fetchone()[0] >= limits.max_running_total:
+                return None
             where, args = ["j.state = 'pendente'", "j.available_at_ms <= ?"], [now]
             if kinds:
                 where.append(f"j.kind IN ({', '.join('?' * len(kinds))})")
@@ -162,23 +232,37 @@ class JobQueue:
             if tenant_id:
                 where.append("j.tenant_id = ?")
                 args.append(tenant_id)
+            if limits.max_running_per_tenant is not None:
+                where.append("COALESCE(run.n, 0) < ?")
+                args.append(limits.max_running_per_tenant)
+            full = [kind for kind, cap in limits.max_running_per_kind.items() if conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE state = 'em_execucao' AND kind = ?", (kind,)).fetchone()[0] >= cap]
+            if full:
+                where.append(f"j.kind NOT IN ({', '.join('?' * len(full))})")
+                args += full
+            order = self.repository.row_order
+            lock = " FOR UPDATE OF j SKIP LOCKED" if self._postgres else ""
+            # running jobs per company are counted once (not once per candidate); the company with the fewest goes first
             row = conn.execute(
-                f"SELECT j.id FROM jobs j WHERE {' AND '.join(where)} AND (j.case_id IS NULL OR NOT EXISTS ("
+                "WITH run AS (SELECT tenant_id, COUNT(*) AS n FROM jobs WHERE state = 'em_execucao' GROUP BY tenant_id) "
+                f"SELECT j.id FROM jobs j LEFT JOIN run ON run.tenant_id = j.tenant_id WHERE {' AND '.join(where)} "
+                "AND (j.case_id IS NULL OR NOT EXISTS ("
                 "SELECT 1 FROM jobs r WHERE r.tenant_id = j.tenant_id AND r.case_id = j.case_id "
                 "AND r.state IN ('em_execucao', 'reconciliar'))) "
-                "ORDER BY j.priority DESC, j.created_ms, j.rowid LIMIT 1", args).fetchone()
+                f"ORDER BY COALESCE(run.n, 0), j.priority DESC, j.created_ms, j.{order} LIMIT 1{lock}", args).fetchone()
             if row is None:
                 return None
-            current = self._one(conn, row[0])
+            current = self._one(conn, row[0], lock=True)
             self._touch(conn, row[0], state="em_execucao", attempts=current["attempts"] + 1, lease_owner=worker_id,
                         lease_expires_ms=now + lease_ms, heartbeat_ms=now, last_error=None)
             return self._one(conn, row[0])
 
     def _reap(self, conn, now):
         """Return jobs of dead workers to the queue (or to reconciliation / exhaustion)."""
-        rows = conn.execute("SELECT id FROM jobs WHERE state = 'em_execucao' AND lease_expires_ms <= ?", (now,)).fetchall()
+        lock = " FOR UPDATE SKIP LOCKED" if self._postgres else ""
+        rows = conn.execute(f"SELECT id FROM jobs WHERE state = 'em_execucao' AND lease_expires_ms <= ?{lock}", (now,)).fetchall()
         for (job_id,) in rows:
-            job = self._one(conn, job_id)
+            job = self._one(conn, job_id, lock=True)
             effects = (job["checkpoint"].get("effects") or {})
             lease = {"lease_owner": None, "lease_expires_ms": None}
             if any(e.get("state") == "iniciado" for e in effects.values()):
@@ -282,7 +366,7 @@ class JobQueue:
 
     def _control(self, tenant_id, job_id, action):
         with self._tx() as conn:
-            root = self._one(conn, job_id)
+            root = self._one(conn, job_id, lock=True)
             if root is None or root["tenant_id"] != tenant_id:
                 raise NotFound()
             for current in (self._one(conn, i) for i in self._tree(conn, job_id)):
@@ -320,7 +404,7 @@ class JobQueue:
         marks = ", ".join("?" * len(states))
         with self._tx() as conn:
             return [r[0] for r in conn.execute(
-                f"SELECT id FROM jobs WHERE tenant_id = ? AND case_id = ? AND state IN ({marks}) ORDER BY rowid",
+                f"SELECT id FROM jobs WHERE tenant_id = ? AND case_id = ? AND state IN ({marks}) ORDER BY {self.repository.row_order}",
                 (tenant_id, case_id, *states))]
 
     def pause_case(self, tenant_id, case_id):
@@ -414,9 +498,5 @@ class JobQueue:
         """True the first time ``(consumer, event_id)`` is seen. Consumers call it before acting, so a
         redelivered event (the outbox is at-least-once) is ignored."""
         with self._tx() as conn:
-            try:
-                conn.execute("INSERT INTO processed_events (consumer, event_id, processed_ms) VALUES (?, ?, ?)",
-                             (consumer, event_id, self.clock()))
-                return True
-            except sqlite3.IntegrityError:
-                return False
+            return conn.execute("INSERT INTO processed_events (consumer, event_id, processed_ms) VALUES (?, ?, ?) "
+                                "ON CONFLICT DO NOTHING", (consumer, event_id, self.clock())).rowcount == 1

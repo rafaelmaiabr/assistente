@@ -18,7 +18,7 @@ O manifesto é o plano versionado, não um espelho de status do GitHub. Consulta
 - Checar PR ou branch em andamento para evitar trabalho duplicado. Cada executor mantém uma única issue ativa por vez, salvo instrução humana explícita de colaboração.
 - Se faltar uma decisão necessária, registrar a pergunta na conversa com o operador e no plano quando autorizado; não inventar provedor, cliente, orçamento ou permissão. Pode selecionar outra issue independente elegível, sem declarar a anterior entregue.
 - T26 e T27 dependem da escolha de registrador/ERP; T19/T20 exigem configuração externa para smoke real; T32 exige destino/identidade antes de exposição remota. O runtime local e testes fake podem avançar onde o aceite permitir.
-- As 38 entregas são o backlog conhecido. Se uma revelar complexidade maior, subdividir **antes** de implementar uma entrega excessiva, atualizando dependências e acompanhamento. Não misturar duas issues no mesmo PR.
+- As 39 entregas são o backlog conhecido. Se uma revelar complexidade maior, subdividir **antes** de implementar uma entrega excessiva, atualizando dependências e acompanhamento. Não misturar duas issues no mesmo PR.
 
 ## Iniciar uma issue
 

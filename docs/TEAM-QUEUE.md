@@ -46,3 +46,8 @@ Mesmas operações sobre um canal autenticado (T32/T34): `claim` → job com `to
 ## Limites
 
 Sem worker iniciado automaticamente nem interface; a fila e o runtime ainda não são acionados pelo chat. `agent_run_handler` presume a semântica do runtime atual (uma execução = uma chamada de `run`); reexecutar uma execução que ficou `em_execucao` repete as chamadas ao modelo. Ordem dos jobs é FIFO por prioridade; justiça e quotas por empresa são T34. Validado com banco temporário, relógio falso, dois workers em threads e asyncio; não houve teste com processos separados nem de carga.
+
+
+## Quotas, justiça e backpressure; PostgreSQL (T34)
+
+A fila aceita `QueueLimits` (opcional; sem limites ela se comporta como antes): teto de jobs em execução por empresa, no total e por tipo (o teto por tipo respeita a capacidade do servidor de modelo), a empresa com menos execuções passa na frente, e `enqueue` levanta `Backpressure` quando há jobs demais esperando. Com PostgreSQL a reivindicação é serializada e usa `FOR UPDATE SKIP LOCKED`, e vários processos podem ser workers. Detalhes, números e a decisão sobre um broker em [TEAM-POSTGRES.md](TEAM-POSTGRES.md).

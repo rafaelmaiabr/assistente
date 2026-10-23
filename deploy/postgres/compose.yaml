@@ -1,0 +1,26 @@
+# PostgreSQL local para a equipe de agentes (docs/TEAM-POSTGRES.md). A senha NAO fica neste arquivo nem no Git:
+# ela vem de ./secrets/pg_password.txt, criado por dev.ps1 e ignorado pelo Git.
+name: assistente-pg
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: assistente
+      POSTGRES_DB: assistente
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_password]
+    ports:
+      - "127.0.0.1:${ASSISTENTE_PG_PORT:-5432}:5432"   # so este computador; nunca publique a porta sem TLS e regras de rede
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assistente -d assistente"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+secrets:
+  pg_password:
+    file: ./secrets/pg_password.txt
+volumes:
+  pgdata:

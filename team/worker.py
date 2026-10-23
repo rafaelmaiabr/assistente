@@ -5,6 +5,9 @@ done, retry or failed. Pause and cancel arrive as signals on the heartbeat; for 
 cancel the in-flight model call and the tool calls through the runtime.
 """
 import asyncio
+import os
+import re
+import socket
 import uuid
 from dataclasses import dataclass
 
@@ -29,6 +32,14 @@ class Fail:
 @dataclass
 class Stopped:
     """The handler stopped because of a pause/cancel signal (or a lost lease)."""
+
+
+def worker_identity(prefix="worker"):
+    """A name that tells workers apart across processes and machines: ``<prefix>-<host>-<pid>-<random>``.
+
+    It is what the queue stores as the lease owner, so an operator can see which process holds which job."""
+    host = re.sub(r"[^A-Za-z0-9-]", "-", socket.gethostname())[:30] or "host"
+    return f"{prefix}-{host}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
 
 
 class JobControl:
@@ -59,7 +70,7 @@ class JobControl:
 class Worker:
     def __init__(self, queue, handlers, worker_id=None, lease_ms=DEFAULT_LEASE_MS, heartbeat_s=None):
         self.queue, self.handlers = queue, handlers
-        self.worker_id = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
+        self.worker_id = worker_id or worker_identity()
         self.lease_ms = lease_ms
         self.heartbeat_s = heartbeat_s if heartbeat_s is not None else lease_ms / 3000
 
