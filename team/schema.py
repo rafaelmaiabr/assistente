@@ -132,7 +132,8 @@ SCHEMAS = {
         to="list:str", subject="str?", body="text", state="enum:MessageState", dedup_key="str",
         owner_agent_id="ref:agent_definition", owner_version="posint", draft_hash="sha256",
         approval_id="ref:approval_request?", provider_id="str?", sent_at="ts?", attempts="int", last_error="str?",
-        created_by="actor"),
+        created_by="actor", cc="list:str?", bcc="list:str?", attachments="list:obj?", message_id="str?", in_reply_to="str?",
+        references="list:str?", provider_result="str?", simulated="bool?"),
     # Knowledge: versioned published documents with a source; retrieval treats their text as untrusted data.
     "knowledge_document": _entity(
         "knowledge_document", department_id="ref:department?", doc_key="slug", version="posint", title="str", body="text",

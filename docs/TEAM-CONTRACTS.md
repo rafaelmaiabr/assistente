@@ -43,6 +43,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Registros financeiros (T24).** Novo `financial_record` (importação explícita, sem inferir valor ou moeda). Detalhes em [TEAM-FINANCE.md](TEAM-FINANCE.md).
 - **Entrada de emails (T21).** Novos `mailbox_cursor` (cursor UIDVALIDITY/UID por pasta) e `email_message` (mensagem ingerida ou ignorada, com identificadores de thread). Detalhes em [TEAM-EMAIL-INTAKE.md](TEAM-EMAIL-INTAKE.md).
 - **Agendamentos e notificações (T29).** Novos `schedule` (rotina opt-in que só enfileira jobs) e `notification` (alerta com contador). Detalhes em [TEAM-SCHEDULER.md](TEAM-SCHEDULER.md).
+- **Saída por SMTP (T22).** `outbound_message` ganha campos opcionais `cc`, `bcc`, `attachments`, `message_id`, `in_reply_to`, `references`, `provider_result` e `simulated`. Detalhes em [TEAM-SMTP.md](TEAM-SMTP.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga
