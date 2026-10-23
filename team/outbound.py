@@ -514,7 +514,7 @@ class OutboundGateway:
     def resolve_unknown(self, ctx, message_id, outcome, provider_id=None, detail=None):
         """The operator checked the provider: ``enviada`` (needs the provider id) or ``nao_enviada``."""
         self._ctx(ctx)
-        if ctx.role != "operator" or ctx.principal_id != self.access.operator_id:
+        if not self.access.is_operator(ctx, "aprovador"):
             raise PermissionDenied()
         if outcome not in ("enviada", "nao_enviada"):
             raise OutboundError("Informe enviada ou nao_enviada.")

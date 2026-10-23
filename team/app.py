@@ -13,6 +13,7 @@ from .cases import CaseService
 from .control import OperatorControl
 from .handoffs import HandoffService
 from .gaps import GapService
+from .identity import IdentityService
 from .jobs import JobQueue
 from .knowledge import KnowledgeService
 from .outbound import OutboundGateway
@@ -28,6 +29,10 @@ class TeamApp:
         self.root, self.config = root, config
         self._vault, self._legacy, self._voices = vault, legacy_elevenlabs, voice_profiles
         self._built = None
+
+    def vault(self):
+        """The credential vault in use (the Windows vault unless a test injected another)."""
+        return self._vault or WindowsVault(self.root)
 
     def enabled(self) -> bool:
         return persistence.status(self.root)["enabled"]
@@ -70,7 +75,7 @@ class TeamApp:
                 repo=repo, access=access, operator=access.local_operator(), team=TeamService(repo, access),
                 policies=policies, agents=agents, connections=connections, skills=SkillService(repo, access, agents),
                 cases=cases, handoffs=handoffs, approvals=approvals, queue=queue,
-                knowledge=knowledge, gaps=GapService(repo, access, cases, knowledge),
+                knowledge=knowledge, gaps=GapService(repo, access, cases, knowledge), identity=IdentityService(repo, access),
                 control=OperatorControl(repo, access, cases, approvals, handoffs, queue),
                 outbound=OutboundGateway(repo, access, cases, approvals, connections, {}, handoffs=handoffs))
         return self._built

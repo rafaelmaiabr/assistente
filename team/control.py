@@ -17,8 +17,8 @@ class OperatorControl:
         self.approvals, self.handoffs, self.queue = approvals, handoffs, queue
 
     def _operator(self, ctx):
-        if not isinstance(ctx, AccessContext) or ctx.role != "operator" or ctx.principal_id != self.access.operator_id:
-            raise PermissionDenied("apenas o operador confiavel pode controlar a demanda")
+        if not self.access.is_operator(ctx, "atendente"):
+            raise PermissionDenied("apenas o operador confiavel ou quem atende pode controlar a demanda")
 
     def _load(self, ctx, case_id, expected_revision):
         with self.repository.transaction(ctx.tenant_id) as session:

@@ -6,6 +6,7 @@ import {VoiceSettings} from './VoiceSettings.jsx';
 import {PersistenceSettings} from './PersistenceSettings.jsx';
 import {TeamPanel} from './team/TeamPanel.jsx';
 import {ConversationLink} from './ConversationLink.jsx';
+import {LoginScreen, RemoteApp, readSession} from './RemoteApp.jsx';
 import {api} from './team/api.js';
 import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
@@ -207,4 +208,14 @@ function App() {
   </div>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+/** Chooses what to show: the local application, or (remote listener) the sign-in page / the team panel for the signed-in person. */
+function Root() {
+  const [session, setSession] = useState(null);
+  useEffect(() => {void readSession().then(setSession);}, []);
+  if (!session) return null;
+  if (session.kind === 'remote') return <RemoteApp session={session.data}/>;
+  if (session.kind === 'login') return <LoginScreen configured={session.data.configured}/>;
+  return <App/>;
+}
+
+createRoot(document.getElementById('root')).render(<Root/>);

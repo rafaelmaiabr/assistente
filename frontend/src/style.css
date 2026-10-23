@@ -796,3 +796,10 @@ code{background:#14161c;padding:1px 5px;border-radius:4px}
 .conversation-link .hint{margin:8px 0 0;color:#8f9a8a;font-size:10px}
 .latency{color:#8f9a8a}
 @media(max-width:680px){.binding-actions{margin-left:0}}
+
+/* Remote access: sign-in page and the bar with the signed-in person */
+.login {margin: 12vh auto 0; max-width: 28rem; padding: 0 16px; display: grid; gap: 12px; text-align: center}
+.login a[role="button"] {display: inline-block; padding: 10px 18px; border-radius: 8px; text-decoration: none}
+.remote-shell {min-height: 100vh}
+.remote-bar {display: flex; gap: 12px; align-items: center; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid rgba(127, 127, 127, .3)}
+.remote-bar small {opacity: .7}

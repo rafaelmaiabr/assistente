@@ -52,6 +52,11 @@ async def health(request):
     return web.json_response({"app": "assistente", "version": 3})
 
 
+async def auth_session(request):
+    """The interface asks how it is being served: here it is the local application, with the local owner and no sign-in."""
+    return web.json_response({"mode": "local", "authenticated": True})
+
+
 async def index(request):
     path = ROOT / "frontend/dist/index.html"
     if not path.exists():
@@ -319,6 +324,7 @@ def create_app(factory=None, config=None, speech=None, data_root=None, team_app=
     team_web.register(app, team_app or TeamApp(app[DATA_DIR], app[CONFIG]))
     app.router.add_get("/", index)
     app.router.add_get("/api/health", health)
+    app.router.add_get("/auth/session", auth_session)
     app.router.add_get('/api/voices', voices)
     app.router.add_post('/api/voices/{operation}', voices)
     app.router.add_get('/api/persistence', persistence_api)
@@ -337,7 +343,34 @@ def create_app(factory=None, config=None, speech=None, data_root=None, team_app=
     return app
 
 
+async def serve():
+    """The local application on loopback; plus, only when ``remote.enabled`` is set and valid, the separate remote listener."""
+    import sys
+    from team.login import ConfigError, GoogleLogin, RemoteConfig
+    from team.remote import build_app, ssl_context
+    config = load_config()
+    team_app = TeamApp(DATA_ROOT, config)
+    runners = [(web.AppRunner(create_app(config=config, team_app=team_app), access_log=None), "127.0.0.1", PORT, None)]
+    try:
+        remote = RemoteConfig.from_config(config)
+    except ConfigError as error:
+        print(f"Acesso remoto NAO iniciado: {error}", file=sys.stderr)
+        remote = RemoteConfig()
+    if remote.enabled:
+        login = GoogleLogin(remote, team_app.vault())
+        runners.append((web.AppRunner(build_app(remote, team_app, login), access_log=None), remote.bind, remote.port, ssl_context(remote)))
+    for runner, host, port, ssl in runners:
+        await runner.setup()
+        await web.TCPSite(runner, host, port, ssl_context=ssl).start()
+    try:
+        await asyncio.Event().wait()
+    finally:
+        for runner, *_ in runners:
+            await runner.cleanup()
+
+
 if __name__ == "__main__":
     # Do not log user messages or raw provider errors to disk.
     logging.basicConfig(level=logging.CRITICAL)
-    web.run_app(create_app(), host="127.0.0.1", port=PORT, access_log=None)
+    with contextlib.suppress(KeyboardInterrupt):
+        asyncio.run(serve())

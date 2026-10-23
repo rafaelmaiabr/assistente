@@ -1,5 +1,7 @@
 # Empresas, contatos e política de acesso (T03)
 
+> **Acesso remoto (T32).** Este documento descreve o modo local, com um único dono confiável. Para pessoas que entram com Google, com papel por empresa em outro listener, veja [TEAM-REMOTE.md](TEAM-REMOTE.md): o contexto delas (`member_context`) carrega o papel conferido na requisição, nunca é o dono local e é verificado de novo a cada chamada.
+
 Entrega da issue [#18](https://github.com/rafaelmaiabr/assistente/issues/18). Serviço interno em `team/access.py` e `team/service.py`, sobre os contratos ([TEAM-CONTRACTS.md](TEAM-CONTRACTS.md)) e a persistência ([TEAM-PERSISTENCE.md](TEAM-PERSISTENCE.md)). Não há tela nem endpoint HTTP para isso ainda (painel: T15); o chat atual não usa o serviço.
 
 ## Modelo local: o que é e o que não é

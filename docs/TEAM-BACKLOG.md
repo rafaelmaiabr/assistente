@@ -1,6 +1,6 @@
 # Backlog da equipe de agentes
 
-Status: **planejado, não implementado**. Criado em 2026-10-22. [Acompanhamento #15](https://github.com/rafaelmaiabr/assistente/issues/15) contém as 37 issues filhas (a T37 foi acrescentada em 2026-10-23, por decisão do operador, para evoluir por demanda). [#14](https://github.com/rafaelmaiabr/assistente/issues/14) entrega somente arquitetura e planejamento.
+Status: **planejado, não implementado**. Criado em 2026-10-22. [Acompanhamento #15](https://github.com/rafaelmaiabr/assistente/issues/15) contém as 38 issues filhas (a T37 foi acrescentada em 2026-10-23, por decisão do operador, para evoluir por demanda). [#14](https://github.com/rafaelmaiabr/assistente/issues/14) entrega somente arquitetura e planejamento.
 
 Leia [TEAM-ARCHITECTURE.md](TEAM-ARCHITECTURE.md) e [TEAM-IMPLEMENTATION.md](TEAM-IMPLEMENTATION.md). O [manifesto JSON](team-backlog.json) contém o grafo, objetivo, aceite e validação de cada entrega. Estado de execução deve ser consultado no GitHub, sem inferir conclusão pela existência de documentos.
 
@@ -47,6 +47,7 @@ A sequência abaixo é topológica: cada dependência aparece antes da entrega. 
 | [T35 / #50](https://github.com/rafaelmaiabr/assistente/issues/50) | Interoperabilidade A2A para equipes e agentes externos | [#22](https://github.com/rafaelmaiabr/assistente/issues/22), [#26](https://github.com/rafaelmaiabr/assistente/issues/26), [#28](https://github.com/rafaelmaiabr/assistente/issues/28), [#29](https://github.com/rafaelmaiabr/assistente/issues/29), [#47](https://github.com/rafaelmaiabr/assistente/issues/47), [#48](https://github.com/rafaelmaiabr/assistente/issues/48) |
 | [T36 / #51](https://github.com/rafaelmaiabr/assistente/issues/51) | Onboarding da equipe e pacote Windows com migrações | [#30](https://github.com/rafaelmaiabr/assistente/issues/30), [#31](https://github.com/rafaelmaiabr/assistente/issues/31), [#43](https://github.com/rafaelmaiabr/assistente/issues/43), [#45](https://github.com/rafaelmaiabr/assistente/issues/45), [#46](https://github.com/rafaelmaiabr/assistente/issues/46), [#48](https://github.com/rafaelmaiabr/assistente/issues/48) |
 | [T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82) | Lacunas de capacidade: evolução por demanda (skill, ferramenta ou não atender) | [#21](https://github.com/rafaelmaiabr/assistente/issues/21), [#24](https://github.com/rafaelmaiabr/assistente/issues/24), [#27](https://github.com/rafaelmaiabr/assistente/issues/27), [#28](https://github.com/rafaelmaiabr/assistente/issues/28), [#31](https://github.com/rafaelmaiabr/assistente/issues/31), [#32](https://github.com/rafaelmaiabr/assistente/issues/32), [#44](https://github.com/rafaelmaiabr/assistente/issues/44) |
+| [T38 / #84](https://github.com/rafaelmaiabr/assistente/issues/84) | Escopo por departamento e identidade de worker (parte 2 do T32) | [#47](https://github.com/rafaelmaiabr/assistente/issues/47), [#18](https://github.com/rafaelmaiabr/assistente/issues/18), [#25](https://github.com/rafaelmaiabr/assistente/issues/25), [#28](https://github.com/rafaelmaiabr/assistente/issues/28) |
 
 ## Portas de entrega
 
@@ -57,7 +58,7 @@ A sequência abaixo é topológica: cada dependência aparece antes da entrega. 
 | Conhecimento e email real autorizado | T17–T22 | Auth específica por provedor; SMTP aprovado |
 | Diagnóstico, Financeiro e domínio | T23–T28 | Fluxo manual disponível; registrador/ERP reais exigem escolha |
 | Operação contínua e experiência de voz | T29–T31, T37 | Computador/backend precisam estar ativos para executar |
-| Acesso remoto, avaliação e escala | T32–T35 | Identidade e isolamento antes de expor rede |
+| Acesso remoto, avaliação e escala | T32–T35, T38 | Identidade e isolamento antes de expor rede |
 | Onboarding e distribuição da equipe | T36 | Preservar configurações e dados locais no upgrade |
 
 Agrupamentos não impõem dependências extras. T36 pode ser entregue sem PostgreSQL/A2A; T28 não depende das compras reais de T26 nem do ERP de T27.
@@ -68,7 +69,7 @@ Agrupamentos não impõem dependências extras. T36 pode ser entregue sem Postgr
 - [T20 / #35](https://github.com/rafaelmaiabr/assistente/issues/35): Antes da validação real, definir organização/conta e registro de aplicativo; políticas corporativas podem exigir administrador.
 - [T26 / #41](https://github.com/rafaelmaiabr/assistente/issues/41): **Sob demanda** (decisão do operador, 2026-10-23): só será construída se uma lacuna de capacidade ([T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82)) decidir por criar uma ferramenta para um registrador específico. Nesse caso, a decisão externa continua obrigatória: qual registrador e quais credenciais/ambiente. A consulta pública de registro já existe em T23.
 - [T27 / #42](https://github.com/rafaelmaiabr/assistente/issues/42): **Sob demanda** (decisão do operador, 2026-10-23): só será construída se uma lacuna de capacidade ([T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82)) decidir por criar uma ferramenta para um sistema financeiro/ERP específico. Nesse caso, a decisão externa continua obrigatória: sistema, disponibilidade de API/sandbox e operações desejadas; sem esses dados não declarar integração pronta.
-- [T32 / #47](https://github.com/rafaelmaiabr/assistente/issues/47): Escolher provedor de identidade e destino de implantação antes da validação remota; modo local deve continuar sem serviço pago.
+- [T32 / #47](https://github.com/rafaelmaiabr/assistente/issues/47): **Provedor decidido: Google** (2026-10-23); modo local continua sem serviço pago. A implantação sugerida é este computador atrás de proxy com TLS e rede privada (por exemplo Tailscale), ainda **não validada**; a validação com o Google real é um passo manual pendente. Subdividida: a parte 1 está em [TEAM-REMOTE.md](TEAM-REMOTE.md) e a parte 2 (departamento e worker) é [T38 / #84](https://github.com/rafaelmaiabr/assistente/issues/84).
 
 Nenhuma pendência exige publicar senha, chave, token ou dados de cliente em issue. Conta/provedor são decisões; credenciais entram somente pela interface/cofre apropriados.
 

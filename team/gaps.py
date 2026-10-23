@@ -72,8 +72,8 @@ class GapService:
 
     def _operator(self, ctx):
         self._ctx(ctx)
-        if ctx.role != "operator" or ctx.principal_id != self.access.operator_id:
-            raise PermissionDenied("apenas o operador confiavel decide sobre lacunas")
+        if not self.access.is_operator(ctx, "admin"):
+            raise PermissionDenied("apenas o operador confiavel ou um administrador decide sobre lacunas")
 
     @staticmethod
     def _text(value, limit, what):
