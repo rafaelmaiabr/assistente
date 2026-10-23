@@ -44,7 +44,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Entrada de emails (T21).** Novos `mailbox_cursor` (cursor UIDVALIDITY/UID por pasta) e `email_message` (mensagem ingerida ou ignorada, com identificadores de thread). Detalhes em [TEAM-EMAIL-INTAKE.md](TEAM-EMAIL-INTAKE.md).
 - **Agendamentos e notificações (T29).** Novos `schedule` (rotina opt-in que só enfileira jobs) e `notification` (alerta com contador). Detalhes em [TEAM-SCHEDULER.md](TEAM-SCHEDULER.md).
 - **Saída por SMTP (T22).** `outbound_message` ganha campos opcionais `cc`, `bcc`, `attachments`, `message_id`, `in_reply_to`, `references`, `provider_result` e `simulated`. Detalhes em [TEAM-SMTP.md](TEAM-SMTP.md).
-- **OAuth (T19).** Novos `oauth_app` (cliente OAuth registrado; segredo no cofre) e `oauth_grant` (metadados da concessão por conexão) e o tipo de credencial `oauth`. Detalhes em [TEAM-OAUTH.md](TEAM-OAUTH.md).
+- **OAuth (T19).** Novos `oauth_app` (cliente OAuth registrado; segredo no cofre) e `oauth_grant` (metadados da concessão por conexão) e o tipo de credencial `oauth` (T20 acrescenta `directory`, o tenant permitido, em `oauth_app`). Detalhes em [TEAM-OAUTH.md](TEAM-OAUTH.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga

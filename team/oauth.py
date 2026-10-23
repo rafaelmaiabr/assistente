@@ -16,6 +16,8 @@
 """
 import base64
 import hashlib
+import re
+import time
 import hmac
 import http.server
 import json
@@ -55,6 +57,11 @@ class OAuthProvider:
     notice: str
     auth_params: tuple = ()
     docs: str = ""
+    flows: tuple = ("loopback",)  # how a person can authorize: "loopback" (browser redirect) and/or "device" (code on another screen)
+    device_url: str | None = None
+    tenant_param: bool = False  # URLs contain {tenant}: the operator must choose which directory may sign in
+    revoke_help: str = ""
+    account_claims: tuple = ("email",)
 
 
 GOOGLE = OAuthProvider(
@@ -66,7 +73,56 @@ GOOGLE = OAuthProvider(
             "do que as pastas autorizadas aqui. Este aplicativo so le as pastas autorizadas e nunca altera mensagens, mas a permissao "
             "no Google continua sendo total ate voce revogar o acesso."),
     docs="https://developers.google.com/gmail/imap/xoauth2-protocol")
-PROVIDERS = {"google": GOOGLE}
+
+MICROSOFT = OAuthProvider(
+    key="microsoft", label="Microsoft 365 / Outlook", authorize_url="https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize",
+    token_url="https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token", revoke_url=None,
+    device_url="https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode", flows=("device",), tenant_param=True,
+    scopes=("https://outlook.office.com/IMAP.AccessAsUser.All", "offline_access", "openid", "email", "profile"),
+    required_scopes=("https://outlook.office.com/IMAP.AccessAsUser.All",), imap_host="outlook.office365.com", imap_port=993,
+    account_claims=("preferred_username", "email"),
+    notice=("A permissao IMAP.AccessAsUser.All da Microsoft da acesso a caixa inteira do usuario (todas as pastas, com direito de alterar), "
+            "mais ampla do que as pastas autorizadas aqui. Este aplicativo so le as pastas autorizadas e nunca altera mensagens. "
+            "Em organizacoes, o consentimento pode precisar de um administrador do Microsoft 365."),
+    revoke_help=("A Microsoft nao oferece revogacao do token por este caminho. O acesso continua concedido ate ser removido em "
+                 "https://myapps.microsoft.com (ou pelo administrador do Microsoft 365)."),
+    docs="https://learn.microsoft.com/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth")
+PROVIDERS = {"google": GOOGLE, "microsoft": MICROSOFT}
+
+CONSUMERS_TENANT = "9188040d-6c67-4c5e-b112-d7b8f5c0b8f3"  # personal Microsoft accounts
+_TENANT = re.compile(r"^(common|organizations|consumers|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}|(?:[a-z0-9-]+\.)+[a-z]{2,})$", re.I)
+_GUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.I)
+_AADSTS = re.compile(r"AADSTS(\d{4,7})")
+# Known Microsoft sign-in errors turned into something a person can act on (code kept for support, nothing else echoed).
+AADSTS_HELP = {
+    "65001": ("consentimento_necessario", "O aplicativo ainda nao tem consentimento. Peca a um administrador do Microsoft 365 para conceder o consentimento da organizacao e tente de novo."),
+    "90094": ("consentimento_do_administrador", "Esta permissao exige consentimento de um administrador da organizacao."),
+    "65004": ("consentimento_negado", "O acesso foi recusado na tela de consentimento."),
+    "700016": ("aplicativo_nao_encontrado", "O client_id nao existe neste diretorio. Confira o client_id e o tenant escolhidos."),
+    "90002": ("tenant_nao_encontrado", "O tenant informado nao existe. Confira o identificador ou dominio do diretorio."),
+    "50020": ("conta_de_outro_diretorio", "A conta pertence a outro diretorio que nao o permitido para este aplicativo."),
+    "7000218": ("cliente_publico_desativado", "No registro do aplicativo, ative 'Permitir fluxos de cliente publico' (ou informe um segredo de cliente)."),
+    "70011": ("escopo_invalido", "A permissao pedida nao existe ou nao foi adicionada ao registro do aplicativo."),
+    "500011": ("exchange_indisponivel", "O Exchange Online nao esta disponivel para este diretorio (servico ou licenca ausente)."),
+    "50076": ("mfa_necessaria", "A conta exige verificacao em duas etapas; conclua-a e tente de novo."),
+    "53003": ("bloqueado_por_politica", "Uma politica de acesso condicional da organizacao bloqueou o acesso. Fale com o administrador."),
+    "50173": ("reautorizacao_necessaria", "A senha da conta mudou ou o acesso expirou; autorize de novo."),
+    "70008": ("reautorizacao_necessaria", "A autorizacao expirou; autorize de novo."),
+    "700082": ("reautorizacao_necessaria", "O acesso ficou inativo por tempo demais; autorize de novo."),
+}
+
+
+def explain_error(data, default_code="troca_recusada", default_message="O provedor recusou a solicitacao."):
+    """``(code, message)`` for a provider error body. Only a known code and, at most, the AADSTS number are exposed."""
+    description = str(data.get("error_description") or "") if isinstance(data, dict) else ""
+    match = _AADSTS.search(description)
+    if match and match.group(1) in AADSTS_HELP:
+        code, message = AADSTS_HELP[match.group(1)]
+        return code, f"{message} (AADSTS{match.group(1)})"
+    if match:
+        return default_code, f"{default_message} (AADSTS{match.group(1)})"
+    return default_code, default_message
+
 
 
 class OAuthError(CredentialError):
@@ -127,6 +183,19 @@ def _stamp(moment):
 
 
 @dataclass
+class _Device:
+    flow_id: str
+    tenant_id: str
+    connection_id: str
+    app: dict
+    provider: OAuthProvider
+    device_code: str
+    interval: int
+    deadline: datetime
+    cancelled: bool = False
+
+
+@dataclass
 class _Flow:
     flow_id: str
     tenant_id: str
@@ -147,11 +216,12 @@ class _Flow:
 
 class OAuthService:
     def __init__(self, repository, access, connections, vault, http=None, clock=lambda: datetime.now(timezone.utc),
-                 providers=None, callback_timeout=DEFAULT_TIMEOUT):
+                 providers=None, callback_timeout=DEFAULT_TIMEOUT, sleep=None):
         self.repository, self.access, self.connections, self.vault = repository, access, connections, vault
         self.http, self.clock, self.providers = http or UrllibHttp(), clock, dict(providers or PROVIDERS)
         self.callback_timeout = callback_timeout
-        self._flows, self._lock = {}, threading.Lock()
+        self._flows, self._devices, self._lock = {}, {}, threading.Lock()
+        self.sleep = sleep or time.sleep
         self._cache, self._refresh_locks = {}, {}
         connections.token_resolvers["oauth"] = self.access_token
 
@@ -172,6 +242,13 @@ class OAuthService:
             raise OAuthError("aplicativo_nao_registrado", "Registre o aplicativo OAuth deste provedor (client_id) antes de conectar.")
         return found[0]
 
+    @staticmethod
+    def _endpoint(provider, app, name):
+        url = getattr(provider, name)
+        if url is None:
+            raise OAuthError("fluxo_nao_suportado", "Este provedor nao oferece esta operacao.")
+        return url.format(tenant=app.get("directory") or "common") if provider.tenant_param else url
+
     def _client_secret(self, tenant_id, app):
         if not app.get("secret_ref"):
             return None
@@ -181,12 +258,18 @@ class OAuthService:
             raise OAuthError("cofre_indisponivel", "Cofre de credenciais indisponivel.") from None
 
     # -- operator setup ----------------------------------------------------------------------------------------------
-    def register_app(self, ctx, provider_key, *, client_id, client_secret=None, label=None):
+    def register_app(self, ctx, provider_key, *, client_id, client_secret=None, label=None, tenant=None):
         """Record the OAuth client the operator created at the provider. The secret goes to the vault, never to a document."""
         self._operator(ctx)
         provider = self._provider(provider_key)
         if not (isinstance(client_id, str) and 8 <= len(client_id) <= 300 and client_id == client_id.strip() and " " not in client_id):
             raise ConnectionRejected("client_id invalido.")
+        if provider.tenant_param:
+            if not (isinstance(tenant, str) and _TENANT.match(tenant)):
+                raise ConnectionRejected("Informe o tenant permitido: o identificador (GUID) ou dominio do diretorio, ou organizations/consumers/common.")
+            tenant = tenant.lower()
+        else:
+            tenant = None
         secret_ref = None
         if client_secret:
             secret_ref = f"oauth-app-{provider.key}"
@@ -198,9 +281,9 @@ class OAuthService:
         with self.repository.transaction(ctx.tenant_id) as session:
             existing = session.list("oauth_app", provider=provider.key, limit=1)
             doc = {"kind": "oauth_app", "schema_version": 1, "tenant_id": ctx.tenant_id, "created_at": now, "updated_at": now, "provider": provider.key,
-                   "client_id": client_id, "secret_ref": secret_ref, "label": (label or provider.label)[:120], "status": "ativo"}
+                   "client_id": client_id, "secret_ref": secret_ref, "label": (label or provider.label)[:120], "status": "ativo", "directory": tenant}
             if existing:
-                return session.save({**existing[0], **{k: doc[k] for k in ("client_id", "secret_ref", "label")}, "revision": existing[0]["revision"] + 1,
+                return session.save({**existing[0], **{k: doc[k] for k in ("client_id", "secret_ref", "label", "directory")}, "revision": existing[0]["revision"] + 1,
                                      "updated_at": now})
             return session.save({**doc, "id": new_id("oauth_app"), "revision": 1})
 
@@ -209,13 +292,9 @@ class OAuthService:
         """Start an authorization. Returns the URL the person must open; nothing else happens until the callback arrives."""
         self._operator(ctx)
         provider = self._provider(provider_key)
-        with self.repository.transaction(ctx.tenant_id) as session:
-            connection = session.get("connection", connection_id) if isinstance(connection_id, str) else None
-            if connection is None:
-                raise NotFound()
-            if connection["connection_kind"] != "imap" or connection["status"] != "ativo":
-                raise ConnectionRejected("A conexao precisa ser do tipo imap e estar ativa.")
-            app = self._app(session, provider.key)
+        if "loopback" not in provider.flows:
+            raise OAuthError("fluxo_nao_suportado", "Este provedor usa o codigo de dispositivo (begin_device).")
+        app = self._checked_connection_and_app(ctx, connection_id, provider)
         state, verifier, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(64), secrets.token_urlsafe(16)
         flow = _Flow(new_id("correlation"), ctx.tenant_id, connection_id, app, provider, state, verifier, nonce, "",
                      self.clock() + timedelta(seconds=self.callback_timeout))
@@ -229,16 +308,30 @@ class OAuthService:
         with self._lock:
             self._flows[flow.flow_id] = flow
         server.start(self.callback_timeout)
-        return {"flow_id": flow.flow_id, "url": f"{provider.authorize_url}?{urllib.parse.urlencode(query)}",
+        return {"flow_id": flow.flow_id, "url": f"{self._endpoint(provider, app, 'authorize_url')}?{urllib.parse.urlencode(query)}",
                 "redirect_uri": flow.redirect_uri, "expires_at": _stamp(flow.deadline), "scopes": list(provider.scopes), "aviso": provider.notice}
+
+    def _checked_connection_and_app(self, ctx, connection_id, provider):
+        with self.repository.transaction(ctx.tenant_id) as session:
+            connection = session.get("connection", connection_id) if isinstance(connection_id, str) else None
+            if connection is None:
+                raise NotFound()
+            if connection["connection_kind"] != "imap" or connection["status"] != "ativo":
+                raise ConnectionRejected("A conexao precisa ser do tipo imap e estar ativa.")
+            return self._app(session, provider.key)
 
     def pending(self, tenant_id, connection_id):
         with self._lock:
-            return any(f.tenant_id == tenant_id and f.connection_id == connection_id and not f.closed for f in self._flows.values())
+            return any(f.tenant_id == tenant_id and f.connection_id == connection_id and not f.closed for f in self._flows.values()) or any(
+                d.tenant_id == tenant_id and d.connection_id == connection_id and not d.cancelled for d in self._devices.values())
 
     def cancel(self, ctx, flow_id):
         self._operator(ctx)
         with self._lock:
+            device = self._devices.get(flow_id)
+            if device is not None and device.tenant_id == ctx.tenant_id:
+                device.cancelled = True
+                return
             flow = self._flows.get(flow_id)
         if flow is None or flow.tenant_id != ctx.tenant_id:
             raise NotFound()
@@ -298,7 +391,7 @@ class OAuthService:
         secret = self._client_secret(app["tenant_id"], app)
         if secret:
             payload["client_secret"] = secret
-        return self.http.post_form(provider.token_url, payload)
+        return self.http.post_form(self._endpoint(provider, app, "token_url"), payload)
 
     def _exchange(self, flow, code):
         provider, app = flow.provider, flow.app
@@ -306,9 +399,14 @@ class OAuthService:
                                                  "code_verifier": flow.verifier}, provider)
         if status != 200 or "access_token" not in data:
             reason = data.get("error") if isinstance(data.get("error"), str) else "erro"
-            raise OAuthError("codigo_invalido" if reason == "invalid_grant" else "troca_recusada",
-                             "O provedor recusou o codigo de autorizacao; comece de novo." if reason == "invalid_grant"
-                             else "O provedor recusou a troca de tokens; confira client_id e segredo do aplicativo.")
+            if reason == "invalid_grant" and "AADSTS" not in str(data.get("error_description") or ""):
+                raise OAuthError("codigo_invalido", "O provedor recusou o codigo de autorizacao; comece de novo.")
+            code, message = explain_error(data, "troca_recusada", "O provedor recusou a troca de tokens; confira client_id, tenant e segredo do aplicativo.")
+            raise OAuthError(code, message)
+        return self._conclude(flow, app, provider, data, flow.nonce)
+
+    def _conclude(self, flow, app, provider, data, nonce):
+        """Validate a successful token response, check who signed in, and store the grant (refresh token to the vault)."""
         refresh = data.get("refresh_token")
         granted = str(data.get("scope") or " ".join(provider.scopes)).split()
         if not refresh:
@@ -317,12 +415,83 @@ class OAuthService:
         if not all(scope in granted for scope in provider.required_scopes):
             raise OAuthError("escopo_insuficiente", "O acesso concedido nao inclui a permissao de leitura da caixa de email; autorize de novo e marque todas as permissoes.")
         claims = _jwt_claims(data.get("id_token")) if data.get("id_token") else {}
-        if claims and (claims.get("aud") != app["client_id"] or (claims.get("nonce") and claims["nonce"] != flow.nonce)):
+        if claims and (claims.get("aud") != app["client_id"] or (nonce and claims.get("nonce") and claims["nonce"] != nonce)):
             raise OAuthError("identidade_invalida", "A identidade devolvida pelo provedor nao corresponde a esta autorizacao.")
-        account = claims.get("email") if isinstance(claims.get("email"), str) else None
+        self._check_directory(provider, app, claims)
+        account = next((claims[c] for c in provider.account_claims if isinstance(claims.get(c), str)), None)
         self._store_grant(flow, app, provider, refresh, granted, account)
         self._remember(flow.tenant_id, flow.connection_id, data)
         return self.status(self._tenant_ctx(flow.tenant_id), flow.connection_id)
+
+    @staticmethod
+    def _check_directory(provider, app, claims):
+        """The directory (tenant) that signed the person in must be the one the operator allowed."""
+        if not provider.tenant_param:
+            return
+        allowed, tid = str(app.get("directory") or "").lower(), str(claims.get("tid") or "").lower()
+        wrong = ((_GUID.match(allowed) and tid != allowed) or (allowed == "organizations" and tid in ("", CONSUMERS_TENANT))
+                 or (allowed == "consumers" and tid != CONSUMERS_TENANT) or (allowed == "common" and not tid))
+        if wrong:
+            raise OAuthError("tenant_nao_permitido", "A conta que entrou pertence a um diretorio diferente do permitido para esta conexao; nada foi guardado.")
+
+    # -- device code flow (headless-friendly; used by Microsoft) ------------------------------------------------------
+    def begin_device(self, ctx, connection_id, *, provider_key="microsoft"):
+        """Ask the provider for a one-time code the person types on another screen. Nothing is stored until they approve."""
+        self._operator(ctx)
+        provider = self._provider(provider_key)
+        if "device" not in provider.flows:
+            raise OAuthError("fluxo_nao_suportado", "Este provedor usa o redirecionamento no navegador (begin).")
+        app = self._checked_connection_and_app(ctx, connection_id, provider)
+        status, data = self.http.post_form(self._endpoint(provider, app, "device_url"),
+                                           {"client_id": app["client_id"], "scope": " ".join(provider.scopes)})
+        if status != 200 or not all(isinstance(data.get(k), str) for k in ("device_code", "user_code", "verification_uri")):
+            code, message = explain_error(data, "codigo_de_dispositivo_recusado", "O provedor nao iniciou o login por codigo.")
+            raise OAuthError(code, message)
+        device = _Device(new_id("correlation"), ctx.tenant_id, connection_id, app, provider, data["device_code"],
+                         max(int(data.get("interval") or 5), 1), self.clock() + timedelta(seconds=int(data.get("expires_in") or 900)))
+        with self._lock:
+            self._devices[device.flow_id] = device
+        return {"flow_id": device.flow_id, "user_code": data["user_code"], "verification_uri": data["verification_uri"], "expires_at": _stamp(device.deadline),
+                "interval": device.interval, "aviso": provider.notice,
+                "mensagem": f"Abra {data['verification_uri']} e digite o codigo {data['user_code']}. Confira que o endereco e o oficial do provedor "
+                            "e que foi voce quem iniciou esta conexao; nunca digite um codigo que outra pessoa lhe enviou."}
+
+    def complete_device(self, flow_id, timeout=None):
+        """Poll until the person approves, declines, the code expires or the flow is cancelled; then store the grant."""
+        with self._lock:
+            device = self._devices.get(flow_id)
+        if device is None:
+            raise NotFound()
+        limit = self.clock() + timedelta(seconds=timeout) if timeout is not None else device.deadline
+        try:
+            while True:
+                if device.cancelled:
+                    raise OAuthError("cancelado", "A autorizacao foi cancelada.")
+                if self.clock() >= min(limit, device.deadline):
+                    raise OAuthError("tempo_esgotado", "O tempo para autorizar acabou; comece de novo.")
+                status, data = self._token_request({**device.app, "tenant_id": device.tenant_id},
+                                                   {"grant_type": "urn:ietf:params:oauth:grant-type:device_code", "device_code": device.device_code},
+                                                   device.provider)
+                if status == 200 and "access_token" in data:
+                    return self._conclude(device, device.app, device.provider, data, None) and self.status(self._tenant_ctx(device.tenant_id), device.connection_id)
+                error = data.get("error")
+                if error == "authorization_pending":
+                    self.sleep(device.interval)
+                elif error == "slow_down":
+                    device.interval += 5
+                    self.sleep(device.interval)
+                elif error in ("authorization_declined", "access_denied"):
+                    raise OAuthError("consentimento_negado", "O acesso foi recusado na tela de consentimento.")
+                elif error == "expired_token":
+                    raise OAuthError("tempo_esgotado", "O codigo expirou; comece de novo.")
+                elif error == "bad_verification_code":
+                    raise OAuthError("codigo_invalido", "O provedor nao reconheceu o codigo; comece de novo.")
+                else:
+                    code, message = explain_error(data, "troca_recusada", "O provedor recusou o login por codigo.")
+                    raise OAuthError(code, message)
+        finally:
+            with self._lock:
+                self._devices.pop(flow_id, None)
 
     def _tenant_ctx(self, tenant_id):
         return self.access.tenant_context(self.access.local_operator(), tenant_id)
@@ -396,8 +565,8 @@ class OAuthService:
             raise OAuthError("reautorizacao_necessaria", "O token de renovacao nao esta mais guardado; autorize a conta de novo.")
         provider = self._provider(grant["provider"])
         status, data = self._token_request({**app, "tenant_id": tenant_id}, {"grant_type": "refresh_token", "refresh_token": refresh}, provider)
-        if status == 400 and data.get("error") == "invalid_grant":
-            self._mark(tenant_id, connection_id, "revogada", "invalid_grant")
+        if status == 400 and data.get("error") in ("invalid_grant", "interaction_required"):
+            self._mark(tenant_id, connection_id, "revogada", explain_error(data, "invalid_grant")[0])
             self._cache.pop((tenant_id, connection_id), None)
             raise OAuthError("reautorizacao_necessaria", "O acesso foi revogado no provedor; autorize a conta de novo.")
         if status != 200 or "access_token" not in data:
@@ -453,8 +622,8 @@ class OAuthService:
             raise OAuthError("cofre_indisponivel", "Acesso revogado, mas o token nao foi apagado do cofre; tente de novo.") from None
         self._cache.pop((ctx.tenant_id, connection_id), None)
         self._mark(ctx.tenant_id, connection_id, "revogada", None)
-        return {"revogada_no_provedor": revoked, "aviso": None if revoked else
-                "Nao foi possivel avisar o provedor. Remova o acesso deste aplicativo na conta do provedor para garantir."}
+        return {"revogada_no_provedor": revoked, "aviso": None if revoked else (
+            provider.revoke_help or "Nao foi possivel avisar o provedor. Remova o acesso deste aplicativo na conta do provedor para garantir.")}
 
     def status(self, ctx, connection_id):
         self._operator(ctx)
