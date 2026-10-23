@@ -6,8 +6,9 @@ import {PersistenceSettings} from '../PersistenceSettings.jsx';
 import {AgentsSection} from './AgentsSection.jsx';
 import {SkillsSection} from './SkillsSection.jsx';
 import {ConnectionsSection} from './ConnectionsSection.jsx';
+import {CasesSection} from './CasesSection.jsx';
 
-const TABS = [['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões']];
+const TABS = [['cases', 'Demandas'], ['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões']];
 
 function Departments({base}) {
   const {data, error, reload} = useList(`${base}/departments`);
@@ -37,7 +38,7 @@ function Departments({base}) {
 
 export function TeamPanel({onOpenMenu}) {
   const [overview, setOverview] = useState(null), [error, setError] = useState(''), [companyId, setCompanyId] = useState('');
-  const [tab, setTab] = useState('departments'), [name, setName] = useState(''), [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState('cases'), [name, setName] = useState(''), [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     try {const data = await api.get('/state'); setOverview(data); setError('');
       setCompanyId(current => data.companies.some(c => c.id === current) ? current : (data.companies[0]?.id || ''));}
@@ -80,6 +81,7 @@ export function TeamPanel({onOpenMenu}) {
               className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}
           </div>
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} key={company.id + tab}>
+            {tab === 'cases' && <CasesSection base={base}/>}
             {tab === 'departments' && <Departments base={base}/>}
             {tab === 'agents' && <AgentsSection base={base}/>}
             {tab === 'skills' && <SkillsSection base={base}/>}

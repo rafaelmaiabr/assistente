@@ -8,7 +8,12 @@ from types import SimpleNamespace
 from . import persistence
 from .access import AccessService
 from .agents import AgentService
+from .approvals import ApprovalService
 from .cases import CaseService
+from .control import OperatorControl
+from .handoffs import HandoffService
+from .jobs import JobQueue
+from .outbound import OutboundGateway
 from .connections import ConnectionService, LauncherRegistry
 from .llm import ModelPolicyService
 from .service import TeamService
@@ -54,8 +59,14 @@ class TeamApp:
             connections = ConnectionService(
                 repo, access, self._vault or WindowsVault(self.root),
                 LauncherRegistry(persistence.data_dir(self.root) / "launchers.json", access.operator_id), legacy)
+            cases = CaseService(repo, access)
+            handoffs = HandoffService(repo, access, cases)
+            approvals = ApprovalService(repo, access, cases)
+            queue = JobQueue(repo, access)
             self._built = SimpleNamespace(
                 repo=repo, access=access, operator=access.local_operator(), team=TeamService(repo, access),
                 policies=policies, agents=agents, connections=connections, skills=SkillService(repo, access, agents),
-                cases=CaseService(repo, access))
+                cases=cases, handoffs=handoffs, approvals=approvals, queue=queue,
+                control=OperatorControl(repo, access, cases, approvals, handoffs, queue),
+                outbound=OutboundGateway(repo, access, cases, approvals, connections, {}, handoffs=handoffs))
         return self._built
