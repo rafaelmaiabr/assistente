@@ -34,3 +34,7 @@ O protocolo contém eventos `session`, `status`, `message`, `tool`, `error` e `r
 - Validação visual no navegador: entrada, envio, resposta MCP e segunda pergunta. O microfone permanece desligado.
 
 Voz na interface, seleção de dispositivos e transcrição estão descritas em [VOICE.md](VOICE.md). O protocolo também aceita `{ "type": "audio", "wav": "base64", "speak": true }`; respostas podem incluir eventos `audio` e `warning` e estados `transcribing`/`synthesizing`. Texto continua aceitando a opção `speak`. Avatar e janela sempre no topo pertencem à issue #5.
+
+## Atendimento persistente (opcional)
+
+O menu **Atendimento persistente** liga o armazenamento local de demandas da equipe (padrão: desligado; o chat continua efêmero). Detalhes e limites em [TEAM-PERSISTENCE.md](TEAM-PERSISTENCE.md). Endpoints locais: `GET /api/persistence`, `POST /api/persistence/enable|disable`, com a mesma verificação de origem das rotas de voz.

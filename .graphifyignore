@@ -11,3 +11,6 @@ config.json
 validacao.json
 *.log
 .env*
+team-data/
+*.sqlite3
+*.bak
