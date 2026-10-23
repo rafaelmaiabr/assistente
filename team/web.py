@@ -20,6 +20,7 @@ from .approvals import ApprovalInvalid, ApprovalRejected
 from .cases import CaseRejected, InvalidTransition
 from .gaps import GapRejected
 from .handoffs import HandoffRejected
+from .identity import IdentityRejected
 from .outbound import OutboundError
 from .connections import ConnectionRejected
 from .llm import PolicyRejected
@@ -31,7 +32,7 @@ MAX_BODY = 64 * 1024
 TEAM = web.AppKey("team_app", object)
 DEMOS = Path(__file__).resolve().parent / "skills_demo"
 SAFE_ERRORS = (ProfileRejected, SkillRejected, ConnectionRejected, PolicyRejected, CaseRejected, ApprovalRejected,
-               HandoffRejected, OutboundError, GapRejected)
+               HandoffRejected, OutboundError, GapRejected, IdentityRejected)
 
 
 def _json(data, status=200):
@@ -88,7 +89,15 @@ def _services(request):
 
 
 def _tenant(request):
+    """The services and the access context of this request's company.
+
+    On the remote listener the guard has already verified the session; the context is then built from the person's stored role
+    for the company in the URL (their own id is the principal). On the local listener it is the local owner, as before.
+    """
     services = _services(request)
+    identity = request.get("identity")
+    if identity is not None:
+        return services, services.identity.context(identity, request.match_info["tenant"])
     return services, services.access.tenant_context(services.operator, request.match_info["tenant"])
 
 
@@ -106,7 +115,12 @@ async def state(request):
     if not app.enabled():
         return _json({"enabled": False, "companies": []})
     services = _services(request)
-    return _json({"enabled": True, "companies": services.team.list_companies(services.operator),
+    identity = request.get("identity")
+    if identity is not None:  # remote: only the companies this person belongs to, with their role; nothing global
+        companies = [{**company, "role": identity.memberships[company["id"]]} for company in services.team.list_companies(services.operator)
+                     if company["id"] in identity.memberships]
+        return _json({"enabled": True, "mode": "remote", "companies": companies, "voices": []})
+    return _json({"enabled": True, "mode": "local", "companies": services.team.list_companies(services.operator),
                   "voices": app.voice_profiles()})
 
 
@@ -465,6 +479,35 @@ async def gap_action(request):
     return _json(overview.gap_view(gap))
 
 
+# -- members (the local owner or a company administrator) --------------------------------------------------------------------
+@api
+async def members_list(request):
+    services, ctx = _tenant(request)
+    return _json({"members": services.identity.members(ctx, ctx.tenant_id)})
+
+
+@api
+async def member_invite(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("email", "role", "name"))
+    return _json(services.identity.invite(ctx, ctx.tenant_id, data["email"], data["role"], data.get("name")), 201)
+
+
+@api
+async def member_update(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("role", "status"))
+    user_id = request.match_info["user_id"]
+    if not data:
+        raise ValueError("campos")
+    member = None
+    if "role" in data:
+        member = services.identity.set_role(ctx, ctx.tenant_id, user_id, data["role"])
+    if "status" in data:
+        member = services.identity.set_member_status(ctx, ctx.tenant_id, user_id, data["status"])
+    return _json(member)
+
+
 @api
 async def message_resolve(request):
     services, ctx = _tenant(request)
@@ -515,6 +558,9 @@ def register(app, team_app):
     r.add_get(f"{t}/attention", attention_inbox)
     r.add_post(f"{t}/approvals/{{id}}/{{action}}", approval_decision)
     r.add_post(f"{t}/messages/{{id}}/resolve", message_resolve)
+    r.add_get(f"{t}/members", members_list)
+    r.add_post(f"{t}/members", member_invite)
+    r.add_patch(f"{t}/members/{{user_id}}", member_update)
     r.add_get(f"{t}/gaps", gaps_list)
     r.add_post(f"{t}/gaps", gap_report)
     r.add_post(f"{t}/gaps/{{id}}/{{action}}", gap_action)

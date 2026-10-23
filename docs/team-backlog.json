@@ -902,7 +902,7 @@
       ],
       "tests": "Dois usuários/duas empresas: acesso por ID, cursor, arquivo, busca e replay; sessão revogada, role alterada e tentativa de aprovar ação própria sem permissão.",
       "areas": "Camada de identidade/política HTTP e serviços; configuração de implantação",
-      "decision": "Escolher provedor de identidade e destino de implantação antes da validação remota; modo local deve continuar sem serviço pago.",
+      "decision": "Escolher provedor de identidade e destino de implantação antes da validação remota; modo local deve continuar sem serviço pago. Decisão do operador (2026-10-23): provedor de identidade = Google; implantação sugerida = este computador atrás de proxy com TLS e rede privada (ex.: Tailscale), ainda não validada. Subdividida: login, sessões, papéis por empresa, listener remoto e isolamento no PR do T32; escopo por departamento e identidade de worker em T38 (#84). #47 só fecha com a #84.",
       "issue": 47,
       "url": "https://github.com/rafaelmaiabr/assistente/issues/47",
       "depends_on_issues": [
@@ -1047,6 +1047,35 @@
         31,
         32,
         44
+      ]
+    },
+    {
+      "code": "T38",
+      "phase": "Escala",
+      "title": "Escopo por departamento e identidade de worker (parte 2 do T32)",
+      "dependencies": [
+        "T32",
+        "T03",
+        "T10",
+        "T13"
+      ],
+      "goal": "Completar o T32: escopo por departamento e identidade própria de worker, sem usar o contexto do dono local.",
+      "acceptance": [
+        "Membro com departamentos só lê e age em demandas, agentes, conhecimento e aprovações desses departamentos; sem departamentos, toda a empresa. Ids de outro departamento respondem como não encontrados (lista, detalhe, cursor/eventos, busca e aprovação).",
+        "Workers e a fila usam identidade própria (principal de serviço, sem permissão de aprovar nem de gerir membros); revogação imediata; ação de worker na auditoria com essa identidade.",
+        "Suíte de isolamento estendida: dois departamentos e dois membros da mesma empresa, papel alterado, membro removido e worker sem poder de aprovação.",
+        "Documentação atualizada; o limite 'papel por empresa' deixa de existir."
+      ],
+      "tests": "Dois departamentos e dois membros; worker tentando aprovar/gerir membros recusado; regressão completa. Sem contas reais.",
+      "areas": "team/identity.py, team/access.py, consultas por departamento, fila e worker, docs",
+      "decision": "",
+      "issue": 84,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/84",
+      "depends_on_issues": [
+        47,
+        18,
+        25,
+        28
       ]
     },
     {

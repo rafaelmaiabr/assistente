@@ -2,11 +2,15 @@ export class ApiError extends Error {
   constructor(message, status, code, details) {super(message); this.status = status; this.code = code; this.details = details || [];}
 }
 
+let csrf = '';
+/** The token the remote listener gave this page (from /auth/session); sent on every change, never stored anywhere. */
+export const setCsrf = value => {csrf = typeof value === 'string' ? value : '';};
+
 /** Calls /api/team. Bodies are JSON; a credential travels only in the body of one PUT and is never kept. */
 export async function request(method, path, body) {
   let response;
   try {
-    response = await fetch(`/api/team${path}`, {method, headers: {'Content-Type': 'application/json'},
+    response = await fetch(`/api/team${path}`, {method, headers: {'Content-Type': 'application/json', ...(csrf && method !== 'GET' ? {'X-CSRF-Token': csrf} : {})},
       body: body === undefined ? undefined : JSON.stringify(body)});
   } catch {throw new ApiError('Sem conexão com o assistente local.', 0);}
   let data = null;

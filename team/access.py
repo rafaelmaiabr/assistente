@@ -11,6 +11,10 @@ from datetime import datetime, timezone
 from .enums import RESOURCE_KINDS
 
 
+# Company roles of a signed-in person, lowest to highest. The local owner is not one of them (see ``is_operator``).
+ROLE_LEVEL = {"leitor": 1, "atendente": 2, "aprovador": 3, "admin": 4}
+
+
 class AccessError(Exception):
     pass
 
@@ -47,9 +51,14 @@ class AccessContext:
     principal_id: str
     role: str  # "operator": full access inside the tenant; "agent": only explicit grants
     _token: object = field(repr=False, compare=False)
+    # Set only for a signed-in person acting through the remote listener (see identity.py): the company role that
+    # was checked for this request. The local owner never has one.
+    member_role: str | None = None
 
     def __post_init__(self):
         if self._token is not _TOKEN or self.role not in ("operator", "agent"):
+            raise PermissionDenied("contexto so pode ser criado pelo backend")
+        if self.member_role is not None and (self.role != "operator" or self.member_role not in ROLE_LEVEL):
             raise PermissionDenied("contexto so pode ser criado pelo backend")
 
 
@@ -83,11 +92,32 @@ class AccessService:
             raise PermissionDenied("execucao encerrada")
         return AccessContext(base.tenant_id, run["agent_id"], "agent", _TOKEN)
 
+    def member_context(self, identity, tenant_id, role) -> AccessContext:
+        """Context of a signed-in person for one company. ``identity`` is proof that the backend verified the session
+        and ``role`` the membership of this very request; the person's own id is the principal, so every record made
+        under it names who did it."""
+        from .identity import Identity  # imported here: identity.py imports this module
+        if not isinstance(identity, Identity) or role not in ROLE_LEVEL or identity.memberships.get(tenant_id) != role:
+            raise PermissionDenied()
+        if self.repository.get_global("tenant", tenant_id) is None:
+            raise NotFound()
+        return AccessContext(tenant_id, identity.user_id, "operator", _TOKEN, role)
+
+    def is_operator(self, ctx, minimum="atendente") -> bool:
+        """The trusted local owner, or a signed-in person whose company role for this request is at least ``minimum``."""
+        if not isinstance(ctx, AccessContext) or ctx.role != "operator":
+            return False
+        if ctx.member_role is None:
+            return ctx.principal_id == self.operator_id
+        return ROLE_LEVEL[ctx.member_role] >= ROLE_LEVEL[minimum]
+
     def allowed(self, ctx, session, action, kind, resource_id=None) -> bool:
         """Default-deny. ``resource_id=None`` asks about the whole kind (grants with no id only)."""
         if not isinstance(ctx, AccessContext) or session.tenant_id != ctx.tenant_id:
             return False
         if ctx.role == "operator":  # grants are managed by the operator only, never granted to agents
+            if ctx.member_role == "leitor" and action != "read":
+                return False
             return kind in RESOURCE_KINDS or kind == "access_grant"
         if kind not in RESOURCE_KINDS:
             return False

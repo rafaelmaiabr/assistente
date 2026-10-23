@@ -96,8 +96,8 @@ class ApprovalService:
     def _trusted_operator(self, ctx):
         """Only the single trusted local operator decides; agents and any derived context cannot."""
         self._ctx(ctx)
-        if ctx.role != "operator" or ctx.principal_id != self.access.operator_id:
-            raise PermissionDenied("apenas o operador confiavel decide aprovacoes")
+        if not self.access.is_operator(ctx, "aprovador"):
+            raise PermissionDenied("apenas o operador confiavel ou quem tem papel de aprovador decide aprovacoes")
 
     def _case(self, session, case_id):
         case = session.get("case", case_id) if isinstance(case_id, str) else None
