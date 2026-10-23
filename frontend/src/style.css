@@ -763,3 +763,22 @@ ul.team-error{padding-left:18px;margin:0}
 .badge.demo{background:#3b3a24;color:#ece7a8}
 .demo-note{flex-basis:100%;margin:0;font-size:11px;color:#a8b1a2}
 @media(max-width:900px){.team-split{grid-template-columns:1fr}.team-company-bar form{flex-wrap:wrap}.team-company-bar select,.team-company-bar input{min-width:0;width:100%}.team-body{padding-left:16px;padding-right:16px}}
+
+/* ---- Central de demandas ---- */
+.badge.phase-ok{background:#2d3a2b;color:#cfe6c7}
+.badge.phase-wait{background:#2b3340;color:#c6d6ee}
+.badge.phase-human,.badge.human{background:#4a3a1c;color:#f4dca0}
+.badge.phase-done{background:#25402f;color:#b9efc9}
+.badge.phase-off{background:#3a2f2f;color:#e8c4bd}
+.team-case h3{margin-top:0}
+.team-approval{background:#181b21;border:1px solid #4e5e47;border-radius:10px;padding:12px;margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.team-approval.state-pendente{border-color:#a9822f}
+.team-approval dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin:0;font-size:13px}
+.team-approval dt{color:#a8b1a2}
+.team-approval dd{margin:0;overflow-wrap:anywhere}
+.team-reconcile{background:#3a2d17;border:1px solid #a9822f;border-radius:8px;padding:10px;color:#f4dca0}
+.team-timeline{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.team-timeline li{border-left:2px solid #2e323d;padding:2px 0 2px 10px}
+.team-timeline .t-evento{color:#8e939d}
+.team-timeline small{color:#6f7480}
+code{background:#14161c;padding:1px 5px;border-radius:4px}

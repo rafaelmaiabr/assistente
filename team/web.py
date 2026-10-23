@@ -15,7 +15,11 @@ from aiohttp import web
 
 from .access import AccessError, NotFound, PermissionDenied
 from .agents import ProfileRejected
-from .cases import CaseRejected
+from . import overview
+from .approvals import ApprovalInvalid, ApprovalRejected
+from .cases import CaseRejected, InvalidTransition
+from .handoffs import HandoffRejected
+from .outbound import OutboundError
 from .connections import ConnectionRejected
 from .llm import PolicyRejected
 from .repository import RevisionConflict
@@ -25,7 +29,8 @@ from .skills import SkillRejected
 MAX_BODY = 64 * 1024
 TEAM = web.AppKey("team_app", object)
 DEMOS = Path(__file__).resolve().parent / "skills_demo"
-SAFE_ERRORS = (ProfileRejected, SkillRejected, ConnectionRejected, PolicyRejected, CaseRejected)
+SAFE_ERRORS = (ProfileRejected, SkillRejected, ConnectionRejected, PolicyRejected, CaseRejected, ApprovalRejected,
+               HandoffRejected, OutboundError)
 
 
 def _json(data, status=200):
@@ -356,6 +361,88 @@ async def set_mcp_status(request):
     return _json({"id": entry["id"], "status": entry["status"], "revision": entry["revision"]})
 
 
+# -- cases center -----------------------------------------------------------------------------------------------------------
+@api
+async def cases_list(request):
+    services, ctx = _tenant(request)
+    q = request.query
+    return _json(overview.list_cases(services, ctx, state=q.get("state"), phase=q.get("phase")))
+
+
+@api
+async def case_open(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("department_id", "objective", "customer_ref", "priority", "origin"))
+    return _json(services.cases.open_case(ctx, **data), 201)
+
+
+@api
+async def case_snapshot(request):
+    services, ctx = _tenant(request)
+    return _json(overview.snapshot(services, ctx, request.match_info["id"]))
+
+
+@api
+async def events_feed(request):
+    services, ctx = _tenant(request)
+    return _json(overview.events_after(services, ctx, int(request.query.get("after", "0")), request.query.get("case_id")))
+
+
+@api
+async def attention_inbox(request):
+    services, ctx = _tenant(request)
+    return _json(overview.attention(services, ctx))
+
+
+@api
+async def case_control(request):
+    """Pause, take over, reject or return a case. Always with the expected revision and a reason."""
+    services, ctx = _tenant(request)
+    action = request.match_info["action"]
+    data = _fields(await _body(request), ("expected_revision", "reason"))
+    method = {"pause": services.control.pause, "take-over": services.control.take_over, "reject": services.control.reject,
+              "return": services.control.return_to_team}.get(action)
+    if method is None:
+        raise NotFound()
+    method(ctx, request.match_info["id"], data["expected_revision"], data["reason"])
+    return _json(overview.snapshot(services, ctx, request.match_info["id"]))
+
+
+@api
+async def case_assign(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("expected_revision", "agent_id"))
+    services.cases.assign_owner(ctx, request.match_info["id"], data["expected_revision"], data["agent_id"])
+    return _json(overview.snapshot(services, ctx, request.match_info["id"]))
+
+
+@api
+async def approval_decision(request):
+    services, ctx = _tenant(request)
+    action, approval_id = request.match_info["action"], request.match_info["id"]
+    data = await _body(request)
+    if action == "approve":
+        done = services.approvals.approve(ctx, approval_id, data["shown_hash"], data.get("comment"))
+    elif action == "deny":
+        done = services.approvals.deny(ctx, approval_id, data["reason"])
+    elif action == "revoke":
+        done = services.approvals.revoke(ctx, approval_id, data["reason"])
+    elif action == "resolve-effect":
+        done = services.approvals.resolve_effect(ctx, approval_id, data["outcome"], data["detail"])
+    else:
+        raise NotFound()
+    return _json(overview.snapshot(services, ctx, done["case_id"]))
+
+
+@api
+async def message_resolve(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("outcome", "provider_id", "detail"))
+    message = services.outbound.resolve_unknown(ctx, request.match_info["id"], data["outcome"],
+                                                data.get("provider_id"), data.get("detail"))
+    return _json(overview.snapshot(services, ctx, message["case_id"]))
+
+
 def register(app, team_app):
     app[TEAM] = team_app
     base = "/api/team"
@@ -388,6 +475,15 @@ def register(app, team_app):
     r.add_put(f"{t}/connections/{{id}}/credential", set_credential)
     r.add_post(f"{t}/connections/{{id}}/credential/{{action}}", credential_action)
     r.add_delete(f"{t}/connections/{{id}}/credential", remove_credential)
+    r.add_get(f"{t}/cases", cases_list)
+    r.add_post(f"{t}/cases", case_open)
+    r.add_get(f"{t}/cases/{{id}}", case_snapshot)
+    r.add_post(f"{t}/cases/{{id}}/assign", case_assign)
+    r.add_post(f"{t}/cases/{{id}}/{{action}}", case_control)
+    r.add_get(f"{t}/events", events_feed)
+    r.add_get(f"{t}/attention", attention_inbox)
+    r.add_post(f"{t}/approvals/{{id}}/{{action}}", approval_decision)
+    r.add_post(f"{t}/messages/{{id}}/resolve", message_resolve)
     r.add_get(f"{t}/mcp-catalog", mcp_catalog)
     r.add_post(f"{t}/mcp-catalog", approve_mcp)
     r.add_patch(f"{t}/mcp-catalog/{{id}}", set_mcp_status)

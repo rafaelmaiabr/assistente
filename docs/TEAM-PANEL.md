@@ -1,6 +1,6 @@
 # Painel da equipe (T15)
 
-Entrega da issue [#30](https://github.com/rafaelmaiabr/assistente/issues/30): seção **Equipe** na interface (navegador e Electron, o mesmo React), API local `team/web.py` e `team/app.py`. Cobre empresas, departamentos, agentes (com versões), skills, concessões e conexões. Demandas, aprovações e mensagens ainda não têm tela (T16).
+Entrega da issue [#30](https://github.com/rafaelmaiabr/assistente/issues/30): seção **Equipe** na interface (navegador e Electron, o mesmo React), API local `team/web.py` e `team/app.py`. Cobre empresas, departamentos, agentes (com versões), skills, concessões e conexões. A central de demandas, aprovações e mensagens está em [TEAM-CASES-CENTER.md](TEAM-CASES-CENTER.md).
 
 ## Como usar
 

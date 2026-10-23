@@ -102,6 +102,9 @@ class TenantSession(ABC):
     def events(self, case_id=None, after_seq=0, limit=100): ...
 
     @abstractmethod
+    def last_event_seq(self, case_id=None) -> int: ...
+
+    @abstractmethod
     def record_tool_decision(self, decision): ...
 
     @abstractmethod
@@ -238,6 +241,13 @@ class SqliteSession(TenantSession):
             f"SELECT seq, doc FROM events WHERE tenant_id = ? AND seq > ? {clause}ORDER BY seq LIMIT ?",
             (self.tenant_id, after_seq, *args, min(max(int(limit), 1), MAX_LIST))).fetchall()
         return [(seq, json.loads(doc)) for seq, doc in rows]
+
+    def last_event_seq(self, case_id=None):
+        """Highest event sequence number for the company (or one case): the cursor clients resume from."""
+        clause, args = ("AND case_id = ?", [case_id]) if case_id else ("", [])
+        row = self.conn.execute(f"SELECT COALESCE(MAX(seq), 0) FROM events WHERE tenant_id = ? {clause}",
+                                (self.tenant_id, *args)).fetchone()
+        return row[0]
 
     def record_tool_decision(self, decision):
         """Minimal gateway audit row: identifiers, tool name, verdict and policy version, never arguments or results."""
