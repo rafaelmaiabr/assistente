@@ -5,6 +5,7 @@ operator, a persisted agent run). A ``tenant_id``, role or principal supplied by
 or a tool argument is data, never a context. This is *logical* isolation inside one process under
 one OS account: it is not SaaS authentication and does not resist other processes of that account.
 """
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -12,7 +13,17 @@ from .enums import RESOURCE_KINDS
 
 
 # Company roles of a signed-in person, lowest to highest. The local owner is not one of them (see ``is_operator``).
-ROLE_LEVEL = {"leitor": 1, "atendente": 2, "aprovador": 3, "admin": 4}
+HUMAN_ROLES = ("leitor", "atendente", "aprovador", "admin")
+# "servico" is the identity of backend workers: it works cases like an attendant but can never approve or administer.
+ROLE_LEVEL = {"leitor": 1, "atendente": 2, "servico": 2, "aprovador": 3, "admin": 4}
+SERVICES = ("worker", "expiracao")
+# What only an administrator (or the local owner) may change, whatever the route.
+CONFIG_KINDS = ("department", "agent_definition", "agent_profile_version", "skill_grant", "connection", "access_grant")
+# Resource kinds that belong to a case, and so to the case's department.
+_CASE_CHILDREN = ("task", "approval_request", "handoff", "evidence", "case_entry", "outbound_message")
+
+
+_SCOPABLE = ("department", "agent_definition", "agent_profile_version", "agent_run", "skill_grant", "case") + _CASE_CHILDREN
 
 
 class AccessError(Exception):
@@ -54,11 +65,15 @@ class AccessContext:
     # Set only for a signed-in person acting through the remote listener (see identity.py): the company role that
     # was checked for this request. The local owner never has one.
     member_role: str | None = None
+    # Departments a signed-in person is limited to; ``None`` means the whole company.
+    departments: frozenset | None = None
 
     def __post_init__(self):
         if self._token is not _TOKEN or self.role not in ("operator", "agent"):
             raise PermissionDenied("contexto so pode ser criado pelo backend")
         if self.member_role is not None and (self.role != "operator" or self.member_role not in ROLE_LEVEL):
+            raise PermissionDenied("contexto so pode ser criado pelo backend")
+        if self.departments is not None and (self.member_role in (None, "admin", "servico") or not isinstance(self.departments, frozenset)):
             raise PermissionDenied("contexto so pode ser criado pelo backend")
 
 
@@ -92,7 +107,17 @@ class AccessService:
             raise PermissionDenied("execucao encerrada")
         return AccessContext(base.tenant_id, run["agent_id"], "agent", _TOKEN)
 
-    def member_context(self, identity, tenant_id, role) -> AccessContext:
+    def service_context(self, tenant_id, service) -> AccessContext:
+        """Identity of a backend worker for one company: its own principal (a different one per kind of service), able to
+        work cases but never to approve, administer or manage members. Not a person and not the local owner."""
+        if service not in SERVICES:
+            raise PermissionDenied()
+        if self.repository.get_global("tenant", tenant_id) is None:
+            raise NotFound()
+        principal = "sys_" + hashlib.sha256(f"{self.operator_id}:{service}".encode()).hexdigest()[:32]
+        return AccessContext(tenant_id, principal, "operator", _TOKEN, "servico")
+
+    def member_context(self, identity, tenant_id, role, departments=None) -> AccessContext:
         """Context of a signed-in person for one company. ``identity`` is proof that the backend verified the session
         and ``role`` the membership of this very request; the person's own id is the principal, so every record made
         under it names who did it."""
@@ -101,7 +126,36 @@ class AccessService:
             raise PermissionDenied()
         if self.repository.get_global("tenant", tenant_id) is None:
             raise NotFound()
-        return AccessContext(tenant_id, identity.user_id, "operator", _TOKEN, role)
+        return AccessContext(tenant_id, identity.user_id, "operator", _TOKEN, role,
+                             frozenset(departments) if departments else None)
+
+    @staticmethod
+    def department_of(session, kind, doc):
+        """The department a record belongs to (through its case, for the parts of a case), or ``None`` when it is company-wide."""
+        if kind == "department":
+            return doc["id"]
+        if kind in ("agent_definition", "case", "agent_run"):
+            return doc.get("department_id")
+        if kind == "agent_profile_version" or kind == "skill_grant":
+            agent = session.get("agent_definition", doc["agent_id"])
+            return agent["department_id"] if agent else None
+        if kind in _CASE_CHILDREN:
+            case = session.get("case", doc["case_id"]) if doc.get("case_id") else None
+            return case["department_id"] if case else None
+        return None
+
+    def in_scope(self, ctx, session, kind, resource_id) -> bool:
+        """Whether a record is inside the person's departments. Company-wide records and unrestricted contexts always are."""
+        if ctx.departments is None:
+            return True
+        doc = session.get(kind, resource_id) if kind in _SCOPABLE else None
+        if doc is None:
+            return kind not in _SCOPABLE  # an unknown id is handled by the caller (not found); other kinds have no department
+        department = self.department_of(session, kind, doc)
+        return department is None or department in ctx.departments
+
+    def department_in_scope(self, ctx, department_id) -> bool:
+        return ctx.departments is None or department_id in ctx.departments
 
     def is_operator(self, ctx, minimum="atendente") -> bool:
         """The trusted local owner, or a signed-in person whose company role for this request is at least ``minimum``."""
@@ -117,6 +171,10 @@ class AccessService:
             return False
         if ctx.role == "operator":  # grants are managed by the operator only, never granted to agents
             if ctx.member_role == "leitor" and action != "read":
+                return False
+            if ctx.member_role in ("atendente", "aprovador", "servico") and kind in CONFIG_KINDS and action != "read":
+                return False
+            if ctx.departments is not None and resource_id is not None and not self.in_scope(ctx, session, kind, resource_id):
                 return False
             return kind in RESOURCE_KINDS or kind == "access_grant"
         if kind not in RESOURCE_KINDS:

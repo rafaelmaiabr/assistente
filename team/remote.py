@@ -27,6 +27,7 @@ from aiohttp import web
 
 from settings import ROOT
 from . import web as team_web
+from .web import IDENTITY
 from .identity import LoginDenied
 from .login import LOGIN_ERRORS, LoginFailed, RateLimiter
 
@@ -68,7 +69,7 @@ POLICY = {
     "GET /api/team/companies/{tenant}/attention": "leitor",
     "POST /api/team/companies/{tenant}/approvals/{id}/{action}": "aprovador",
     "POST /api/team/companies/{tenant}/messages/{id}/resolve": "aprovador",
-    "GET /api/team/companies/{tenant}/gaps": "leitor",
+    "GET /api/team/companies/{tenant}/gaps": "admin",
     "POST /api/team/companies/{tenant}/gaps": "atendente",
     "POST /api/team/companies/{tenant}/gaps/{id}/{action}": "admin",
     "GET /api/team/companies/{tenant}/mcp-catalog": "admin",
@@ -80,7 +81,6 @@ POLICY = {
 }
 LEVEL = {"leitor": 1, "atendente": 2, "aprovador": 3, "admin": 4}
 SAFE_METHODS = ("GET", "HEAD")
-IDENTITY = "identity"
 STATE = web.AppKey("remote_state", object)
 
 

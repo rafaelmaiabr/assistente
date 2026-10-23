@@ -81,7 +81,7 @@ class CaseService:
                 "closed_at": None, "priority": priority, "origin": origin}
         if not self.access.allowed(ctx, session, "write", "case"):
             raise PermissionDenied()
-        if session.get("department", department_id) is None:
+        if session.get("department", department_id) is None or not self.access.department_in_scope(ctx, department_id):
             raise NotFound()
         session.save(case, event=self._event(ctx, case, "case.opened", {"origin": origin, "priority": priority}))
         return case
@@ -112,7 +112,7 @@ class CaseService:
             if case["state"] not in ("recebida", "triagem"):
                 raise CaseRejected("So e possivel atribuir responsavel na fila inicial.")
             agent = session.get("agent_definition", agent_id) if isinstance(agent_id, str) else None
-            if agent is None:
+            if agent is None or not self.access.department_in_scope(ctx, agent["department_id"]):
                 raise NotFound()
             if agent["status"] != "ativo":
                 raise CaseRejected("Agente desativado.")

@@ -147,6 +147,13 @@ def _public(kind, doc):
     return {k: doc.get(k) for k in keys}
 
 
+def _visible_case_ids(services, ctx, session):
+    """Ids of the cases a department-limited person may read; ``None`` when nothing is limited."""
+    if ctx.departments is None:
+        return None
+    return {c["id"] for c in session.list("case", limit=1000) if services.access.allowed(ctx, session, "read", "case", c["id"])}
+
+
 def events_after(services, ctx, after, case_id=None, limit=200):
     """Events after a cursor, oldest first, plus the new cursor. Clients deduplicate by event id."""
     with services.repo.transaction(ctx.tenant_id) as session:
@@ -156,9 +163,13 @@ def events_after(services, ctx, after, case_id=None, limit=200):
                 raise NotFound()
         rows = session.events(case_id, max(int(after), 0), limit)
         latest = session.last_event_seq(case_id)
+        visible = _visible_case_ids(services, ctx, session) if case_id is None else None
+    cursor = rows[-1][0] if rows else max(int(after), 0)
+    if visible is not None:  # the cursor still moves past hidden events, so paging never stalls on them
+        rows = [(seq, e) for seq, e in rows if e["case_id"] in visible]
     return {"events": [{"seq": seq, **{k: e[k] for k in ("id", "type", "case_id", "revision", "occurred_at", "actor_id")},
                         "payload": e["payload"]} for seq, e in rows],
-            "cursor": rows[-1][0] if rows else max(int(after), 0), "latest": latest}
+            "cursor": cursor, "latest": latest}
 
 
 def attention(services, ctx):
@@ -169,6 +180,13 @@ def attention(services, ctx):
         handoffs = session.list("handoff", limit=1000)
         gaps = session.list("capability_gap", state="aberta", limit=1000)
         cases = {c["id"]: c for c in session.list("case", limit=1000)}
+        visible = _visible_case_ids(services, ctx, session)
+    if visible is not None:
+        approvals = [a for a in approvals if a["case_id"] in visible]
+        messages = [m for m in messages if m["case_id"] in visible]
+        handoffs = [h for h in handoffs if h["case_id"] in visible]
+        gaps = [g for g in gaps if set(g["related_case_ids"]) & visible]
+        cases = {i: c for i, c in cases.items() if i in visible}
     return {
         "pending_approvals": [_approval_view(a) | {"case_id": a["case_id"]} for a in approvals if a["state"] == "pendente"],
         "reconciliation": [{"kind": "approval", "id": a["id"], "case_id": a["case_id"], "action": a["action"]}

@@ -9,19 +9,22 @@ a "member", never counted as a global administrator of a remote environment, and
 * Roles are per company: ``leitor`` (read) < ``atendente`` (work cases) < ``aprovador`` (decide approvals) < ``admin``
   (configure the company, manage members). The company comes from the URL and is checked against the membership on every
   request; nothing the browser sends can name another one.
+* A member below ``admin`` may be limited to some departments of the company; an administrator never is. Records of other
+  departments answer "not found" (see ``AccessService.in_scope``).
 * Only the SHA-256 of a session token is stored. Every request looks the session, the person and the membership up again, so
   revoking a session, deactivating a person or changing a role takes effect on the very next request.
 * The trail (``auth_events``) records sign-ins, refusals, sign-outs and membership changes with ids and reasons, never tokens,
   codes or names.
 """
 import hashlib
+import json
 import re
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from .db import connect
-from .access import ROLE_LEVEL, AccessContext, NotFound, OperatorContext, PermissionDenied
+from .access import HUMAN_ROLES, AccessContext, NotFound, OperatorContext, PermissionDenied
 from .ids import new_id
 
 IDLE = timedelta(minutes=480)
@@ -52,6 +55,7 @@ class Identity:
     session_id: str
     memberships: dict  # tenant id -> role, active memberships only
     _token: object = field(repr=False, compare=False)
+    scopes: dict = field(default_factory=dict, compare=False)  # tenant id -> tuple of department ids (absent = whole company)
 
     def __post_init__(self):
         if self._token is not _TOKEN:
@@ -101,12 +105,27 @@ class IdentityService:
         return operator.principal_id
 
     # -- members (managed by the owner or a company administrator) -----------------------------------------------------
-    def invite(self, ctx, tenant_id, email, role, display_name=None):
+    def _departments(self, tenant_id, role, departments):
+        """Validated JSON for the scope column: ``None`` (whole company) or a sorted list of this company's departments."""
+        if not departments:
+            return None
+        if role == "admin":
+            raise IdentityRejected("Um administrador sempre alcanca a empresa inteira; escolha outro papel para limitar por departamento.")
+        if not isinstance(departments, (list, tuple)) or len(departments) > 50 or any(not isinstance(d, str) for d in departments):
+            raise IdentityRejected("Informe uma lista de departamentos.")
+        wanted = sorted(set(departments))
+        with self.repository.transaction(tenant_id) as session:
+            if any(session.get("department", d) is None for d in wanted):
+                raise IdentityRejected("Algum departamento nao existe nesta empresa.")
+        return json.dumps(wanted)
+
+    def invite(self, ctx, tenant_id, email, role, display_name=None, departments=None):
         """Register an email with a role in this company. Creates the person if new; they sign in with Google afterwards."""
         actor = self._manager(ctx, tenant_id)
         email = normalize_email(email)
-        if role not in ROLE_LEVEL:
+        if role not in HUMAN_ROLES:
             raise IdentityRejected("Papel desconhecido.")
+        scope = self._departments(tenant_id, role, departments)
         name = str(display_name).strip()[:80] if display_name else None
         now = _stamp(self._now())
         with self.repository._transaction() as conn:
@@ -122,24 +141,38 @@ class IdentityService:
             existing = conn.execute("SELECT status FROM auth_memberships WHERE user_id = ? AND tenant_id = ?",
                                     (user_id, tenant_id)).fetchone()
             if existing is None:
-                conn.execute("INSERT INTO auth_memberships (user_id, tenant_id, role, status, granted_by, created_at, updated_at) "
-                             "VALUES (?, ?, ?, 'ativo', ?, ?, ?)", (user_id, tenant_id, role, actor, now, now))
+                conn.execute("INSERT INTO auth_memberships (user_id, tenant_id, role, status, granted_by, created_at, updated_at, departments) "
+                             "VALUES (?, ?, ?, 'ativo', ?, ?, ?, ?)", (user_id, tenant_id, role, actor, now, now, scope))
             else:
-                conn.execute("UPDATE auth_memberships SET role = ?, status = 'ativo', granted_by = ?, updated_at = ? "
-                             "WHERE user_id = ? AND tenant_id = ?", (role, actor, now, user_id, tenant_id))
+                conn.execute("UPDATE auth_memberships SET role = ?, status = 'ativo', granted_by = ?, updated_at = ?, departments = ? "
+                             "WHERE user_id = ? AND tenant_id = ?", (role, actor, now, scope, user_id, tenant_id))
             self._event(conn, "membro_convidado", user_id=user_id, tenant_id=tenant_id, actor_id=actor, detail=role)
         return self._member(tenant_id, user_id)
 
     def set_role(self, ctx, tenant_id, user_id, role):
         actor = self._manager(ctx, tenant_id)
-        if role not in ROLE_LEVEL:
+        if role not in HUMAN_ROLES:
             raise IdentityRejected("Papel desconhecido.")
         with self.repository._transaction() as conn:
             row = self._membership_row(conn, tenant_id, user_id)
             self._keep_an_admin(conn, ctx, tenant_id, user_id, row, new_role=role)
-            conn.execute("UPDATE auth_memberships SET role = ?, updated_at = ? WHERE user_id = ? AND tenant_id = ?",
-                         (role, _stamp(self._now()), user_id, tenant_id))
+            # becoming an administrator drops any department limit: the two never coexist
+            conn.execute("UPDATE auth_memberships SET role = ?, updated_at = ?, departments = CASE WHEN ? = 'admin' THEN NULL ELSE departments END "
+                         "WHERE user_id = ? AND tenant_id = ?", (role, _stamp(self._now()), role, user_id, tenant_id))
             self._event(conn, "papel_alterado", user_id=user_id, tenant_id=tenant_id, actor_id=actor, detail=f"{row[0]}->{role}")
+        return self._member(tenant_id, user_id)
+
+    def set_departments(self, ctx, tenant_id, user_id, departments):
+        """Limit a member to some departments (an empty list means the whole company). Never for an administrator."""
+        actor = self._manager(ctx, tenant_id)
+        with self.repository._transaction() as conn:
+            row = self._membership_row(conn, tenant_id, user_id)
+        scope = self._departments(tenant_id, row[0], departments)
+        with self.repository._transaction() as conn:
+            self._membership_row(conn, tenant_id, user_id)
+            conn.execute("UPDATE auth_memberships SET departments = ?, updated_at = ? WHERE user_id = ? AND tenant_id = ?",
+                         (scope, _stamp(self._now()), user_id, tenant_id))
+            self._event(conn, "escopo_alterado", user_id=user_id, tenant_id=tenant_id, actor_id=actor, detail=f"{len(json.loads(scope)) if scope else 0} departamentos")
         return self._member(tenant_id, user_id)
 
     def set_member_status(self, ctx, tenant_id, user_id, status):
@@ -183,11 +216,11 @@ class IdentityService:
             self._manager(ctx, tenant_id)
         with self.repository._transaction() as conn:
             rows = conn.execute(
-                "SELECT u.id, u.email, u.display_name, u.status, u.google_sub IS NOT NULL, u.last_login_at, m.role, m.status "
+                "SELECT u.id, u.email, u.display_name, u.status, u.google_sub IS NOT NULL, u.last_login_at, m.role, m.status, m.departments "
                 "FROM auth_memberships m JOIN auth_users u ON u.id = m.user_id WHERE m.tenant_id = ? ORDER BY u.email",
                 (tenant_id,)).fetchall()
         return [{"user_id": r[0], "email": r[1], "name": r[2], "user_status": r[3], "signed_in_before": bool(r[4]),
-                 "last_login_at": r[5], "role": r[6], "status": r[7]} for r in rows]
+                 "last_login_at": r[5], "role": r[6], "status": r[7], "departments": json.loads(r[8]) if r[8] else []} for r in rows]
 
     # -- the local owner's controls over people and sessions --------------------------------------------------------------
     def set_user_status(self, operator, user_id, status):
@@ -275,15 +308,17 @@ class IdentityService:
                 "FROM auth_sessions s JOIN auth_users u ON u.id = s.user_id WHERE s.token_hash = ?", (hash_token(token),)).fetchone()
             if row is None or row[4] is not None or row[8] != "ativo" or row[2] <= stamp or row[3] <= stamp:
                 return None
-            memberships = {tenant: role for tenant, role in conn.execute(
-                "SELECT m.tenant_id, m.role FROM auth_memberships m WHERE m.user_id = ? AND m.status = 'ativo'", (row[5],)).fetchall()}
+            found = conn.execute("SELECT m.tenant_id, m.role, m.departments FROM auth_memberships m "
+                                 "WHERE m.user_id = ? AND m.status = 'ativo'", (row[5],)).fetchall()
+            memberships = {tenant: role for tenant, role, _ in found}
+            scopes = {tenant: tuple(json.loads(departments)) for tenant, _, departments in found if departments}
         finally:
             conn.close()
         if _parse(row[1]) + TOUCH_EVERY <= now:  # sliding idle timeout, written at most once a minute
             with self.repository._transaction() as write:
                 write.execute("UPDATE auth_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE id = ? AND revoked_at IS NULL",
                               (stamp, _stamp(min(now + self.idle, _parse(row[3]))), row[0]))
-        return Identity(row[5], row[6], row[7], row[0], memberships, _TOKEN)
+        return Identity(row[5], row[6], row[7], row[0], memberships, _TOKEN, scopes)
 
     def sign_out(self, token):
         now = _stamp(self._now())
@@ -300,7 +335,7 @@ class IdentityService:
             raise PermissionDenied()
         conn = connect(self.repository.path)
         try:
-            row = conn.execute("SELECT m.role FROM auth_memberships m JOIN auth_users u ON u.id = m.user_id "
+            row = conn.execute("SELECT m.role, m.departments FROM auth_memberships m JOIN auth_users u ON u.id = m.user_id "
                                "WHERE m.user_id = ? AND m.tenant_id = ? AND m.status = 'ativo' AND u.status = 'ativo'",
                                (identity.user_id, str(tenant_id))).fetchone()
             live = conn.execute("SELECT 1 FROM auth_sessions WHERE id = ? AND revoked_at IS NULL", (identity.session_id,)).fetchone()
@@ -308,9 +343,10 @@ class IdentityService:
             conn.close()
         if row is None or live is None:
             raise NotFound()  # same answer as a company that does not exist: nothing about other companies is revealed
+        departments = json.loads(row[1]) if row[1] else None
         return self.access.member_context(
             Identity(identity.user_id, identity.email, identity.name, identity.session_id, {**identity.memberships, str(tenant_id): row[0]}, _TOKEN),
-            str(tenant_id), row[0])
+            str(tenant_id), row[0], departments)
 
     def trail(self, operator, limit=200):
         """Recent authentication events (ids and reasons only). Local owner only."""

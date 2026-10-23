@@ -118,7 +118,7 @@ class ConnectionService:
         self._connectors.add(provider)
 
     def _operator_ctx(self, ctx):
-        if not isinstance(ctx, AccessContext) or ctx.role != "operator":
+        if not self.access.is_operator(ctx, "admin"):
             raise PermissionDenied()
 
     # -- views -------------------------------------------------------------------------------------
