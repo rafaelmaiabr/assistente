@@ -118,8 +118,9 @@ function Detail({base, snap, reload}) {
   </section>;
 }
 
-export function CasesSection({base}) {
-  const [phase, setPhase] = useState(''), [openId, setOpenId] = useState('');
+export function CasesSection({base, openRequest = ''}) {
+  const [phase, setPhase] = useState(''), [openId, setOpenId] = useState(openRequest);
+  useEffect(() => {if (openRequest) setOpenId(openRequest);}, [openRequest]);
   const {list, snap, online, error, reload} = useLive(base, openId);
   const cases = list.cases.filter(c => !phase || c.phase === phase);
   return <section aria-labelledby="cases-title" className="team-split">

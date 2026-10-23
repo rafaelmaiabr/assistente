@@ -2,6 +2,6 @@
 <body><section class="pet" data-state="connecting">
 <header><span>ASSISTENTE</span><div><button id="minimize" title="Minimizar avatar" aria-label="Minimizar avatar">−</button><button id="quit" title="Encerrar assistente" aria-label="Encerrar assistente">×</button></div></header>
 <div class="character" aria-hidden="true"><div class="halo"></div><div class="body"><div class="eyes"><i></i><i></i></div><div class="mouth"></div></div><div class="feet"><i></i><i></i></div></div>
-<div class="state" id="state" role="status">Conectando…</div><meter id="level" aria-label="Nível de áudio capturado" min="0" max="1" value="0"></meter><div class="capture" id="capture">Microfone desligado</div>
-<footer><button id="mic" aria-pressed="false">Ligar mic</button><button id="chat">Abrir chat ↗</button></footer>
+<div class="state" id="state" role="status">Conectando…</div><div class="human" id="human" hidden>Aguardando uma pessoa</div><div class="case" id="case" hidden></div><meter id="level" aria-label="Nível de áudio capturado" min="0" max="1" value="0"></meter><div class="capture" id="capture">Microfone desligado</div>
+<footer><button id="mic" aria-pressed="false">Ligar mic</button><button id="chat">Abrir chat ↗</button><button id="open-case" hidden>Abrir demanda ↗</button></footer>
 </section><script src="avatar.js"></script></body></html>
