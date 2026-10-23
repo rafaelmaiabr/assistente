@@ -88,6 +88,39 @@
         }
       ]
     },
+    "priority": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "baixa",
+            "normal",
+            "alta",
+            "urgente"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "origin": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "operador",
+            "chat",
+            "email",
+            "agendamento",
+            "agente"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "revision": {
       "type": "integer",
       "minimum": 1
