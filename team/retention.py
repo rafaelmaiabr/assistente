@@ -17,6 +17,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from .access import AccessContext, NotFound, PermissionDenied
+from .attachments import AttachmentStore
 from .schema import redact_secrets
 
 TERMINAL = ("resolvida", "cancelada", "falhou")
@@ -173,7 +174,8 @@ class RetentionService:
         except sqlite3.IntegrityError:
             raise RetentionRejected("A demanda ainda e referenciada por outros registros; nada foi apagado.") from None
         exports = self._drop_exports(lambda e: not (e["tenant_id"] == ctx.tenant_id and e["case_id"] == case_id))
-        return {"apagado": counts, "exportacoes_removidas": exports,
+        attachments = AttachmentStore(self.base).delete_case(ctx.tenant_id, case_id)
+        return {"apagado": counts, "exportacoes_removidas": exports, "anexos_removidos": attachments,
                 "nao_alcanca": "copias em backups antigos (expiram por idade), memoria/conhecimento criados a partir da demanda e contatos"}
 
     def erasure_log(self, ctx):
