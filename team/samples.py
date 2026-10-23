@@ -1,6 +1,8 @@
 """Synthetic, deterministic example documents (no real company, contact or credential)."""
 import hashlib
 
+from .schema import content_hash
+
 NOW = "2026-01-15T12:00:00Z"
 
 _NAMES = [
@@ -8,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -23,8 +25,29 @@ def _doc(kind, key, tenant=True, stamped=True, **fields):
     return doc
 
 
+def profile_version(agent, version_id, status="ativo"):
+    """Immutable snapshot document for an agent definition (what publishing stores)."""
+    return {"kind": "agent_profile_version", "schema_version": 1, "id": version_id, "tenant_id": agent["tenant_id"],
+            "revision": 1, "created_at": NOW, "updated_at": NOW, "agent_id": agent["id"],
+            "agent_version": agent["agent_version"], "definition": agent, "content_hash": content_hash(agent),
+            "status": status, "created_by": IDS["user"]}
+
+
 def bundle():
     """A small, internally consistent team: one tenant, two departments, two agents, one case."""
+    finance = _doc("agent_definition", "agt_fin", department_id=IDS["dep_fin"], agent_version=1, name="Financeiro",
+         personality={"tone": "profissional e objetivo", "initiative": "propor proximos passos"},
+         scope="Cobrancas, recebimentos e analise financeira", out_of_scope="Encaminhar ao responsavel",
+         skill_grant_ids=[IDS["grant"]], handoff_target_ids=[IDS["agt_sup"]],
+         model_policy_ref="local-primeiro", voice_profile_ref="pf_dora", status="ativo",
+         goals=["Resumir pendencias financeiras com fontes"], routing_policy="encaminhar")
+    support = _doc("agent_definition", "agt_sup", department_id=IDS["dep_sup"], agent_version=1, name="Suporte",
+         personality={"tone": "claro e paciente", "initiative": "pedir informacao que falta"},
+         scope="Diagnostico tecnico de sites", out_of_scope="Encaminhar a Secretaria",
+         skill_grant_ids=[], handoff_target_ids=[IDS["agt_fin"]], model_policy_ref="local-primeiro",
+         voice_profile_ref=None, status="ativo", goals=["Diagnosticar o problema do cliente"],
+         routing_policy="esclarecer")
+    versions = [("apv_fin", "agt_fin", finance), ("apv_sup", "agt_sup", support)]
     return [
         _doc("tenant", "tenant", tenant=False, name="Empresa Exemplo", status="ativo"),
         _doc("department", "dep_fin", name="Financeiro", scope="Cobrancas e analise financeira", status="ativo"),
@@ -44,16 +67,11 @@ def bundle():
         _doc("skill_grant", "grant", agent_id=IDS["agt_fin"], skill_id=IDS["skill"], skill_version="1.0.0",
              connection_id=IDS["conn"], operations=["read"], resource="cobrancas", expires_at=None,
              granted_by=IDS["user"]),
-        _doc("agent_definition", "agt_fin", department_id=IDS["dep_fin"], agent_version=1, name="Financeiro",
-             personality={"tone": "profissional e objetivo", "initiative": "propor proximos passos"},
-             scope="Cobrancas, recebimentos e analise financeira", out_of_scope="Encaminhar ao responsavel",
-             skill_grant_ids=[IDS["grant"]], handoff_target_ids=[IDS["agt_sup"]],
-             model_policy_ref="local-primeiro", voice_profile_ref="pf_dora", status="ativo"),
-        _doc("agent_definition", "agt_sup", department_id=IDS["dep_sup"], agent_version=1, name="Suporte",
-             personality={"tone": "claro e paciente", "initiative": "pedir informacao que falta"},
-             scope="Diagnostico tecnico de sites", out_of_scope="Encaminhar a Secretaria",
-             skill_grant_ids=[], handoff_target_ids=[IDS["agt_fin"]], model_policy_ref="local-primeiro",
-             voice_profile_ref=None, status="ativo"),
+        finance,
+        support,
+        *[_doc("agent_profile_version", key, agent_id=IDS[agent], agent_version=1, status="ativo",
+               definition=definition, content_hash=content_hash(definition), created_by=IDS["user"])
+          for key, agent, definition in versions],
         _doc("case", "case", department_id=IDS["dep_sup"], state="em_execucao",
              owner_agent_id=IDS["agt_sup"], customer_ref="cliente-exemplo",
              objective="Site do cliente indisponivel", closed_at=None),

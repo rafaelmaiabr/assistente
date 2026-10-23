@@ -144,6 +144,10 @@
     "model_policy_ref": "local-primeiro",
     "voice_profile_ref": "pf_dora",
     "status": "ativo",
+    "goals": [
+      "Resumir pendencias financeiras com fontes"
+    ],
+    "routing_policy": "encaminhar",
     "revision": 1,
     "created_at": "2026-01-15T12:00:00Z",
     "updated_at": "2026-01-15T12:00:00Z"
@@ -169,6 +173,98 @@
     "model_policy_ref": "local-primeiro",
     "voice_profile_ref": null,
     "status": "ativo",
+    "goals": [
+      "Diagnosticar o problema do cliente"
+    ],
+    "routing_policy": "esclarecer",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "agent_profile_version",
+    "schema_version": 1,
+    "id": "apv_0000000000000000000000000000001a",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "agent_id": "agt_00000000000000000000000000000004",
+    "agent_version": 1,
+    "status": "ativo",
+    "definition": {
+      "kind": "agent_definition",
+      "schema_version": 1,
+      "id": "agt_00000000000000000000000000000004",
+      "tenant_id": "ten_00000000000000000000000000000001",
+      "department_id": "dep_00000000000000000000000000000002",
+      "agent_version": 1,
+      "name": "Financeiro",
+      "personality": {
+        "tone": "profissional e objetivo",
+        "initiative": "propor proximos passos"
+      },
+      "scope": "Cobrancas, recebimentos e analise financeira",
+      "out_of_scope": "Encaminhar ao responsavel",
+      "skill_grant_ids": [
+        "grt_00000000000000000000000000000007"
+      ],
+      "handoff_target_ids": [
+        "agt_00000000000000000000000000000005"
+      ],
+      "model_policy_ref": "local-primeiro",
+      "voice_profile_ref": "pf_dora",
+      "status": "ativo",
+      "goals": [
+        "Resumir pendencias financeiras com fontes"
+      ],
+      "routing_policy": "encaminhar",
+      "revision": 1,
+      "created_at": "2026-01-15T12:00:00Z",
+      "updated_at": "2026-01-15T12:00:00Z"
+    },
+    "content_hash": "05a4a595240651e44d97436096de98706de009fa2636f50c6113cd12d156d1be",
+    "created_by": "usr_00000000000000000000000000000013",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "agent_profile_version",
+    "schema_version": 1,
+    "id": "apv_0000000000000000000000000000001b",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "agent_id": "agt_00000000000000000000000000000005",
+    "agent_version": 1,
+    "status": "ativo",
+    "definition": {
+      "kind": "agent_definition",
+      "schema_version": 1,
+      "id": "agt_00000000000000000000000000000005",
+      "tenant_id": "ten_00000000000000000000000000000001",
+      "department_id": "dep_00000000000000000000000000000003",
+      "agent_version": 1,
+      "name": "Suporte",
+      "personality": {
+        "tone": "claro e paciente",
+        "initiative": "pedir informacao que falta"
+      },
+      "scope": "Diagnostico tecnico de sites",
+      "out_of_scope": "Encaminhar a Secretaria",
+      "skill_grant_ids": [],
+      "handoff_target_ids": [
+        "agt_00000000000000000000000000000004"
+      ],
+      "model_policy_ref": "local-primeiro",
+      "voice_profile_ref": null,
+      "status": "ativo",
+      "goals": [
+        "Diagnosticar o problema do cliente"
+      ],
+      "routing_policy": "esclarecer",
+      "revision": 1,
+      "created_at": "2026-01-15T12:00:00Z",
+      "updated_at": "2026-01-15T12:00:00Z"
+    },
+    "content_hash": "c50f35e0cecd78b4441d47d61064b28f2f5f8040391afa51ae43b83b203c1fe5",
+    "created_by": "usr_00000000000000000000000000000013",
     "revision": 1,
     "created_at": "2026-01-15T12:00:00Z",
     "updated_at": "2026-01-15T12:00:00Z"

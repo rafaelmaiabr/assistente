@@ -21,9 +21,11 @@ TABLES = {
     "handoff": "handoffs", "evidence": "evidences", "contact": "contacts",
     "contact_address": "contact_addresses", "contact_link": "contact_links", "access_grant": "access_grants",
     "credential": "credentials", "mcp_catalog_entry": "mcp_catalog",
+    "agent_profile_version": "agent_profile_versions",
 }
 # Lookup columns that are not plain references; ``address_key`` is derived (see column_value).
-EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal_id", "resource_kind"]}
+EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal_id", "resource_kind"],
+                 "agent_profile_version": ["agent_version", "status", "content_hash"], "agent_run": ["agent_version"]}
 DELETABLE = ("contact_address", "contact_link", "access_grant", "credential")
 GLOBAL_KINDS = ("tenant", "skill_definition", "mcp_catalog_entry")
 MAX_LIST = 1000
