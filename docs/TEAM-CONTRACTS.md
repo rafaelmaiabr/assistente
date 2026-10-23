@@ -39,6 +39,7 @@ Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste f
 - **Conhecimento e memória (T17).** Novos `knowledge_document` (versionado, com fonte e validade) e `memory_item` (proposta/confirmada, escopo, validade). Detalhes em [TEAM-KNOWLEDGE.md](TEAM-KNOWLEDGE.md).
 - **IMAP somente leitura (T18).** O transporte de catálogo `local` (servidor embutido, sem `url` nem `launcher`) foi adicionado a `McpTransport`. Detalhes em [TEAM-IMAP.md](TEAM-IMAP.md).
 - **Ativos monitorados (T23).** Novo `monitored_asset`: host que a empresa autoriza para diagnósticos de rede. Detalhes em [TEAM-DIAGNOSTICS.md](TEAM-DIAGNOSTICS.md).
+- **Auditoria, retenção e backup (T30).** Sem contrato novo; a migração `0015` adiciona a exclusão controlada (`erasure_guard`, `erasure_log`). Detalhes em [TEAM-OPS.md](TEAM-OPS.md).
 - **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
 
 ## Compatibilidade e importação da configuração antiga
