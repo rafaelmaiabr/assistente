@@ -1,0 +1,38 @@
+# Contratos de domínio da equipe (T01)
+
+Entrega da issue [#16](https://github.com/rafaelmaiabr/assistente/issues/16). Define **contratos validáveis**; ainda não há persistência, runtime, fila ou painel (T02 em diante). O backend atual (chat, voz, MCP demo) não usa estes módulos.
+
+Implementação: pacote `team/`, somente biblioteca padrão, sem I/O.
+
+| Arquivo | Conteúdo |
+|---|---|
+| `team/ids.py` | IDs opacos `<prefixo>_<32 hex>` (`new_id`, `is_id`) |
+| `team/enums.py` | Estados e vocabulários; grafo permitido de transições da demanda |
+| `team/schema.py` | Especificação executável de cada tipo, `validate`, `validate_bundle`, detecção de segredos, exportação JSON Schema |
+| `team/legacy.py` | Importação pura do `config.json` antigo |
+| `team/samples.py` | Exemplos sintéticos determinísticos |
+| `team/schemas/*.schema.json` | JSON Schema gerado (estrutural; `validate` é a autoridade) |
+| `team/examples/team-bundle.json` | Exemplo gerado, sem dados reais |
+
+Regenerar schemas e exemplo: `python scripts/export_team_schemas.py`. Um teste falha se os arquivos versionados divergirem da especificação.
+
+## Regras dos contratos
+
+- **IDs opacos e versão.** Todo documento tem `kind`, `schema_version` (hoje `1`) e `id` com prefixo do tipo. Nomes legíveis (`skill_key`, `model_policy_ref`, `voice_profile_ref`) são *referências por nome*, nunca identificadores internos. Versão desconhecida é rejeitada (`unsupported_schema_version`); campos desconhecidos também.
+- **Empresa e demanda.** `tenant_id` é obrigatório em todo dado de negócio. `case_id` é obrigatório em tarefa, aprovação, transferência/delegação, evidência, comando e evento (exceto mensagens `config.*`). Skills são um catálogo global declarativo e não carregam `tenant_id`.
+- **Sem segredo embutido.** Conexões guardam `credential_ref` (`crd_…`) para o cofre; nunca o valor. A validação rejeita chaves como `password`/`token`/`api_key`/`authorization`, valores com formato de chave (sk-, ghp_, Bearer, chave privada…) e URLs com usuário/senha. Chaves terminadas em `_ref`, `_id`, `_ids`, `_hash` e `token_budget` são aceitas.
+- **Revisão.** Entidades mutáveis têm `revision` (inicia em 1), `created_at` e `updated_at`. Comando leva `expected_revision` (controle otimista); o evento registra a `revision` resultante.
+- **Envelopes.** Comando e evento carregam `id`, `type`, `tenant_id`, `case_id`, `correlation_id`, `causation_id` (id do comando/evento que causou), `actor_id` (`usr_`, `agt_` ou `sys_`) e timestamp. Comando inclui `idempotency_key`.
+- **Conceitos separados.** `agent_definition` (configuração versionada), `agent_run` (execução com orçamento), `skill_definition` (instruções + hash + ferramentas), `skill_grant` (concessão explícita de uma versão para um agente, conexão, recurso e operações) e `connection` (provedor + `credential_ref`). Instruções de uma skill não concedem acesso: só `skill_grant`.
+- **Estados.** Demanda: `recebida, triagem, em_execucao, aguardando_cliente, aguardando_aprovacao, aguardando_subtarefa, pausada, resolvida, falhou, cancelada`, com o grafo em `CASE_TRANSITIONS` (`cancelada` é final; reabrir `resolvida`/`falhou` é transição explícita). T09 aplica o grafo com revisão atômica. Há enums também para tarefa, execução, aprovação, transferência, operação e conexão.
+- **Pacotes.** `validate_bundle` confere unicidade de IDs, que cada referência (`ref:`) exista com o tipo certo e que nada cruze empresas.
+
+## Compatibilidade e importação da configuração antiga
+
+`config.json` e `config.example.json` **não mudam** e continuam sendo a única configuração lida pelo assistente atual. `team.legacy.import_legacy_config(config)` recebe o dicionário já carregado e devolve um rascunho validado (empresa "Local", departamento "Geral", um agente "Assistente" e uma conexão MCP por entrada de `mcp_servers`). Não lê nem grava arquivos; persistir o rascunho será trabalho de T02. URLs com credenciais são recusadas. Perfis de voz (`voice-settings.json`) e o cofre do Windows não são tocados; `voice_profile_ref` fica vazio até o operador escolher.
+
+Mudanças futuras: incompatíveis incrementam `schema_version` e acrescentam um migrador; aditivas e opcionais mantêm a versão. Nenhum leitor aceita versão que não conhece.
+
+## Limites
+
+Planejamento de contratos, não funcionalidade para o usuário final: não há armazenamento, autorização em tempo de execução nem integração com agentes. A detecção de segredos é heurística e reduz, mas não elimina, o risco; o cofre e o gateway (T04, T07) continuam necessários. Os schemas JSON não cobrem regras entre campos (por exemplo `case_id` nulo apenas em `config.*`); use `validate`.

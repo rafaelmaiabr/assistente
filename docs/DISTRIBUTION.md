@@ -31,6 +31,6 @@ npm test --prefix desktop
 npm run package --prefix desktop
 ```
 
-Saída: `release/Assistente-win32-x64/Assistente.exe`. O build usa uma lista explícita de arquivos e inclui um `build-manifest.json` com versões e os arquivos do backend. Configuração local, modelos, históricos, áudio, logs e ambientes virtuais não entram no pacote. O uv inclui a licença MIT oficial; Electron inclui suas licenças no pacote. A workflow **Windows portable package** pode ser executada manualmente no GitHub e disponibiliza a pasta completa como artefato.
+Saída: `release/Assistente-win32-x64/Assistente.exe`. O build usa uma lista explícita de arquivos e pastas (inclui o pacote `team/`) e inclui um `build-manifest.json` com versões e os arquivos do backend. Configuração local, modelos, históricos, áudio, logs e ambientes virtuais não entram no pacote. O uv inclui a licença MIT oficial; Electron inclui suas licenças no pacote. A workflow **Windows portable package** pode ser executada manualmente no GitHub e disponibiliza a pasta completa como artefato.
 
 O ambiente Python é preparado por versão/hash dos requirements. Uma atualização pode auditar/atualizar dependências; não sobrescreve a configuração do usuário. A distribuição é para validação, com texto/voz e avatar; email real, memória persistente e roteamento automático de modelos não fazem parte das issues #4–#6.

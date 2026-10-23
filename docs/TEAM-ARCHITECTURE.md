@@ -58,7 +58,7 @@ MCP é a fronteira preferencial de ferramentas. As regras de ownership, aprovaç
 
 ## Configuração e contexto
 
-Exemplo ilustrativo; o schema executável e seus nomes finais serão definidos em T01:
+Exemplo ilustrativo; o schema executável (T01, entregue) está descrito em [TEAM-CONTRACTS.md](TEAM-CONTRACTS.md) e nomes e campos finais prevalecem sobre este exemplo:
 
 ```yaml
 tenant: empresa-x
