@@ -14,3 +14,7 @@ graphify-out/
 release/
 voice-settings.json
 voice-settings.json.tmp
+team-data/
+*.sqlite3
+*.sqlite3-*
+*.bak

@@ -5,6 +5,7 @@ const root=path.resolve(__dirname,'..','..');
 test('package allowlist points at existing backend files and domain packages',()=>{
   for(const file of BACKEND_FILES)assert.ok(fs.statSync(path.join(root,file)).isFile(),file);
   assert.ok(BACKEND_DIRS.includes('team'));
+  assert.ok(fs.statSync(path.join(root,'team','migrations','0001_initial.sql')).isFile());
   for(const dir of BACKEND_DIRS)assert.ok(fs.statSync(path.join(root,dir,'__init__.py')).isFile(),dir);
 });
 test('allowlist excludes local configuration and data',()=>{

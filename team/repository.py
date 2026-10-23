@@ -1,0 +1,275 @@
+"""Repository boundary for the team domain, with a SQLite implementation.
+
+Every operation runs inside ``Repository.transaction(tenant_id)``: state writes, events and the
+outbox row commit together or not at all, and nothing can read or write another tenant's rows.
+Another backend (PostgreSQL, T34) implements the same two abstract classes.
+"""
+import json
+import sqlite3
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .db import connect, migrate
+from .schema import SCHEMAS, validate
+
+TABLES = {
+    "tenant": "tenants", "department": "departments", "agent_definition": "agent_definitions",
+    "agent_run": "agent_runs", "skill_definition": "skill_definitions", "skill_grant": "skill_grants",
+    "connection": "connections", "case": "cases", "task": "tasks", "approval_request": "approval_requests",
+    "handoff": "handoffs", "evidence": "evidences",
+}
+GLOBAL_KINDS = ("tenant", "skill_definition")
+MAX_LIST = 1000
+
+
+class RepositoryError(Exception):
+    pass
+
+
+class RevisionConflict(RepositoryError):
+    """The stored revision is not the one the writer expected (retry from a fresh read)."""
+
+
+class TenantMismatch(RepositoryError):
+    """A document or query names a different tenant than the transaction's."""
+
+
+class IntegrityViolation(RepositoryError):
+    """A reference does not exist inside the tenant, or a unique constraint failed."""
+
+
+def indexed_columns(kind: str) -> list:
+    """Columns mirrored from the document for lookups: scalar references plus ``state``."""
+    spec = SCHEMAS[kind]
+    refs = [name for name, field in spec.items()
+            if isinstance(field, str) and field.startswith("ref:") and name != "tenant_id"]
+    return refs + (["state"] if "state" in spec else [])
+
+
+def _now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _dump(doc):
+    return json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+class TenantSession(ABC):
+    """Operations bound to one tenant; obtained from ``Repository.transaction``."""
+
+    @abstractmethod
+    def get(self, kind, doc_id): ...
+
+    @abstractmethod
+    def list(self, kind, limit=100, **filters): ...
+
+    @abstractmethod
+    def save(self, doc, event=None): ...
+
+    @abstractmethod
+    def record_event(self, event, topic="domain"): ...
+
+    @abstractmethod
+    def register_command(self, command) -> bool: ...
+
+    @abstractmethod
+    def events(self, case_id=None, after_seq=0, limit=100): ...
+
+    @abstractmethod
+    def pending_outbox(self, limit=100): ...
+
+    @abstractmethod
+    def mark_dispatched(self, outbox_ids): ...
+
+
+class Repository(ABC):
+    @abstractmethod
+    def create_tenant(self, doc): ...
+
+    @abstractmethod
+    def save_global(self, doc): ...
+
+    @abstractmethod
+    def get_global(self, kind, doc_id): ...
+
+    @abstractmethod
+    def transaction(self, tenant_id): ...
+
+
+class SqliteSession(TenantSession):
+    def __init__(self, conn, tenant_id):
+        self.conn, self.tenant_id = conn, tenant_id
+
+    def _table(self, kind):
+        if kind in GLOBAL_KINDS or kind not in TABLES:
+            raise RepositoryError(f"tipo nao pertence a uma empresa: {kind}")
+        return TABLES[kind]
+
+    def get(self, kind, doc_id):
+        row = self.conn.execute(
+            f"SELECT doc FROM {self._table(kind)} WHERE tenant_id = ? AND id = ?", (self.tenant_id, doc_id)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def list(self, kind, limit=100, **filters):
+        allowed = indexed_columns(kind)
+        unknown = set(filters) - set(allowed)
+        if unknown:
+            raise RepositoryError(f"filtro nao indexado para {kind}: {', '.join(sorted(unknown))}")
+        where = "".join(f" AND {name} = ?" for name in filters)
+        rows = self.conn.execute(
+            f"SELECT doc FROM {self._table(kind)} WHERE tenant_id = ?{where} ORDER BY created_at, id LIMIT ?",
+            (self.tenant_id, *filters.values(), min(max(int(limit), 1), MAX_LIST))).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def save(self, doc, event=None):
+        """Insert (revision 1) or update (revision == stored + 1); optionally record an event atomically."""
+        kind = doc.get("kind") if isinstance(doc, dict) else None
+        table = self._table(kind)
+        validate(kind, doc)
+        if doc["tenant_id"] != self.tenant_id:
+            raise TenantMismatch("documento pertence a outra empresa")
+        row = self.conn.execute(f"SELECT revision FROM {table} WHERE id = ?", (doc["id"],)).fetchone()
+        if row is None:
+            if doc["revision"] != 1:
+                raise RevisionConflict("novo documento deve iniciar na revisao 1")
+        elif doc["revision"] != row[0] + 1:
+            raise RevisionConflict(f"revisao esperada {row[0] + 1}, recebida {doc['revision']}")
+        columns = indexed_columns(kind)
+        names = ["id", "tenant_id", "revision", "created_at", "updated_at", *columns, "doc"]
+        values = [doc["id"], self.tenant_id, doc["revision"], doc["created_at"], doc["updated_at"],
+                  *(doc.get(name) for name in columns), _dump(doc)]
+        try:
+            if row is None:
+                self.conn.execute(
+                    f"INSERT INTO {table} ({', '.join(names)}) VALUES ({', '.join('?' * len(names))})", values)
+            else:
+                assignments = ", ".join(f"{name} = ?" for name in names[2:])
+                self.conn.execute(f"UPDATE {table} SET {assignments} WHERE id = ? AND tenant_id = ?",
+                                  [*values[2:], doc["id"], self.tenant_id])
+        except sqlite3.IntegrityError as error:
+            raise IntegrityViolation(str(error)) from error
+        if event is not None:
+            self.record_event(event)
+        return doc
+
+    def record_event(self, event, topic="domain"):
+        validate("event", event)
+        if event["tenant_id"] != self.tenant_id:
+            raise TenantMismatch("evento pertence a outra empresa")
+        try:
+            cursor = self.conn.execute(
+                "INSERT INTO events (id, tenant_id, case_id, revision, occurred_at, doc) VALUES (?, ?, ?, ?, ?, ?)",
+                (event["id"], self.tenant_id, event["case_id"], event["revision"], event["occurred_at"], _dump(event)))
+        except sqlite3.IntegrityError as error:
+            if "events.revision" in str(error) or "UNIQUE" in str(error):
+                raise RevisionConflict(f"evento com revisao {event['revision']} ja existe na demanda") from error
+            raise IntegrityViolation(str(error)) from error
+        self.conn.execute("INSERT INTO outbox (tenant_id, event_seq, topic, created_at) VALUES (?, ?, ?, ?)",
+                          (self.tenant_id, cursor.lastrowid, topic, _now()))
+        return cursor.lastrowid
+
+    def register_command(self, command):
+        """Store a command once per idempotency key; False means it was already registered."""
+        validate("command", command)
+        if command["tenant_id"] != self.tenant_id:
+            raise TenantMismatch("comando pertence a outra empresa")
+        try:
+            cursor = self.conn.execute(
+                "INSERT OR IGNORE INTO commands (id, tenant_id, case_id, idempotency_key, issued_at, doc) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (command["id"], self.tenant_id, command["case_id"], command["idempotency_key"],
+                 command["issued_at"], _dump(command)))
+        except sqlite3.IntegrityError as error:
+            raise IntegrityViolation(str(error)) from error
+        return cursor.rowcount == 1
+
+    def events(self, case_id=None, after_seq=0, limit=100):
+        clause, args = ("AND case_id = ? ", [case_id]) if case_id else ("", [])
+        rows = self.conn.execute(
+            f"SELECT seq, doc FROM events WHERE tenant_id = ? AND seq > ? {clause}ORDER BY seq LIMIT ?",
+            (self.tenant_id, after_seq, *args, min(max(int(limit), 1), MAX_LIST))).fetchall()
+        return [(seq, json.loads(doc)) for seq, doc in rows]
+
+    def pending_outbox(self, limit=100):
+        rows = self.conn.execute(
+            "SELECT o.id, o.topic, o.attempts, e.doc FROM outbox o JOIN events e ON e.seq = o.event_seq "
+            "WHERE o.tenant_id = ? AND o.status = 'pending' ORDER BY o.id LIMIT ?",
+            (self.tenant_id, min(max(int(limit), 1), MAX_LIST))).fetchall()
+        return [{"id": i, "topic": topic, "attempts": attempts, "event": json.loads(doc)}
+                for i, topic, attempts, doc in rows]
+
+    def mark_dispatched(self, outbox_ids):
+        self.conn.executemany(
+            "UPDATE outbox SET status = 'dispatched', attempts = attempts + 1, dispatched_at = ? "
+            "WHERE id = ? AND tenant_id = ?", [(_now(), i, self.tenant_id) for i in outbox_ids])
+
+
+class SqliteRepository(Repository):
+    def __init__(self, path):
+        self.path = Path(path)
+
+    def migrate(self):
+        return migrate(self.path)
+
+    @contextmanager
+    def _transaction(self):
+        conn = connect(self.path)
+        try:
+            conn.execute("BEGIN IMMEDIATE")  # one writer at a time; others wait on busy_timeout
+            yield conn
+            conn.execute("COMMIT")
+        except BaseException:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @contextmanager
+    def transaction(self, tenant_id):
+        if not isinstance(tenant_id, str) or not tenant_id:
+            raise TenantMismatch("contexto de empresa obrigatorio")
+        with self._transaction() as conn:
+            if conn.execute("SELECT 1 FROM tenants WHERE id = ?", (tenant_id,)).fetchone() is None:
+                raise TenantMismatch("empresa desconhecida")
+            yield SqliteSession(conn, tenant_id)
+
+    def _save_global(self, doc, kind):
+        validate(kind, doc)
+        table = TABLES[kind]
+        extra = {"skill_definition": ("skill_key", "skill_version")}.get(kind, ())
+        names = ["id", "revision", "created_at", "updated_at", *extra, "doc"]
+        values = [doc["id"], doc["revision"], doc["created_at"], doc["updated_at"], *(doc[n] for n in extra), _dump(doc)]
+        with self._transaction() as conn:
+            row = conn.execute(f"SELECT revision FROM {table} WHERE id = ?", (doc["id"],)).fetchone()
+            if (row is None and doc["revision"] != 1) or (row is not None and doc["revision"] != row[0] + 1):
+                raise RevisionConflict("revisao inesperada")
+            try:
+                if row is None:
+                    conn.execute(f"INSERT INTO {table} ({', '.join(names)}) VALUES ({', '.join('?' * len(names))})", values)
+                else:
+                    conn.execute(f"UPDATE {table} SET {', '.join(f'{n} = ?' for n in names[1:])} WHERE id = ?",
+                                 [*values[1:], doc["id"]])
+            except sqlite3.IntegrityError as error:
+                raise IntegrityViolation(str(error)) from error
+        return doc
+
+    def create_tenant(self, doc):
+        return self._save_global(doc, "tenant")
+
+    def save_global(self, doc):
+        if doc.get("kind") != "skill_definition":
+            raise RepositoryError("somente skill_definition e global")
+        return self._save_global(doc, "skill_definition")
+
+    def get_global(self, kind, doc_id):
+        if kind not in GLOBAL_KINDS:
+            raise RepositoryError(f"tipo nao e global: {kind}")
+        conn = connect(self.path)
+        try:
+            row = conn.execute(f"SELECT doc FROM {TABLES[kind]} WHERE id = ?", (doc_id,)).fetchone()
+        finally:
+            conn.close()
+        return json.loads(row[0]) if row else None

@@ -5,7 +5,8 @@ import json
 import logging
 import uuid
 from aiohttp import web, WSMsgType
-from settings import ROOT, load_config
+from settings import DATA_ROOT, ROOT, load_config
+from team import persistence
 from speech_service import SpeechService, decode_audio
 
 PORT = 8765
@@ -15,6 +16,7 @@ CONFIG = web.AppKey("config", dict)
 FACTORY = web.AppKey("factory", object)
 SPEECH = web.AppKey("speech", object)
 VOICE_OPERATION = web.AppKey('voice_operation', object)
+DATA_DIR = web.AppKey('data_dir', object)
 MAX_TEXT = 8000
 TURN_TIMEOUT = 120
 
@@ -23,7 +25,7 @@ TURN_TIMEOUT = 120
 async def local_only(request, handler):
     if request.host not in ALLOWED_HOSTS:
         raise web.HTTPForbidden(text="Host não permitido")
-    if request.path.startswith('/api/voices'):
+    if request.path.startswith(('/api/voices', '/api/persistence')):
         # Includes GET: another origin must not inspect local configuration.
         if request.headers.get('Origin') != f'http://{request.host}':
             raise web.HTTPForbidden(text='Origem não permitida')
@@ -48,6 +50,21 @@ async def index(request):
     if not path.exists():
         raise web.HTTPServiceUnavailable(text="Interface não compilada. Execute npm ci e npm run build na pasta frontend.")
     return web.FileResponse(path)
+
+
+async def persistence_api(request):
+    root = request.app[DATA_DIR]
+    operation = request.match_info.get('operation', 'status')
+    if request.method == 'GET' and operation == 'status':
+        return web.json_response(persistence.status(root))
+    if request.method != 'POST' or operation not in {'enable', 'disable'}:
+        raise web.HTTPNotFound()
+    lock = request.app[VOICE_OPERATION]
+    if lock.locked():
+        return web.json_response({'error': 'Já existe uma operação em andamento.'}, status=409)
+    async with lock:
+        result = await asyncio.to_thread(persistence.enable if operation == 'enable' else persistence.disable, root)
+    return web.json_response(result)
 
 
 async def voices(request):
@@ -222,7 +239,7 @@ async def chat(request):
     return ws
 
 
-def create_app(factory=None, config=None, speech=None):
+def create_app(factory=None, config=None, speech=None, data_root=None):
     if factory is None:
         from browser_agent import BrowserAgent
         factory = BrowserAgent
@@ -232,10 +249,13 @@ def create_app(factory=None, config=None, speech=None):
     app[FACTORY] = factory
     app[SPEECH] = speech or SpeechService(app[CONFIG])
     app[VOICE_OPERATION] = asyncio.Lock()
+    app[DATA_DIR] = data_root or DATA_ROOT
     app.router.add_get("/", index)
     app.router.add_get("/api/health", health)
     app.router.add_get('/api/voices', voices)
     app.router.add_post('/api/voices/{operation}', voices)
+    app.router.add_get('/api/persistence', persistence_api)
+    app.router.add_route('*', '/api/persistence/{operation}', persistence_api)
     app.router.add_get("/ws", chat)
     async def worklet(request):
         return web.FileResponse(ROOT / 'frontend/dist/microphone-worklet.js')

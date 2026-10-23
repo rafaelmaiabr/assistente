@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import './style.css';
 import {useVoice} from './useVoice.js';
 import {VoiceSettings} from './VoiceSettings.jsx';
+import {PersistenceSettings} from './PersistenceSettings.jsx';
 
 function Icon({name, ...props}) {
   const paths = {
@@ -151,6 +152,7 @@ function App() {
           <VoiceSettings onPlay={wav => voice.play(wav)} onOpen={() => voice.stopAll()}/>
           <button className={`mic-button ${voice.enabled ? 'listening' : ''}`} disabled={state === 'offline' || state === 'connecting'} aria-pressed={voice.enabled} onClick={() => {setError(''); voice.toggle();}}><Icon name="mic"/>{voice.starting ? 'Cancelar ativação' : voice.enabled ? 'Silenciar microfone' : 'Ligar microfone'}</button>
           <label>Resposta<select aria-label="Formato da resposta" value={speak ? 'audio' : 'text'} onChange={e => {const value = e.target.value === 'audio'; setSpeak(value); speakRef.current = value; if (!value) voice.stopPlayback();}}><option value="audio">Texto e áudio</option><option value="text">Somente texto</option></select></label>
+          <PersistenceSettings/>
           <details><summary>Dispositivos de áudio</summary><div className="device-options">
             <label>Microfone<select aria-label="Microfone" value={voice.inputId} onChange={e => voice.chooseInput(e.target.value)}><option value="">Automático (preferir físico)</option>{voice.devices.filter(d => d.kind === 'audioinput').map((d,i) => <option key={d.deviceId || i} value={d.deviceId}>{d.label || `Microfone ${i+1}`}</option>)}</select></label>
             <label>Saída<select aria-label="Saída de áudio" value={voice.outputId} disabled={!('setSinkId' in HTMLMediaElement.prototype)} onChange={e => voice.chooseOutput(e.target.value)}><option value="">Padrão do sistema</option>{voice.devices.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default').map((d,i) => <option key={d.deviceId || i} value={d.deviceId}>{d.label || `Saída ${i+1}`}</option>)}</select></label>
