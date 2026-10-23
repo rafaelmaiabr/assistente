@@ -44,7 +44,8 @@
     },
     "action": {
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      "minLength": 1,
+      "maxLength": 300
     },
     "payload_hash": {
       "type": "string",
@@ -61,7 +62,7 @@
         "aprovada",
         "negada",
         "expirada",
-        "usada",
+        "consumida",
         "cancelada"
       ]
     },
@@ -73,6 +74,131 @@
         {
           "type": "string",
           "pattern": "^(usr|agt|sys)_[0-9a-f]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resource": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recipient": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "amount_cents": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currency": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "normalized_action": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "policy_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decided_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "consumed_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effect_outcome": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "desconhecido",
+            "confirmado",
+            "falhou"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effect_detail": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
         },
         {
           "type": "null"

@@ -21,4 +21,4 @@ Entrega da issue [#22](https://github.com/rafaelmaiabr/assistente/issues/22): `t
 
 ## Limites
 
-Sem adaptador MCP real e sem integração ao chat (T08); a chamada ainda não é paralelizada nem passa por aprovação humana para `write`/`send`/`spend` (aprovações: T13 — hoje essas operações só aparecem se houver concessão explícita). O acesso ao SQLite é síncrono dentro do laço assíncrono (rápido em uso local; revisar em T34). A filtragem de listagem depende de o catálogo ter sido classificado pelo operador.
+Sem adaptador MCP real e sem integração ao chat (T08); a chamada ainda não é paralelizada. Desde a T13, `write`/`send`/`spend` só executam com uma aprovação humana exata e de uso único (ver [TEAM-APPROVALS.md](TEAM-APPROVALS.md)); sem serviço de aprovações essas ferramentas ficam bloqueadas. O acesso ao SQLite é síncrono dentro do laço assíncrono (rápido em uso local; revisar em T34). A filtragem de listagem depende de o catálogo ter sido classificado pelo operador.

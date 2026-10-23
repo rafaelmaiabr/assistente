@@ -15,6 +15,7 @@ from .repository import IntegrityViolation, RevisionConflict
 
 _REASONING = re.compile(r"<\s*(think|thinking|reasoning)\s*>.*?<\s*/\s*\1\s*>", re.I | re.S)
 _OPEN_REASONING = re.compile(r"<\s*(think|thinking|reasoning)\s*>.*\Z", re.I | re.S)
+TERMINAL_STATES = ("resolvida", "cancelada", "falhou")
 _NEEDS_REASON = ("pausada", "falhou", "cancelada")
 _TECHNICAL = ("resultado_ferramenta", "recibo", "documento")
 
@@ -163,8 +164,18 @@ class CaseService:
         """Bump the case revision, save ``changes`` and record the event, all in the caller's transaction."""
         return self._save(ctx, session, case, changes, event_type, payload)
 
+    def commit_note(self, ctx, session, case_id, body):
+        """Append an internal note inside the caller's transaction (author: the acting principal)."""
+        now = _now()
+        return session.save({"kind": "case_entry", "schema_version": 1, "id": new_id("case_entry"),
+                             "tenant_id": ctx.tenant_id, "revision": 1, "created_at": now, "updated_at": now,
+                             "case_id": case_id, "entry_type": "nota_interna", "direction": None, "channel": None,
+                             "author": ctx.principal_id, "body": clean_text(body)[:8000]})
+
     def _owner_only(self, ctx, case):
         """Agents act on a case only while they are its owner (a former owner loses that right at transfer)."""
+        if ctx.role == "agent" and case.get("operator_control"):
+            raise PermissionDenied("o operador assumiu esta demanda")
         if ctx.role == "agent" and case["owner_agent_id"] != ctx.principal_id:
             raise PermissionDenied("apenas o responsavel atual da demanda pode fazer isto")
 
