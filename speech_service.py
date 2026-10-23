@@ -38,6 +38,23 @@ def encode_wav(pcm, rate, channels):
     return base64.b64encode(output.getvalue()).decode('ascii')
 
 
+import re as _re
+
+_FENCE = _re.compile(r"```.*?```", _re.S)
+
+
+def spoken_text(text):
+    """What the voice should say: the answer without Markdown marks (asterisks, hashes, list numbers, links, code fences)."""
+    text = _FENCE.sub(" ", str(text))
+    text = _re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)                     # [label](url) -> label
+    text = _re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=_re.M)                       # headings
+    text = _re.sub(r"^\s*(?:[-*+]|\d+[.)])\s+", "", text, flags=_re.M)              # list markers and numbering
+    text = _re.sub(r"(\*\*|__|\*|_|~~|`)", "", text)                                 # emphasis, strike, inline code
+    text = _re.sub(r"^\s*>+\s?", "", text, flags=_re.M)                               # quotes
+    text = _re.sub(r"[ \t]+", " ", text)
+    return _re.sub(r"\n{2,}", "\n", text).strip()
+
+
 class SpeechService:
     def __init__(self, config, voices=None):
         self.config = config
@@ -63,6 +80,7 @@ class SpeechService:
         return await asyncio.to_thread(self._transcribe, data)
 
     async def synthesize(self, text, profile_id=None):
+        text = spoken_text(text)
         if len(text) > 4000:
             raise ValueError('Resposta longa demais para síntese nesta versão.')
         pcm, rate, channels = await self.engine.synthesize(text, profile_id)

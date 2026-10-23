@@ -803,3 +803,11 @@ code{background:#14161c;padding:1px 5px;border-radius:4px}
 .remote-shell {min-height: 100vh}
 .remote-bar {display: flex; gap: 12px; align-items: center; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid rgba(127, 127, 127, .3)}
 .remote-bar small {opacity: .7}
+
+/* Assistant answers rendered from Markdown */
+.message-text p {margin: 0 0 .6em}
+.message-text p:last-child, .message-text li:last-child {margin-bottom: 0}
+.message-text ul, .message-text ol {margin: 0 0 .6em; padding-left: 1.4em}
+.message-text h3, .message-text h4, .message-text h5, .message-text h6 {margin: .4em 0 .3em; font-size: 1em}
+.message-text pre {overflow-x: auto; padding: .6em .8em; border-radius: 6px; background: rgba(127, 127, 127, .15)}
+.message-text code {font-family: ui-monospace, Consolas, monospace; font-size: .92em}
