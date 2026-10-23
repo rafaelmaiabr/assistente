@@ -67,18 +67,24 @@ class CaseService:
     def open_case(self, ctx, *, department_id, objective, customer_ref=None, priority="normal", origin="operador"):
         """Create a case in the initial queue (``recebida``, no owner)."""
         self._ctx(ctx)
+        with self.repository.transaction(ctx.tenant_id) as session:
+            return self.open_case_in(ctx, session, department_id=department_id, objective=objective,
+                                     customer_ref=customer_ref, priority=priority, origin=origin)
+
+    def open_case_in(self, ctx, session, *, department_id, objective, customer_ref=None, priority="normal", origin="operador"):
+        """``open_case`` inside the caller's transaction (so a case and its source record commit together)."""
+        self._ctx(ctx)
         now = _now()
         case = {"kind": "case", "schema_version": 1, "id": new_id("case"), "tenant_id": ctx.tenant_id, "revision": 1,
                 "created_at": now, "updated_at": now, "department_id": department_id, "state": "recebida",
                 "owner_agent_id": None, "customer_ref": customer_ref, "objective": clean_text(objective),
                 "closed_at": None, "priority": priority, "origin": origin}
-        with self.repository.transaction(ctx.tenant_id) as session:
-            if not self.access.allowed(ctx, session, "write", "case"):
-                raise PermissionDenied()
-            if session.get("department", department_id) is None:
-                raise NotFound()
-            session.save(case, event=self._event(ctx, case, "case.opened", {"origin": origin, "priority": priority}))
-            return case
+        if not self.access.allowed(ctx, session, "write", "case"):
+            raise PermissionDenied()
+        if session.get("department", department_id) is None:
+            raise NotFound()
+        session.save(case, event=self._event(ctx, case, "case.opened", {"origin": origin, "priority": priority}))
+        return case
 
     def get_case(self, ctx, case_id):
         self._ctx(ctx)
@@ -197,6 +203,12 @@ class CaseService:
     # -- history: notes, messages, summaries (append-only) ----------------------------------------------------
     def _entry(self, ctx, case_id, entry_type, body, direction=None, channel=None):
         self._ctx(ctx)
+        with self.repository.transaction(ctx.tenant_id) as session:
+            return self.add_entry_in(ctx, session, case_id, entry_type, body, direction, channel)
+
+    def add_entry_in(self, ctx, session, case_id, entry_type, body, direction=None, channel=None):
+        """Append a history entry inside the caller's transaction."""
+        self._ctx(ctx)
         body = clean_text(body)
         if len(body) > 8000:
             raise CaseRejected("Texto longo demais (limite de 8000 caracteres).")
@@ -204,11 +216,10 @@ class CaseService:
         doc = {"kind": "case_entry", "schema_version": 1, "id": new_id("case_entry"), "tenant_id": ctx.tenant_id,
                "revision": 1, "created_at": now, "updated_at": now, "case_id": case_id, "entry_type": entry_type,
                "direction": direction, "channel": channel, "author": ctx.principal_id, "body": body}
-        with self.repository.transaction(ctx.tenant_id) as session:
-            case = self._case(session, ctx, case_id, "write")
-            if direction == "saida":
-                self._owner_only(ctx, case)  # only the current owner speaks to the customer
-            return session.save(doc)
+        case = self._case(session, ctx, case_id, "write")
+        if direction == "saida":
+            self._owner_only(ctx, case)  # only the current owner speaks to the customer
+        return session.save(doc)
 
     def add_note(self, ctx, case_id, body):
         """Internal note: never sent to the customer."""
@@ -226,6 +237,14 @@ class CaseService:
                      content_hash=None):
         """A fact with source, date and reliability. ``verificada`` needs technical backing (or the operator)."""
         self._ctx(ctx)
+        with self.repository.transaction(ctx.tenant_id) as session:
+            return self.add_evidence_in(ctx, session, case_id, source=source, summary=summary, evidence_type=evidence_type,
+                                        reliability=reliability, collected_at=collected_at, content_hash=content_hash)
+
+    def add_evidence_in(self, ctx, session, case_id, *, source, summary, evidence_type, reliability, collected_at=None,
+                        content_hash=None):
+        """``add_evidence`` inside the caller's transaction."""
+        self._ctx(ctx)
         if reliability == "verificada" and ctx.role != "operator" and (
                 evidence_type not in _TECHNICAL or content_hash is None):
             raise CaseRejected("Evidencia verificada exige resultado de ferramenta, recibo ou documento com hash.")
@@ -234,9 +253,8 @@ class CaseService:
                "revision": 1, "created_at": now, "updated_at": now, "case_id": case_id, "source": source,
                "collected_at": collected_at or now, "summary": clean_text(summary), "content_hash": content_hash,
                "evidence_type": evidence_type, "reliability": reliability, "recorded_by": ctx.principal_id}
-        with self.repository.transaction(ctx.tenant_id) as session:
-            self._case(session, ctx, case_id, "write")
-            return session.save(doc)
+        self._case(session, ctx, case_id, "write")
+        return session.save(doc)
 
     def timeline(self, ctx, case_id):
         """Everything recorded for the case, oldest first, with each item's kind kept distinct."""

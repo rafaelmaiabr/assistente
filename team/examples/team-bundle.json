@@ -528,6 +528,49 @@
     "updated_at": "2026-01-15T12:00:00Z"
   },
   {
+    "kind": "mailbox_cursor",
+    "schema_version": 1,
+    "id": "mbx_00000000000000000000000000000025",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "connection_id": "con_00000000000000000000000000000008",
+    "department_id": "dep_00000000000000000000000000000003",
+    "folder": "INBOX",
+    "uidvalidity": 11,
+    "last_uid": 3,
+    "resets": 0,
+    "status": "ativo",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "email_message",
+    "schema_version": 1,
+    "id": "eml_00000000000000000000000000000024",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "connection_id": "con_00000000000000000000000000000008",
+    "folder": "INBOX",
+    "uidvalidity": 11,
+    "uid": 3,
+    "message_id": "<m1@exemplo.invalid>",
+    "in_reply_to": null,
+    "references": [],
+    "sender": "cliente@exemplo.invalid",
+    "sender_name": "Cliente",
+    "recipients": [
+      "atendimento@exemplo.invalid"
+    ],
+    "classification": "nova_demanda",
+    "case_id": "cas_0000000000000000000000000000000a",
+    "identity": "nao_verificada",
+    "subject_hash": "fe47556457a39a0e6bb4688f4de126e23ac73019129cb93c3b36c37024317d0a",
+    "body_hash": "bd67f7f69bad25ef1d44ec288d5081c491b75d0d042a4fc1d00e6cd90774b10b",
+    "reason": null,
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
     "kind": "financial_record",
     "schema_version": 1,
     "id": "fre_00000000000000000000000000000023",
@@ -569,7 +612,7 @@
   {
     "kind": "memory_item",
     "schema_version": 1,
-    "id": "mem_00000000000000000000000000000024",
+    "id": "mem_00000000000000000000000000000026",
     "tenant_id": "ten_00000000000000000000000000000001",
     "scope": "cliente",
     "department_id": null,
