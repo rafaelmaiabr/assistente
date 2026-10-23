@@ -10,7 +10,7 @@ app.disableHardwareAcceleration();
 if(process.argv.includes('--smoke-test')) setTimeout(()=>{console.error('Desktop smoke test timed out.'); app.exit(1);},45000).unref();
 
 let chat, avatar, quitting = false, runtime, starting=false, cleaned=false;
-let status = {state:'connecting', micEnabled:false, level:0};
+let status = {state:'connecting', micEnabled:false, level:0, waitingHuman:false, caseRef:null, caseLabel:null, agentName:null};
 let runtimeStatus={stage:'starting',message:'Verificando a instalação…'};
 const avatarPage = pathToFileURL(path.join(__dirname,'avatar.html')).href;
 const startupPage=pathToFileURL(path.join(__dirname,'startup.html')).href;
@@ -43,7 +43,7 @@ async function createWindows() {
   chat.on('close', event => {if(!quitting) {event.preventDefault(); chat.hide();}});
   chat.webContents.on('render-process-gone', () => {status={state:'offline',micEnabled:false,level:0}; avatar?.webContents.send('avatar:status',status);});
   const area = screen.getPrimaryDisplay().workArea;
-  avatar = new BrowserWindow({width:240,height:310,x:area.x+area.width-260,y:area.y+area.height-340,resizable:false,frame:false,backgroundColor:'#19231e',alwaysOnTop:true,title:'Assistente · Avatar',webPreferences:prefs});
+  avatar = new BrowserWindow({width:240,height:350,x:area.x+area.width-260,y:area.y+area.height-380,resizable:false,frame:false,backgroundColor:'#19231e',alwaysOnTop:true,title:'Assistente · Avatar',webPreferences:prefs});
   avatar.setAlwaysOnTop(true,'screen-saver');
   secureWindow(avatar,url=>url===avatarPage);
   avatar.on('closed',()=>{if(!quitting) app.quit();});
@@ -69,6 +69,8 @@ ipcMain.on('avatar:action',(event,action)=>{
   if(event.sender!==avatar?.webContents || event.senderFrame?.url!==avatarPage) return;
   if(action==='open-chat') showChat();
   if(action==='toggle-mic') {if(trustedChat(chat?.webContents.getURL())) chat.webContents.send('assistant:command','toggle-mic'); else showChat();}
+  // The avatar never supplies ids: the case comes from the last status the trusted chat published and was validated.
+  if(action==='open-case') {showChat(); if(status.caseRef && trustedChat(chat?.webContents.getURL())) chat.webContents.send('assistant:command',{type:'open-case',ref:status.caseRef});}
   if(action==='minimize') avatar.minimize();
   if(action==='quit') app.quit();
 });

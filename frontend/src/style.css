@@ -782,3 +782,17 @@ ul.team-error{padding-left:18px;margin:0}
 .team-timeline .t-evento{color:#8e939d}
 .team-timeline small{color:#6f7480}
 code{background:#14161c;padding:1px 5px;border-radius:4px}
+
+.conversation-link{margin-bottom:12px;padding:10px 12px;border:1px solid #3a4636;border-radius:10px;background:#1f2620;font-size:12px}
+.binding-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.binding-chip{padding:3px 9px;border-radius:999px;background:#2a3328;color:#cfe3c7;border:1px solid #4e5e47}
+.binding-chip.team{background:#33452f;border-color:#8fb986}
+.binding-actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.binding-actions button,.binding-picker button{background:#252c27;color:#d7e8cf;border:1px solid #4e5e47;border-radius:8px;padding:5px 9px;font-size:11px}
+.binding-actions button:disabled,.binding-picker button:disabled{opacity:.45;cursor:not-allowed}
+.binding-picker{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:10px}
+.binding-picker label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#a8b1a2}
+.binding-picker select{background:#252c27;color:#d7e8cf;border:1px solid #4e5e47;border-radius:8px;padding:6px;max-width:260px}
+.conversation-link .hint{margin:8px 0 0;color:#8f9a8a;font-size:10px}
+.latency{color:#8f9a8a}
+@media(max-width:680px){.binding-actions{margin-left:0}}

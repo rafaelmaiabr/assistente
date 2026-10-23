@@ -36,7 +36,7 @@ function Departments({base}) {
   </section>;
 }
 
-export function TeamPanel({onOpenMenu}) {
+export function TeamPanel({onOpenMenu, focus}) {
   const [overview, setOverview] = useState(null), [error, setError] = useState(''), [companyId, setCompanyId] = useState('');
   const [tab, setTab] = useState('cases'), [name, setName] = useState(''), [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
@@ -45,6 +45,8 @@ export function TeamPanel({onOpenMenu}) {
     catch (e) {setError(describeError(e));}
   }, []);
   useEffect(() => {void load();}, [load]);
+  // The conversation or the avatar asked for one case: show that company, the cases tab and that case.
+  useEffect(() => {if (focus) {setCompanyId(focus.company_id); setTab('cases');}}, [focus]);
   const company = overview?.companies.find(c => c.id === companyId);
   const base = company ? `/companies/${company.id}` : '';
   const create = async e => {
@@ -81,7 +83,7 @@ export function TeamPanel({onOpenMenu}) {
               className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}
           </div>
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} key={company.id + tab}>
-            {tab === 'cases' && <CasesSection base={base}/>}
+            {tab === 'cases' && <CasesSection base={base} openRequest={focus && focus.company_id === company.id ? focus.case_id : ''}/>}
             {tab === 'departments' && <Departments base={base}/>}
             {tab === 'agents' && <AgentsSection base={base}/>}
             {tab === 'skills' && <SkillsSection base={base}/>}

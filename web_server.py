@@ -6,13 +6,15 @@ import logging
 import uuid
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
-from team import persistence
+from team import conversation, persistence
+from team.access import NotFound
 from team import web as team_web
 from team.app import TeamApp
 from speech_service import SpeechService, decode_audio
 
 PORT = 8765
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+TURN_EVENTS = ('status', 'message', 'audio', 'tool', 'warning', 'error')
 CLIENTS = web.AppKey("clients", set)
 CONFIG = web.AppKey("config", dict)
 FACTORY = web.AppKey("factory", object)
@@ -136,6 +138,19 @@ async def chat(request):
     sender = None
     count = 0
     answers = []
+    attachment = None  # (company id, case id) the conversation is attached to, or None for the plain local assistant
+    announced = conversation.fingerprint(conversation.local_binding())  # the partner the client was last told about
+    active = {"turn": 0, "binding": conversation.local_binding()}  # captured at the start of each turn, never changed mid-turn
+    turns = 0
+
+    def snapshot():
+        """The binding as the database says it is right now (not as any screen shows it)."""
+        if attachment is None:
+            return conversation.local_binding()
+        services = request.app[team_web.TEAM].services()
+        if services is None:
+            raise NotFound()
+        return conversation.team_binding(services, *attachment)
 
     async def send():
         while True:
@@ -144,9 +159,18 @@ async def chat(request):
     def emit(event):
         if event.get('type') == 'message' and event.get('role') == 'assistant':
             answers.append(event['text'])
+        if active['turn'] and event.get('type') in TURN_EVENTS:
+            event = {**event, 'turn': active['turn']}  # lets the client drop anything that arrives after its turn is over
+            if event['type'] in ('message', 'audio'):
+                event['binding'] = conversation.compact(active['binding'])
         queue.put_nowait(event)
 
-    async def reply(text, audio=None, speak=False):
+    def announce(binding, reason):
+        nonlocal announced
+        announced = conversation.fingerprint(binding)
+        emit({'type': 'binding', 'binding': binding, 'reason': reason})
+
+    async def reply(text, audio=None, speak=False, profile=None):
         answers.clear()
         try:
             if audio is not None:
@@ -162,7 +186,8 @@ async def chat(request):
             if speak and answers:
                 emit({'type': 'status', 'state': 'synthesizing', 'label': 'Preparando áudio…'})
                 try:
-                    audio_result = await asyncio.wait_for(request.app[SPEECH].synthesize('\n'.join(answers)), timeout=45)
+                    voice = {'profile_id': profile} if profile else {}  # the owner's voice, decided when the turn began
+                    audio_result = await asyncio.wait_for(request.app[SPEECH].synthesize('\n'.join(answers), **voice), timeout=45)
                     emit({'type': 'audio', 'wav': audio_result})
                 except Exception:
                     emit({'type': 'warning', 'message': 'Não foi possível gerar áudio. A resposta continua disponível em texto.'})
@@ -198,8 +223,35 @@ async def chat(request):
             except json.JSONDecodeError:
                 emit({"type": "rejected", "message": "Mensagem inválida."})
                 continue
-            if turn and not turn.done():
+            if isinstance(data, dict) and data.get('type') == 'cancel':
+                if turn and not turn.done():  # interrupting generation is not the same as stopping speech or muting the microphone
+                    turn.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await turn
+                    emit({'type': 'cancelled'})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                else:
+                    emit({'type': 'rejected', 'message': 'Nao ha resposta em andamento.'})
+            elif turn and not turn.done():
                 emit({"type": "rejected", "message": "Aguarde a resposta em andamento.", "busy": True})
+            elif isinstance(data, dict) and data.get('type') in ('attach', 'detach'):
+                try:
+                    if data['type'] == 'attach':
+                        company, case = data.get('company_id'), data.get('case_id')
+                        services = request.app[team_web.TEAM].services()
+                        if services is None:
+                            raise ValueError('O atendimento persistente esta desativado.')
+                        attachment = None
+                        candidate = conversation.team_binding(services, company, case)
+                        attachment = (company, case)
+                        announce(candidate, 'vinculo')
+                    else:
+                        attachment = None
+                        announce(conversation.local_binding(), 'vinculo_removido')
+                except NotFound:
+                    emit({'type': 'rejected', 'message': 'Demanda nao encontrada.'})
+                except ValueError as error:
+                    emit({'type': 'rejected', 'message': str(error)})
             elif count >= 100:
                 emit({"type": "error", "message": "Limite de 100 mensagens. Inicie uma nova conversa.", "fatal": True})
             else:
@@ -220,7 +272,16 @@ async def chat(request):
                     emit({'type': 'rejected', 'message': str(error)})
                     continue
                 count += 1
-                turn = asyncio.create_task(reply(text, audio, data.get('speak') is True))
+                turns += 1
+                try:
+                    current = snapshot()
+                except NotFound:  # the case disappeared or the persistent mode was switched off: back to the plain assistant
+                    attachment, current = None, conversation.local_binding()
+                active.update(turn=turns, binding=current)
+                if conversation.fingerprint(current) != announced:  # e.g. a transfer was accepted since the last turn
+                    announce(current, 'mudou')
+                voice_profile = (current.get('agent') or {}).get('voice_profile_ref')
+                turn = asyncio.create_task(reply(text, audio, data.get('speak') is True, voice_profile))
     except (ConnectionError, asyncio.CancelledError):
         pass
     except Exception:

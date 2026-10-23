@@ -5,6 +5,9 @@ import {useVoice} from './useVoice.js';
 import {VoiceSettings} from './VoiceSettings.jsx';
 import {PersistenceSettings} from './PersistenceSettings.jsx';
 import {TeamPanel} from './team/TeamPanel.jsx';
+import {ConversationLink} from './ConversationLink.jsx';
+import {api} from './team/api.js';
+import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
 function Icon({name, ...props}) {
   const paths = {
@@ -30,6 +33,9 @@ function App() {
   const [tools, setTools] = useState([]);
   const [menu, setMenu] = useState(false);
   const [view, setView] = useState('chat');
+  const [conv, setConv] = useState(initialConversation);
+  const convRef = useRef(conv);
+  const [focus, setFocus] = useState(null);
   const [speak, setSpeak] = useState(true);
   const speakRef = useRef(true);
   const voiceRef = useRef(null);
@@ -43,15 +49,18 @@ function App() {
     socket.current.send(JSON.stringify({type: 'audio', wav, speak: speakRef.current}));
   }});
   voiceRef.current = voice;
+  const commit = next => {convRef.current = next; setConv(next);};
   const desktopStatus = useRef(null);
-  desktopStatus.current = {state: state === 'ready' ? (error ? 'error' : voice.speaking ? 'speaking' : voice.enabled ? 'listening' : 'ready') : state,
-    micEnabled: voice.enabled, level: voice.level};
+  desktopStatus.current = avatarStatus({connection: state === 'ready' ? (error ? 'error' : 'ready') : state, micEnabled: voice.enabled,
+    speaking: voice.speaking, level: voice.level, binding: conv.binding});
   useEffect(() => {
     if (!window.desktopBridge) return;
     const publish = () => window.desktopBridge.publishStatus(desktopStatus.current);
     publish(); const interval = setInterval(publish, 150);
     const unsubscribe = window.desktopBridge.onCommand(command => {
       if (command === 'toggle-mic') {setError(''); voiceRef.current.toggle();}
+      // The avatar asks to open a case; ids are re-validated here and the microphone is never touched.
+      if (typeof command === 'object' && command?.type === 'open-case' && isCaseRef(command.ref)) {setFocus(command.ref); setView('team'); voiceRef.current.stopAll();}
     });
     return () => {clearInterval(interval); unsubscribe();};
   }, []);
@@ -62,10 +71,20 @@ function App() {
     socket.current = ws;
     busy.current = true;
     setState('connecting'); setLabel('Preparando assistente…'); setFatal(false); setError('');
+    commit(reconnected(convRef.current));
     ws.onmessage = event => {
       if (!active) return;
       const data = JSON.parse(event.data);
-      if (data.type === 'session') setModel(data.model);
+      const verdict = applyEvent(convRef.current, data, performance.now());
+      commit(verdict.state);
+      if (!verdict.accept) return;  // late, cancelled or from another case: it does not enter this conversation
+      if (data.type === 'session') {
+        setModel(data.model);
+        const again = reattachMessage(convRef.current);  // a reconnection forgot the attachment; asking again never touches the microphone
+        if (again) ws.send(JSON.stringify(again));
+      }
+      if (data.type === 'binding') setError('');
+      if (data.type === 'cancelled') {busy.current = false; setState('ready'); setLabel('Resposta interrompida');}
       if (data.type === 'status') {
         setState(data.state); setLabel(data.label);
         busy.current = data.state !== 'ready';
@@ -106,6 +125,7 @@ function App() {
     const content = value.trim();
     if (!content || content.length > 8000 || busy.current || socket.current?.readyState !== WebSocket.OPEN || fatal) return;
     busy.current = true; setState('processing'); setLabel('Enviando…'); setError(''); setTools([]);
+    commit(startTurn(convRef.current, performance.now()));
     voice.stopPlayback();
     socket.current.send(JSON.stringify({type: 'message', text: content, speak: speakRef.current}));
     setText(''); input.current?.focus();
@@ -113,6 +133,13 @@ function App() {
   const reset = () => {setMessages([]); setText(''); setTools([]); setMenu(false); setView('chat'); setEpoch(n => n + 1);};
   // Leaving the conversation always turns the microphone off: capture never continues out of sight.
   const go = next => {if (next !== 'chat') voiceRef.current.stopAll(); setView(next); setMenu(false);};
+  const sendControl = payload => {if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(payload));};
+  const attach = selection => {commit(select(convRef.current, selection)); sendControl({type: 'attach', ...selection});};
+  const detach = () => {commit(select(convRef.current, null)); sendControl({type: 'detach'});};
+  const pauseCase = async binding => {
+    await api.post(`/companies/${binding.company.id}/cases/${binding.case.id}/pause`, {expected_revision: binding.case.revision, reason: 'Pausada pela conversa'});
+    sendControl({type: 'attach', company_id: binding.company.id, case_id: binding.case.id});  // refresh the binding; idle only
+  };
 
   return <div className="app">
     {menu && <button className="scrim" aria-label="Fechar menu" onClick={() => setMenu(false)}/>}
@@ -128,7 +155,7 @@ function App() {
         <div className="profile"><span className="profile-icon">EU</span><div><strong>Meu espaço</strong><small>Validação do assistente</small></div><span className="online-dot"/></div>
       </div>
     </aside>
-    {view === 'team' ? <TeamPanel onOpenMenu={() => setMenu(true)}/> : <main>
+    {view === 'team' ? <TeamPanel onOpenMenu={() => setMenu(true)} focus={focus}/> : <main>
       <header>
         <div className="header-left"><button className="menu-button" aria-label="Abrir menu" onClick={() => setMenu(true)}><Icon name="menu"/></button><span className="page-title">Conversa</span><span className="separator">/</span><span className="model">{model}</span></div>
         <div className={`connection ${state === 'offline' ? 'off' : ''}`}><span/> {state === 'offline' ? 'Desconectado' : state === 'connecting' ? 'Conectando' : 'Sessão local'}</div>
@@ -152,6 +179,9 @@ function App() {
         <div ref={bottom}/>
       </div>
       <div className="composer-area">
+        <ConversationLink conv={conv} view={{speaking: voice.speaking, fatal, connection: state}} onAttach={attach} onDetach={detach}
+          onInterrupt={() => sendControl({type: 'cancel'})} onStopSpeech={voice.stopPlayback} onPause={pauseCase}
+          onOpenCase={ref => {setFocus(ref); go('team');}}/>
         {error && <div className="error" role="alert"><span>{error}</span>{fatal && <button onClick={reset}>Nova conversa</button>}</div>}
         <div className="voice-controls">
           <VoiceSettings onPlay={wav => voice.play(wav)} onOpen={() => voice.stopAll()}/>
