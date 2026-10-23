@@ -251,6 +251,72 @@
     "updated_at": "2026-01-15T12:00:00Z"
   },
   {
+    "kind": "contact",
+    "schema_version": 1,
+    "id": "ctc_00000000000000000000000000000014",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "display_name": "Cliente Exemplo",
+    "status": "ativo",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "contact_address",
+    "schema_version": 1,
+    "id": "adr_00000000000000000000000000000015",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "contact_id": "ctc_00000000000000000000000000000014",
+    "channel": "email",
+    "address": "cliente@exemplo.invalid",
+    "link_state": "vinculado",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "contact_address",
+    "schema_version": 1,
+    "id": "adr_00000000000000000000000000000016",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "contact_id": null,
+    "channel": "email",
+    "address": "remetente@exemplo.invalid",
+    "link_state": "observado",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "contact_link",
+    "schema_version": 1,
+    "id": "lnk_00000000000000000000000000000017",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "contact_id": "ctc_00000000000000000000000000000014",
+    "department_id": "dep_00000000000000000000000000000003",
+    "relation": "cliente",
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
+    "kind": "access_grant",
+    "schema_version": 1,
+    "id": "acl_00000000000000000000000000000018",
+    "tenant_id": "ten_00000000000000000000000000000001",
+    "principal_id": "agt_00000000000000000000000000000004",
+    "resource_kind": "case",
+    "resource_id": "cas_0000000000000000000000000000000a",
+    "actions": [
+      "read"
+    ],
+    "granted_by": "usr_00000000000000000000000000000013",
+    "expires_at": null,
+    "revision": 1,
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  },
+  {
     "kind": "command",
     "schema_version": 1,
     "id": "cmd_00000000000000000000000000000010",

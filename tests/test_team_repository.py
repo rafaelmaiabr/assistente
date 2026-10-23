@@ -14,7 +14,8 @@ from team.repository import (
 from team.samples import IDS, NOW, bundle
 
 ORDER = ["tenant", "skill_definition", "department", "connection", "agent_definition", "skill_grant", "case",
-         "task", "agent_run", "approval_request", "handoff", "evidence"]
+         "task", "agent_run", "approval_request", "handoff", "evidence", "contact", "contact_address", "contact_link",
+         "access_grant"]
 
 
 def sample(kind):
@@ -65,17 +66,36 @@ class MigrationTests(RepoCase):
         folder.mkdir()
         for item in discover():
             (folder / f"{item[0]:04d}_{item[1]}.sql").write_text(item[2], encoding="utf-8")
-        (folder / "0002_quebrada.sql").write_text("CREATE TABLE parcial (x); INSERT INTO inexistente VALUES (1);", encoding="utf-8")
+        last = len(discover())
+        broken = f"{last + 1:04d}_quebrada"
+        (folder / f"{broken}.sql").write_text("CREATE TABLE parcial (x); INSERT INTO inexistente VALUES (1);", encoding="utf-8")
         self.load_sample()
-        with self.assertRaisesRegex(MigrationError, "0002_quebrada.*preservado"):
+        with self.assertRaisesRegex(MigrationError, f"{broken}.*preservado"):
             migrate(self.path, folder)
         conn = connect(self.path)
         self.addCleanup(conn.close)
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         self.assertNotIn("parcial", tables)
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0], 1)
-        self.assertEqual(conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 1)
-        self.assertTrue(self.path.with_name(self.path.name + ".pre-migracao-0001.bak").exists())
+        self.assertEqual(conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], last)
+        self.assertTrue(self.path.with_name(self.path.name + f".pre-migracao-{last:04d}.bak").exists())
+
+    def test_upgrade_from_previous_version_keeps_data_and_backup(self):
+        old = Path(self.temp.name) / "old"
+        old.mkdir()
+        for item in discover()[:1]:
+            (old / f"{item[0]:04d}_{item[1]}.sql").write_text(item[2], encoding="utf-8")
+        legacy = Path(self.temp.name) / "legacy.sqlite3"
+        self.assertEqual(migrate(legacy, old), [1])
+        conn = connect(legacy)
+        conn.execute("INSERT INTO tenants VALUES ('ten_x', 1, 'a', 'a', '{}')")
+        conn.close()
+        self.assertEqual(migrate(legacy), list(range(2, len(discover()) + 1)))
+        conn = connect(legacy)
+        self.addCleanup(conn.close)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM contacts").fetchone()[0], 0)
+        self.assertTrue(legacy.with_name("legacy.sqlite3.pre-migracao-0001.bak").exists())
 
     def test_corrupt_file_is_not_modified_or_replaced(self):
         broken = Path(self.temp.name) / "ruim.sqlite3"

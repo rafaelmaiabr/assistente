@@ -18,8 +18,12 @@ TABLES = {
     "tenant": "tenants", "department": "departments", "agent_definition": "agent_definitions",
     "agent_run": "agent_runs", "skill_definition": "skill_definitions", "skill_grant": "skill_grants",
     "connection": "connections", "case": "cases", "task": "tasks", "approval_request": "approval_requests",
-    "handoff": "handoffs", "evidence": "evidences",
+    "handoff": "handoffs", "evidence": "evidences", "contact": "contacts",
+    "contact_address": "contact_addresses", "contact_link": "contact_links", "access_grant": "access_grants",
 }
+# Lookup columns that are not plain references; ``address_key`` is derived (see column_value).
+EXTRA_INDEXED = {"contact_address": ["address_key"], "access_grant": ["principal_id", "resource_kind"]}
+DELETABLE = ("contact_address", "contact_link", "access_grant")
 GLOBAL_KINDS = ("tenant", "skill_definition")
 MAX_LIST = 1000
 
@@ -45,7 +49,18 @@ def indexed_columns(kind: str) -> list:
     spec = SCHEMAS[kind]
     refs = [name for name, field in spec.items()
             if isinstance(field, str) and field.startswith("ref:") and name != "tenant_id"]
-    return refs + (["state"] if "state" in spec else [])
+    return refs + (["state"] if "state" in spec else []) + EXTRA_INDEXED.get(kind, [])
+
+
+def address_key(channel: str, address: str) -> str:
+    """Normalized identity of an address inside a tenant (case-insensitive)."""
+    return f"{channel}:{address.strip().lower()}"
+
+
+def column_value(doc, name):
+    if name == "address_key":
+        return address_key(doc["channel"], doc["address"])
+    return doc.get(name)
 
 
 def _now():
@@ -67,6 +82,9 @@ class TenantSession(ABC):
 
     @abstractmethod
     def save(self, doc, event=None): ...
+
+    @abstractmethod
+    def delete(self, kind, doc_id) -> bool: ...
 
     @abstractmethod
     def record_event(self, event, topic="domain"): ...
@@ -93,6 +111,9 @@ class Repository(ABC):
 
     @abstractmethod
     def get_global(self, kind, doc_id): ...
+
+    @abstractmethod
+    def list_global(self, kind, limit=100): ...
 
     @abstractmethod
     def transaction(self, tenant_id): ...
@@ -139,7 +160,7 @@ class SqliteSession(TenantSession):
         columns = indexed_columns(kind)
         names = ["id", "tenant_id", "revision", "created_at", "updated_at", *columns, "doc"]
         values = [doc["id"], self.tenant_id, doc["revision"], doc["created_at"], doc["updated_at"],
-                  *(doc.get(name) for name in columns), _dump(doc)]
+                  *(column_value(doc, name) for name in columns), _dump(doc)]
         try:
             if row is None:
                 self.conn.execute(
@@ -153,6 +174,17 @@ class SqliteSession(TenantSession):
         if event is not None:
             self.record_event(event)
         return doc
+
+    def delete(self, kind, doc_id):
+        """Remove a link-like record (never entities with history); True when a row was deleted."""
+        if kind not in DELETABLE:
+            raise RepositoryError(f"tipo nao pode ser removido: {kind}")
+        try:
+            cursor = self.conn.execute(
+                f"DELETE FROM {self._table(kind)} WHERE tenant_id = ? AND id = ?", (self.tenant_id, doc_id))
+        except sqlite3.IntegrityError as error:
+            raise IntegrityViolation(str(error)) from error
+        return cursor.rowcount == 1
 
     def record_event(self, event, topic="domain"):
         validate("event", event)
@@ -273,3 +305,14 @@ class SqliteRepository(Repository):
         finally:
             conn.close()
         return json.loads(row[0]) if row else None
+
+    def list_global(self, kind, limit=100):
+        if kind not in GLOBAL_KINDS:
+            raise RepositoryError(f"tipo nao e global: {kind}")
+        conn = connect(self.path)
+        try:
+            rows = conn.execute(f"SELECT doc FROM {TABLES[kind]} ORDER BY created_at, id LIMIT ?",
+                                (min(max(int(limit), 1), MAX_LIST),)).fetchall()
+        finally:
+            conn.close()
+        return [json.loads(row[0]) for row in rows]
