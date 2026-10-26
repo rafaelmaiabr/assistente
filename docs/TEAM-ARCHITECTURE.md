@@ -54,7 +54,7 @@ Começar com um **backend Python modular**, mantendo LiveKit na adaptação de c
 
 Inicialmente, SQLite sob DATA_ROOT guarda entidades, eventos e jobs duráveis. As interfaces de repositório permitem PostgreSQL depois. O worker pode começar como componente do backend, com lease e checkpoint persistentes; não depende da aba. Em implantação de servidor, ele passa a processo separado. Fechar a janela pode interromper o processo local conforme configuração, mas a demanda persiste e pode ser retomada. Não prometer execução com computador desligado.
 
-MCP é a fronteira preferencial de ferramentas. As regras de ownership, aprovação e idempotência pertencem aos serviços de domínio, não ao prompt nem ao protocolo. Comunicação interna usa contratos tipados e eventos persistentes. A2A é uma adaptação futura para agentes externos; não é necessário para os primeiros agentes dentro do mesmo backend.
+MCP é a fronteira preferencial de ferramentas. As regras de ownership, aprovação e idempotência pertencem aos serviços de domínio, não ao prompt nem ao protocolo. Comunicação interna usa contratos tipados e eventos persistentes. A2A é uma adaptação para agentes externos (contrato e adaptador isolado em [TEAM-A2A.md](TEAM-A2A.md)); não é necessário para os primeiros agentes dentro do mesmo backend.
 
 ## Configuração e contexto
 

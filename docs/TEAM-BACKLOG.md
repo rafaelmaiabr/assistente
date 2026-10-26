@@ -49,6 +49,7 @@ A sequência abaixo é topológica: cada dependência aparece antes da entrega. 
 | [T37 / #82](https://github.com/rafaelmaiabr/assistente/issues/82) | Lacunas de capacidade: evolução por demanda (skill, ferramenta ou não atender) | [#21](https://github.com/rafaelmaiabr/assistente/issues/21), [#24](https://github.com/rafaelmaiabr/assistente/issues/24), [#27](https://github.com/rafaelmaiabr/assistente/issues/27), [#28](https://github.com/rafaelmaiabr/assistente/issues/28), [#31](https://github.com/rafaelmaiabr/assistente/issues/31), [#32](https://github.com/rafaelmaiabr/assistente/issues/32), [#44](https://github.com/rafaelmaiabr/assistente/issues/44) |
 | [T38 / #84](https://github.com/rafaelmaiabr/assistente/issues/84) | Escopo por departamento e identidade de worker (parte 2 do T32) | [#47](https://github.com/rafaelmaiabr/assistente/issues/47), [#18](https://github.com/rafaelmaiabr/assistente/issues/18), [#25](https://github.com/rafaelmaiabr/assistente/issues/25), [#28](https://github.com/rafaelmaiabr/assistente/issues/28) |
 | [T39 / #89](https://github.com/rafaelmaiabr/assistente/issues/89) | Paridade do PostgreSQL nos módulos com SQL próprio (parte 2 do T34) | [#49](https://github.com/rafaelmaiabr/assistente/issues/49), [#32](https://github.com/rafaelmaiabr/assistente/issues/32), [#44](https://github.com/rafaelmaiabr/assistente/issues/44), [#45](https://github.com/rafaelmaiabr/assistente/issues/45), [#47](https://github.com/rafaelmaiabr/assistente/issues/47) |
+| [T40 / #93](https://github.com/rafaelmaiabr/assistente/issues/93) | A2A: contrapartes, tarefas remotas e retorno (parte 2 do T35) | [#50](https://github.com/rafaelmaiabr/assistente/issues/50), [#22](https://github.com/rafaelmaiabr/assistente/issues/22), [#26](https://github.com/rafaelmaiabr/assistente/issues/26), [#28](https://github.com/rafaelmaiabr/assistente/issues/28), [#29](https://github.com/rafaelmaiabr/assistente/issues/29), [#47](https://github.com/rafaelmaiabr/assistente/issues/47), [#48](https://github.com/rafaelmaiabr/assistente/issues/48) |
 
 ## Portas de entrega
 
@@ -59,7 +60,7 @@ A sequência abaixo é topológica: cada dependência aparece antes da entrega. 
 | Conhecimento e email real autorizado | T17–T22 | Auth específica por provedor; SMTP aprovado |
 | Diagnóstico, Financeiro e domínio | T23–T28 | Fluxo manual disponível; registrador/ERP reais exigem escolha |
 | Operação contínua e experiência de voz | T29–T31, T37 | Computador/backend precisam estar ativos para executar |
-| Acesso remoto, avaliação e escala | T32–T35, T38, T39 | Identidade e isolamento antes de expor rede |
+| Acesso remoto, avaliação e escala | T32–T35, T38–T40 | Identidade e isolamento antes de expor rede |
 | Onboarding e distribuição da equipe | T36 | Preservar configurações e dados locais no upgrade |
 
 Agrupamentos não impõem dependências extras. T36 pode ser entregue sem PostgreSQL/A2A; T28 não depende das compras reais de T26 nem do ERP de T27.
