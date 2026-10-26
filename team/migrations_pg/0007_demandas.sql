@@ -2,14 +2,14 @@
 -- 0007: linha do tempo da demanda (notas, mensagens, resumos) e evidencias, ambas somente de acrescimo.
 CREATE TABLE case_entries (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   case_id TEXT NOT NULL,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE INDEX case_entries_by_case ON case_entries (tenant_id, case_id, created_at, id);
 CREATE FUNCTION case_entries_append_only_update_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'entradas da demanda sao somente de acrescimo' USING ERRCODE = '23000'; RETURN NEW; END $$;

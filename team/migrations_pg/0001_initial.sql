@@ -10,7 +10,7 @@ CREATE TABLE tenants (
 );
 CREATE TABLE departments (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE skill_definitions (
 );
 CREATE TABLE connections (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -38,18 +38,18 @@ CREATE TABLE connections (
 );
 CREATE TABLE agent_definitions (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   department_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id)
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE skill_grants (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -58,13 +58,13 @@ CREATE TABLE skill_grants (
   connection_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, agent_id) REFERENCES agent_definitions(tenant_id, id),
-  FOREIGN KEY (skill_id) REFERENCES skill_definitions(id),
-  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id)
+  FOREIGN KEY (tenant_id, agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (skill_id) REFERENCES skill_definitions(id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE cases (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -73,12 +73,12 @@ CREATE TABLE cases (
   owner_agent_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id),
-  FOREIGN KEY (tenant_id, owner_agent_id) REFERENCES agent_definitions(tenant_id, id)
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, owner_agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE tasks (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -88,13 +88,13 @@ CREATE TABLE tasks (
   assignee_agent_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id),
-  FOREIGN KEY (tenant_id, parent_task_id) REFERENCES tasks(tenant_id, id),
-  FOREIGN KEY (tenant_id, assignee_agent_id) REFERENCES agent_definitions(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, parent_task_id) REFERENCES tasks(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, assignee_agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE agent_runs (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -105,14 +105,14 @@ CREATE TABLE agent_runs (
   task_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, agent_id) REFERENCES agent_definitions(tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id),
-  FOREIGN KEY (tenant_id, task_id) REFERENCES tasks(tenant_id, id)
+  FOREIGN KEY (tenant_id, agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, task_id) REFERENCES tasks(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE approval_requests (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -120,11 +120,11 @@ CREATE TABLE approval_requests (
   case_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE handoffs (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -135,50 +135,50 @@ CREATE TABLE handoffs (
   to_agent_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id),
-  FOREIGN KEY (tenant_id, task_id) REFERENCES tasks(tenant_id, id),
-  FOREIGN KEY (tenant_id, from_agent_id) REFERENCES agent_definitions(tenant_id, id),
-  FOREIGN KEY (tenant_id, to_agent_id) REFERENCES agent_definitions(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, task_id) REFERENCES tasks(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, from_agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, to_agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE evidences (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   case_id TEXT,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 -- Comandos: a chave de idempotencia impede reprocessar o mesmo pedido.
 CREATE TABLE commands (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   case_id TEXT,
   idempotency_key TEXT NOT NULL,
   issued_at TEXT NOT NULL,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, idempotency_key),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 -- Eventos: fatos comprometidos. seq fornece ordem global; revision ordena por demanda.
 CREATE TABLE events (
   seq BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   id TEXT NOT NULL UNIQUE,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   case_id TEXT,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   occurred_at TEXT NOT NULL,
   doc JSONB NOT NULL,
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE UNIQUE INDEX events_case_revision ON events (tenant_id, case_id, revision) WHERE case_id IS NOT NULL;
 -- Outbox transacional: gravada na mesma transacao do estado e do evento.
 CREATE TABLE outbox (
   id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
-  event_seq BIGINT NOT NULL REFERENCES events(seq),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
+  event_seq BIGINT NOT NULL REFERENCES events(seq) DEFERRABLE INITIALLY IMMEDIATE,
   topic TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dispatched')),
   attempts BIGINT NOT NULL DEFAULT 0,

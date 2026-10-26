@@ -53,7 +53,7 @@ class TeamApp:
             self._built = None
             return None
         if self._built is None:
-            repo = persistence.repository(self.root)
+            repo = persistence.repository(self.root, self.config, self.vault())
             repo.migrate()
             access = AccessService(repo, persistence.operator_id(self.root))
             policies = ModelPolicyService(repo, access, self.config)

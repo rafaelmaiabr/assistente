@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 
+from .database import DatabaseConfigError, postgres_repository
 from .db import MigrationError
 from .access import AccessService
 from .agents import AgentService
@@ -36,8 +37,10 @@ def data_dir(root) -> Path:
     return Path(root) / DIRECTORY
 
 
-def repository(root) -> SqliteRepository:
-    return SqliteRepository(data_dir(root) / DATABASE)
+def repository(root, config=None, vault=None):
+    """The team's repository: PostgreSQL when ``config["database"]`` asks for it (connection from the vault), SQLite otherwise."""
+    chosen = postgres_repository(config, vault)
+    return chosen if chosen is not None else SqliteRepository(data_dir(root) / DATABASE)
 
 
 def _enabled(root) -> bool:
@@ -52,12 +55,16 @@ def status(root, error=None) -> dict:
     return {"enabled": enabled, "notice": NOTICE_ON if enabled else NOTICE_OFF, "error": error}
 
 
-def enable(root) -> dict:
+def enable(root, config=None, vault=None) -> dict:
     """Migrate the database first; the flag is only set when that succeeds."""
     try:
-        repository(root).migrate()
-    except MigrationError as error:
+        repository(root, config, vault).migrate()
+    except (MigrationError, DatabaseConfigError) as error:
         return status(root, error=str(error))
+    except Exception as error:  # an unreachable PostgreSQL: the message never carries the connection string
+        if type(error).__name__ == "DatabaseUnavailable":
+            return status(root, error=str(error))
+        raise
     return _write(root, True)
 
 
@@ -130,7 +137,7 @@ def build_runtime(root, config, transports=None, client_factory=None, vault=None
     Independent of the web UI and of any LiveKit session. ``transports`` maps MCP transport kinds to
     ``McpTransport`` objects (none exist for the real MCP package yet, so tools stay unavailable).
     """
-    repo = repository(root)
+    repo = repository(root, config, vault)
     access = AccessService(repo, operator_id(root))
     policies = ModelPolicyService(repo, access, config)
     voices = None

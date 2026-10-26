@@ -171,12 +171,18 @@ class AuditService:
         now_ms = int(now.timestamp() * 1000)
         with self.repository.transaction(ctx.tenant_id) as session:
             conn, tenant = session.conn, ctx.tenant_id
+            postgres = getattr(self.repository, "dialect", "sqlite") == "postgres"
+            flag = "'true'" if postgres else "1"  # a JSON true, read back as text on PostgreSQL and as 1 on SQLite
+
+            def field(name):  # a value inside the JSON document, in each database's own syntax
+                return f"(doc->>'{name}')" if postgres else f"json_extract(doc, '$.{name}')"
 
             def counts(sql, *args):
                 return {row[0]: row[1] for row in conn.execute(sql, (tenant, *args))}
 
             jobs = counts("SELECT state, COUNT(*) FROM jobs WHERE tenant_id = ? GROUP BY state")
-            retries = conn.execute("SELECT COALESCE(SUM(MAX(attempts - 1, 0)), 0) FROM jobs WHERE tenant_id = ?", (tenant,)).fetchone()[0]
+            retries = conn.execute("SELECT COALESCE(SUM(CASE WHEN attempts > 1 THEN attempts - 1 ELSE 0 END), 0) FROM jobs WHERE tenant_id = ?", (tenant,)).fetchone()[0]
+            retries = int(retries)
             oldest = conn.execute("SELECT MIN(created_ms) FROM jobs WHERE tenant_id = ? AND state = 'pendente'", (tenant,)).fetchone()[0]
             tokens = steps = 0
             for (result,) in conn.execute("SELECT result FROM jobs WHERE tenant_id = ? AND result IS NOT NULL", (tenant,)):
@@ -186,11 +192,11 @@ class AuditService:
             decisions = counts("SELECT decision, COUNT(*) FROM tool_decisions WHERE tenant_id = ? GROUP BY decision")
             slow = conn.execute("SELECT COALESCE(AVG(duration_ms), 0), COALESCE(MAX(duration_ms), 0) FROM tool_decisions "
                                 "WHERE tenant_id = ? AND duration_ms IS NOT NULL", (tenant,)).fetchone()
-            handoffs = counts("SELECT json_extract(doc, '$.state'), COUNT(*) FROM handoffs WHERE tenant_id = ? GROUP BY 1")
-            attention = conn.execute("SELECT COUNT(*) FROM handoffs WHERE tenant_id = ? AND json_extract(doc, '$.attention') = 1", (tenant,)).fetchone()[0]
-            runs = counts("SELECT json_extract(doc, '$.state'), COUNT(*) FROM agent_runs WHERE tenant_id = ? GROUP BY 1")
+            handoffs = counts(f"SELECT {field('state')}, COUNT(*) FROM handoffs WHERE tenant_id = ? GROUP BY 1")
+            attention = conn.execute(f"SELECT COUNT(*) FROM handoffs WHERE tenant_id = ? AND {field('attention')} = {flag}", (tenant,)).fetchone()[0]
+            runs = counts(f"SELECT {field('state')}, COUNT(*) FROM agent_runs WHERE tenant_id = ? GROUP BY 1")
             messages = counts("SELECT state, COUNT(*) FROM outbound_messages WHERE tenant_id = ? GROUP BY state")
-            cases = counts("SELECT json_extract(doc, '$.state'), COUNT(*) FROM cases WHERE tenant_id = ? GROUP BY 1")
+            cases = counts(f"SELECT {field('state')}, COUNT(*) FROM cases WHERE tenant_id = ? GROUP BY 1")
             pending = [a for a in session.list("approval_request", limit=1000, state="pendente")]
             waits = [(_parse(a["decided_at"]) - _parse(a["created_at"])).total_seconds()
                      for a in session.list("approval_request", limit=1000) if a.get("decided_at") and _parse(a["decided_at"])]
@@ -202,8 +208,8 @@ class AuditService:
                      "para_reconciliar": jobs.get("reconciliar", 0), "mais_antigo_pendente_segundos":
                      None if oldest is None else max(0, (now_ms - oldest) // 1000), "eventos_na_caixa_de_saida": outbox},
             "encaminhamentos": {"por_estado": handoffs, "exigem_atencao": attention},
-            "execucoes": {"por_estado": runs, "decisoes_de_ferramenta": decisions, "ferramenta_duracao_media_ms": round(slow[0]),
-                          "ferramenta_duracao_max_ms": slow[1]},
+            "execucoes": {"por_estado": runs, "decisoes_de_ferramenta": decisions, "ferramenta_duracao_media_ms": round(float(slow[0])),
+                          "ferramenta_duracao_max_ms": int(slow[1])},
             "falhas": {"execucoes": runs.get("falhou", 0), "ferramentas_negadas": decisions.get("denied", 0),
                        "ferramentas_com_erro": decisions.get("error", 0), "mensagens_falhas": messages.get("falhou", 0),
                        "mensagens_desconhecidas": messages.get("desconhecido", 0), "jobs_falhos": jobs.get("falhou", 0)},

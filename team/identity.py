@@ -23,7 +23,6 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from .db import connect
 from .access import HUMAN_ROLES, AccessContext, NotFound, OperatorContext, PermissionDenied
 from .ids import new_id
 
@@ -301,8 +300,7 @@ class IdentityService:
             return None
         now = self._now()
         stamp = _stamp(now)
-        conn = connect(self.repository.path)  # a plain read: no write lock for every request
-        try:
+        with self.repository.reader() as conn:  # a plain read: no write lock for every request
             row = conn.execute(
                 "SELECT s.id, s.last_seen_at, s.idle_expires_at, s.expires_at, s.revoked_at, u.id, u.email, u.display_name, u.status "
                 "FROM auth_sessions s JOIN auth_users u ON u.id = s.user_id WHERE s.token_hash = ?", (hash_token(token),)).fetchone()
@@ -312,8 +310,6 @@ class IdentityService:
                                  "WHERE m.user_id = ? AND m.status = 'ativo'", (row[5],)).fetchall()
             memberships = {tenant: role for tenant, role, _ in found}
             scopes = {tenant: tuple(json.loads(departments)) for tenant, _, departments in found if departments}
-        finally:
-            conn.close()
         if _parse(row[1]) + TOUCH_EVERY <= now:  # sliding idle timeout, written at most once a minute
             with self.repository._transaction() as write:
                 write.execute("UPDATE auth_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE id = ? AND revoked_at IS NULL",
@@ -333,14 +329,11 @@ class IdentityService:
         """Access context of this person for one company, from the role stored right now (not from the cached identity)."""
         if not isinstance(identity, Identity):
             raise PermissionDenied()
-        conn = connect(self.repository.path)
-        try:
+        with self.repository.reader() as conn:
             row = conn.execute("SELECT m.role, m.departments FROM auth_memberships m JOIN auth_users u ON u.id = m.user_id "
                                "WHERE m.user_id = ? AND m.tenant_id = ? AND m.status = 'ativo' AND u.status = 'ativo'",
                                (identity.user_id, str(tenant_id))).fetchone()
             live = conn.execute("SELECT 1 FROM auth_sessions WHERE id = ? AND revoked_at IS NULL", (identity.session_id,)).fetchone()
-        finally:
-            conn.close()
         if row is None or live is None:
             raise NotFound()  # same answer as a company that does not exist: nothing about other companies is revealed
         departments = json.loads(row[1]) if row[1] else None

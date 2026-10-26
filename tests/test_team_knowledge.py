@@ -7,7 +7,6 @@ from pathlib import Path
 from team.access import AccessService, NotFound, PermissionDenied
 from team.agents import AgentService
 from team.cases import CaseService
-from team.db import connect
 from team.ids import new_id
 from team.knowledge import (
     MAX_CHARS, RETENTION_REVOKED_DAYS, KnowledgeRejected, KnowledgeService, fts_query)
@@ -15,6 +14,7 @@ from team.prompting import compile_context
 from team.repository import RevisionConflict, SqliteRepository
 from team.schema import ContractError
 from team.service import TeamService
+from tests.dbtools import SqlTools
 
 PROFILE = dict(goals=["Atender"], personality={"tone": "claro", "initiative": "proativo"}, scope="Escopo",
                out_of_scope="Outros", model_policy_ref="local-primeiro")
@@ -28,7 +28,7 @@ class Clock:
         return self.now
 
 
-class KnowledgeCase(unittest.TestCase):
+class KnowledgeCase(SqlTools, unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -63,10 +63,13 @@ class KnowledgeCase(unittest.TestCase):
         return self.kb.publish(ctx or self.ca, **options)
 
     def indexed(self, doc_id=None):
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
         marks = "" if doc_id is None else " WHERE doc_id = ?"
-        return conn.execute("SELECT doc_id FROM knowledge_index" + marks, () if doc_id is None else (doc_id,)).fetchall()
+        return self.rows("SELECT doc_id FROM knowledge_index" + marks, () if doc_id is None else (doc_id,))
+
+    def stale_row(self, tenant_id, doc_id):
+        """An index row that should not exist (the document is revoked), tagged for ``tenant_id``."""
+        with self.repo.transaction(tenant_id) as session:
+            self.kb._index(session, {"title": "t", "body": "conteudo confidencial vazavel", "tenant_id": tenant_id, "id": doc_id})
 
 
 class DocumentTests(KnowledgeCase):
@@ -296,20 +299,17 @@ class MemoryTests(KnowledgeCase):
 class IndexSafetyTests(KnowledgeCase):
     def test_a_stale_index_row_never_leaks_content(self):
         doc = self.publish(body="conteudo confidencial vazavel")
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
         self.kb.revoke(self.ca, doc["id"], "teste")
-        conn.execute("INSERT INTO knowledge_index (title, body, tenant_id, doc_id) VALUES (?, ?, ?, ?)",
-                     ("t", "conteudo confidencial vazavel", self.a["id"], doc["id"]))  # an index row that should not exist
+        self.stale_row(self.a["id"], doc["id"])  # an index row that should not exist
         self.assertEqual(self.kb.retrieve(self.ca, "confidencial")["knowledge"], [])
-        conn.execute("INSERT INTO knowledge_index (title, body, tenant_id, doc_id) VALUES (?, ?, ?, ?)",
-                     ("t", "conteudo confidencial vazavel", self.b["id"], doc["id"]))  # wrongly tagged for another company
+        self.stale_row(self.b["id"], doc["id"])  # wrongly tagged for another company
         self.assertEqual(self.kb.retrieve(self.cb, "confidencial")["knowledge"], [])
 
     def test_fts_is_available_and_folds_accents(self):
         self.publish(body="Renovação de domínio e política de reembolso")
         self.assertEqual(len(self.kb.retrieve(self.ca, "renovacao dominio politica")["knowledge"]), 1)
-        self.assertTrue(sqlite3.sqlite_version_info >= (3, 9))
+        if self.repo.dialect == "sqlite":
+            self.assertTrue(sqlite3.sqlite_version_info >= (3, 9))
 
 
 if __name__ == "__main__":

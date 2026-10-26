@@ -12,7 +12,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import persistence
+from . import database, persistence
 from .db import MIGRATIONS_DIR, _applied, discover
 from .login import SECRET_SLOT, ConfigError, RemoteConfig
 from .onboarding import load_templates
@@ -73,7 +73,40 @@ def check_persistence(root):
                 "Ative na secao Equipe quando quiser usar a equipe. Os dados existentes nao sao apagados ao desligar.")
 
 
-def check_database(root):
+def _check_postgres(config, vault):
+    """PostgreSQL: driver, connection, server version and migrations. Read-only; the connection string is never shown."""
+    from . import pgdb
+    try:
+        repo = database.postgres_repository(config, vault)
+        state = pgdb.inspect(repo)
+    except database.DatabaseConfigError as error:
+        return item("banco", "Banco de dados (PostgreSQL)", ERROR, str(error), "Rode `python scripts/db_setup.py set-dsn` para guardar a conexao no cofre.")
+    except pgdb.DatabaseUnavailable as error:
+        return item("banco", "Banco de dados (PostgreSQL)", ERROR, str(error),
+                    "Instale o driver com `pip install -r requirements-postgres.txt` e confira servidor, rede e credenciais. Nada foi alterado; o SQLite continua intacto.")
+    except Exception as error:  # driver errors can quote the server's text: only the kind is shown
+        return item("banco", "Banco de dados (PostgreSQL)", ERROR, f"Nao foi possivel ler o banco ({type(error).__name__}).",
+                    "Confira se o servidor esta no ar e se o usuario pode ler o banco. Nada foi alterado.")
+    label = f"PostgreSQL {state['server_version']}"
+    if state["future"]:
+        return item("banco", "Banco de dados (PostgreSQL)", ERROR, f"O banco tem migracoes desconhecidas desta versao ({', '.join(f'{n:04d}' for n in state['future'])}).",
+                    "Este programa e mais antigo que o banco: atualize o aplicativo. Nada foi alterado.")
+    if state["changed"]:
+        return item("banco", "Banco de dados (PostgreSQL)", ERROR, f"Migracao ja aplicada foi alterada ({', '.join(f'{n:04d}' for n in state['changed'])}).",
+                    "Reinstale a versao correta do aplicativo; nao edite migracoes aplicadas.")
+    if state["pending"]:
+        return item("banco", "Banco de dados (PostgreSQL)", WARN, f"{label}: {len(state['pending'])} migracao(oes) pendente(s): {', '.join(f'{n:04d}' for n in state['pending'])}.",
+                    "Elas sao aplicadas ao iniciar o aplicativo (uma transacao por migracao). Faca um backup antes de atualizar.")
+    return item("banco", "Banco de dados (PostgreSQL)", OK, f"{label}: conectado e atualizado ({len(state['applied'])} migracoes aplicadas).")
+
+
+def check_database(root, config=None, vault=None):
+    try:
+        chosen = database.settings(config)
+    except database.DatabaseConfigError as error:
+        return item("banco", "Banco de dados", ERROR, f"Configuracao invalida: {error}", "Corrija a secao `database` do config.json; sem ela o SQLite local e usado.")
+    if chosen["backend"] == "postgres":
+        return _check_postgres(config, vault)
     path = persistence.data_dir(root) / persistence.DATABASE
     if not path.exists():
         return item("banco", "Banco de dados", OK if not persistence.status(root)["enabled"] else WARN, "Ainda nao existe (e criado ao ativar o atendimento).",
@@ -108,9 +141,13 @@ def check_database(root):
     return item("banco", "Banco de dados", OK, f"Integro e atualizado ({len(applied)} migracoes aplicadas).")
 
 
-def check_backups(root):
+def check_backups(root, config=None):
     folder = persistence.data_dir(root) / "backups"
-    if not (persistence.data_dir(root) / persistence.DATABASE).exists():
+    try:
+        postgres = database.settings(config)["backend"] == "postgres"
+    except database.DatabaseConfigError:
+        postgres = False
+    if not postgres and not (persistence.data_dir(root) / persistence.DATABASE).exists():
         return item("backup", "Backup", OK, "Ainda nao ha dados para guardar.")
     done = sorted((p for p in folder.glob("*/manifest.json")), key=lambda p: p.stat().st_mtime) if folder.exists() else []
     if not done:
@@ -179,7 +216,7 @@ def check_templates():
 
 def run(root, config, *, vault=None, probe=probe_http):
     """All checks. ``ok`` is false only when something is broken (``erro``); warnings are things to do, not failures."""
-    items = [check_python(), check_dependencies(), check_data_folder(root), check_persistence(root), check_database(root), check_backups(root),
+    items = [check_python(), check_dependencies(), check_data_folder(root), check_persistence(root), check_database(root, config, vault), check_backups(root, config),
              check_vault(vault), check_model_server(config, probe), check_remote(config, vault), check_templates()]
     return {"ok": not any(i["estado"] == ERROR for i in items), "itens": items, "somente_leitura": True}
 

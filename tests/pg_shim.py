@@ -6,6 +6,7 @@ test that "restarts" by opening the path again sees its data. Schemas are droppe
 import atexit
 from pathlib import Path
 
+import team.pgmigrate  # noqa: F401  (imported before the swap below, so it keeps the real SQLite class for the backup/restore copies)
 from team.pgdb import PostgresRepository
 from tests.pg_support import PostgresSchema
 

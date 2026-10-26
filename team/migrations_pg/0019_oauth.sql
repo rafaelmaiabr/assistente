@@ -2,7 +2,7 @@
 -- 0019: aplicativos OAuth registrados pelo operador (segredo no cofre) e concessoes por conexao (so metadados).
 CREATE TABLE oauth_apps (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE oauth_apps (
 );
 CREATE TABLE oauth_grants (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -25,6 +25,6 @@ CREATE TABLE oauth_grants (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, connection_id),
-  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id),
-  FOREIGN KEY (tenant_id, app_id) REFERENCES oauth_apps(tenant_id, id)
+  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, app_id) REFERENCES oauth_apps(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );

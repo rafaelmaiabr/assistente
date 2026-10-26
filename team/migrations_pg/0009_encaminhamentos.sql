@@ -1,6 +1,6 @@
 -- Gerado por scripts/translate_migrations_pg.py a partir de team/migrations/0009_encaminhamentos.sql. Nao edite: altere a migracao SQLite e gere de novo.
 -- 0009: encaminhamentos entre agentes: retorno, idempotencia e uma transferencia pendente por demanda.
-ALTER TABLE handoffs ADD COLUMN return_to TEXT REFERENCES agent_definitions(id);
+ALTER TABLE handoffs ADD COLUMN return_to TEXT REFERENCES agent_definitions(id) DEFERRABLE INITIALLY IMMEDIATE;
 CREATE UNIQUE INDEX handoffs_idempotency ON handoffs (tenant_id, (doc->>'idempotency_key'));
 -- Enquanto uma transferencia aguarda aceite, nao pode haver outra proposta para a mesma demanda.
 CREATE UNIQUE INDEX handoffs_one_pending_transfer ON handoffs (tenant_id, case_id)

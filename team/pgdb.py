@@ -212,6 +212,19 @@ def migrate_pg(dsn, directory=MIGRATIONS_PG_DIR, source=None):
         raw.close()
 
 
+def inspect(repository, directory=MIGRATIONS_PG_DIR):
+    """Read-only state of a PostgreSQL database for the installation check: server version, applied/pending/unknown/changed
+    migrations. Raises ``DatabaseUnavailable`` (never carrying the connection string) when it cannot be reached."""
+    available = {number: (name, checksum) for number, name, _, checksum in discover(directory)}
+    with repository._transaction() as conn:
+        version = conn.execute("SHOW server_version").fetchone()[0]
+        has_table = conn.execute("SELECT to_regclass('schema_migrations')").fetchone()[0] is not None
+        applied = {v: (n, c) for v, n, c in conn.execute("SELECT version, name, checksum FROM schema_migrations").fetchall()} if has_table else {}
+    return {"server_version": version, "applied": sorted(applied), "pending": sorted(set(available) - set(applied)),
+            "future": sorted(set(applied) - set(available)),
+            "changed": sorted(n for n, (_, checksum) in applied.items() if n in available and available[n][1] != checksum)}
+
+
 class PostgresSession(SqliteSession):
     def __init__(self, conn, tenant_id):
         super().__init__(conn, tenant_id)
@@ -287,6 +300,11 @@ class PostgresRepository(SqliteRepository):
                     except Exception:
                         pass
             self._slots.release()
+
+    @contextmanager
+    def reader(self):
+        with self._transaction() as conn:  # pooled and read-only in practice: PostgreSQL readers never block writers
+            yield conn
 
     def close(self):
         """Close the connections kept for reuse. The repository stays usable (it reconnects on demand)."""

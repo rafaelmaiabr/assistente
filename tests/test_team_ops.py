@@ -12,13 +12,13 @@ from team.audit import AuditService, sanitize_text
 from team.backup import BackupInvalid, BackupService
 from team.cases import CaseService
 from team.connections import ConnectionService, LauncherRegistry
-from team.db import connect
 from team.ids import new_id
 from team.jobs import JobQueue
 from team.repository import SqliteRepository
 from team.retention import RetentionRejected, RetentionService
 from team.service import TeamService
 from team.vault import MemoryVault
+from tests.dbtools import SqlTools
 
 CANARY_KEY = "sk-CANARIO0123456789abcdefghijkl"
 CANARY_TEXT = "SEGREDO-DE-CORPO-XYZ"
@@ -36,7 +36,7 @@ class Clock:
         return self.now
 
 
-class OpsCase(unittest.TestCase):
+class OpsCase(SqlTools, unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -98,9 +98,7 @@ class OpsCase(unittest.TestCase):
         return approval
 
     def count(self, table, tenant=None):
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
-        return conn.execute(f"SELECT COUNT(*) FROM {table}" + (" WHERE tenant_id = ?" if tenant else ""), (tenant,) if tenant else ()).fetchone()[0]
+        return self.scalar(f"SELECT COUNT(*) FROM {table}" + (" WHERE tenant_id = ?" if tenant else ""), (tenant,) if tenant else ())
 
 
 class TrailTests(OpsCase):
@@ -220,24 +218,21 @@ class ExportErasureTests(OpsCase):
         self.assertEqual((result["apagado"]["demanda"], result["apagado"]["entradas"], result["apagado"]["execucoes"], result["apagado"]["jobs"]), (1, 3, 1, 1))
         self.assertEqual(result["exportacoes_removidas"], 1)
         self.assertFalse(Path(export["path"]).exists())
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
         for table in ("evidences", "approval_requests", "tool_decisions", "jobs", "agent_runs", "outbox", "events"):
-            left = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE tenant_id = ? AND " + (
-                "run_id IN (SELECT id FROM agent_runs)" if table == "tool_decisions" else "1 = 1"), (self.a["id"],)).fetchone()[0]
+            left = self.scalar(f"SELECT COUNT(*) FROM {table} WHERE tenant_id = ? AND " + (
+                "run_id IN (SELECT id FROM agent_runs)" if table == "tool_decisions" else "1 = 1"), (self.a["id"],))
             if table in ("events", "outbox"):  # the surviving case keeps its own events
                 continue
             self.assertEqual(left, 0, table)
-        self.assertEqual(conn.execute("SELECT COUNT(*) FROM case_entries WHERE case_id = ?", (self.case["id"],)).fetchone()[0], 0)
-        self.assertEqual(conn.execute("SELECT COUNT(*) FROM events WHERE case_id = ?", (self.case["id"],)).fetchone()[0], 0)
-        self.assertEqual(conn.execute("SELECT COUNT(*) FROM outbox WHERE event_seq IN (SELECT seq FROM events WHERE case_id = ?)",
-                                      (self.case["id"],)).fetchone()[0], 0)
-        remaining = conn.execute("SELECT doc FROM cases WHERE tenant_id = ?", (self.a["id"],)).fetchall()
+        self.assertEqual(self.scalar("SELECT COUNT(*) FROM case_entries WHERE case_id = ?", (self.case["id"],)), 0)
+        self.assertEqual(self.scalar("SELECT COUNT(*) FROM events WHERE case_id = ?", (self.case["id"],)), 0)
+        self.assertEqual(self.scalar("SELECT COUNT(*) FROM outbox WHERE event_seq IN (SELECT seq FROM events WHERE case_id = ?)",
+                                     (self.case["id"],)), 0)
+        remaining = self.rows("SELECT doc FROM cases WHERE tenant_id = ?", (self.a["id"],))
         self.assertEqual(len(remaining), 1)
         self.assertEqual(self.cases.get_case(self.ca, other["id"])["objective"], "Outra demanda preservada")
         self.assertTrue(any(item.get("body") == "nota que deve permanecer" or "nota que deve permanecer" in json.dumps(item) for item in self.cases.timeline(self.ca, other["id"])))
-        with self.assertRaises(sqlite3.DatabaseError):  # the erasure record itself is append-only
-            conn.execute("DELETE FROM erasure_log")
+        self.refuses("DELETE FROM erasure_log")  # the erasure record itself is append-only
         log = self.retention.erasure_log(self.ca)
         self.assertEqual([entry["case_id"] for entry in log], [self.case["id"]])
         self.assertNotIn(CANARY_TEXT, json.dumps(log))
@@ -246,34 +241,29 @@ class ExportErasureTests(OpsCase):
         self.assertEqual(self.retention.erasure_log(self.cb), [])
         # the erased text is gone from every live table (the surviving case never contained it)
         for table, column in (("case_entries", "doc"), ("events", "doc"), ("evidences", "doc"), ("jobs", "payload"), ("cases", "doc")):
-            hits = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {column} LIKE ?", (f"%{CANARY_TEXT}%",)).fetchone()[0]
+            hits = self.scalar(f"SELECT COUNT(*) FROM {table} WHERE {column}{'::text' if self.repo.dialect == 'postgres' else ''} LIKE ?", (f"%{CANARY_TEXT}%",))
             self.assertEqual(hits, 0, table)
 
     def test_append_only_tables_still_refuse_deletes_outside_a_controlled_erasure(self):
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
-        for sql in ("DELETE FROM case_entries", "DELETE FROM evidences", "UPDATE case_entries SET tenant_id = tenant_id",
-                    ):
-            with self.assertRaises(sqlite3.DatabaseError, msg=sql):
-                conn.execute(sql)
-        conn.execute("INSERT INTO erasure_guard (token) VALUES (1)")  # the guard alone does not allow updates
-        with self.assertRaises(sqlite3.DatabaseError):
-            conn.execute("UPDATE case_entries SET tenant_id = tenant_id")
-        conn.execute("DELETE FROM erasure_guard")
+        for sql in ("DELETE FROM case_entries", "DELETE FROM evidences", "UPDATE case_entries SET tenant_id = tenant_id"):
+            self.refuses(sql, msg=sql)
+        self.refuses("INSERT INTO erasure_guard (token) VALUES (1)", "UPDATE case_entries SET tenant_id = tenant_id")  # the guard alone does not allow updates
         self.assertEqual(self.count("erasure_guard"), 0)
 
     def test_a_failed_erasure_changes_nothing(self):
-        conn = connect(self.path)
-        self.addCleanup(conn.close)
         # force the last step to fail: everything deleted before it must roll back, and the guard must not linger
-        conn.execute("CREATE TRIGGER bloqueio_teste BEFORE DELETE ON cases BEGIN SELECT RAISE(ABORT, 'bloqueado'); END")
+        if self.repo.dialect == "postgres":
+            self.execute("CREATE FUNCTION bloqueio_teste_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'bloqueado' USING ERRCODE = '23000'; END $$",
+                     "CREATE TRIGGER bloqueio_teste BEFORE DELETE ON cases FOR EACH ROW EXECUTE FUNCTION bloqueio_teste_fn()")
+        else:
+            self.execute("CREATE TRIGGER bloqueio_teste BEFORE DELETE ON cases BEGIN SELECT RAISE(ABORT, 'bloqueado'); END")
         before = {t: self.count(t, self.a["id"]) for t in ("case_entries", "events", "jobs", "agent_runs", "tool_decisions", "cases")}
         with self.assertRaises(RetentionRejected):
             self.retention.erase_case(self.ca, self.case["id"], self.case["id"])
         self.assertEqual({t: self.count(t, self.a["id"]) for t in before}, before)
         self.assertEqual(self.count("erasure_guard"), 0)
         self.assertEqual(self.retention.erasure_log(self.ca), [])
-        conn.execute("DROP TRIGGER bloqueio_teste")
+        self.execute("DROP TRIGGER bloqueio_teste ON cases", "DROP FUNCTION bloqueio_teste_fn()") if self.repo.dialect == "postgres" else self.execute("DROP TRIGGER bloqueio_teste")
         self.retention.erase_case(self.ca, self.case["id"], self.case["id"])  # and it works once the obstacle is gone
         self.assertEqual(self.count("cases", self.a["id"]), 0)
 

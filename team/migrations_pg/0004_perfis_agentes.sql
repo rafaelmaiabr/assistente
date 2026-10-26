@@ -2,7 +2,7 @@
 -- 0004: versoes imutaveis de perfis de agentes; execucoes so iniciam em versao existente e ativa.
 CREATE TABLE agent_profile_versions (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE agent_profile_versions (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, agent_id, agent_version),
-  FOREIGN KEY (tenant_id, agent_id) REFERENCES agent_definitions(tenant_id, id)
+  FOREIGN KEY (tenant_id, agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 ALTER TABLE agent_runs ADD COLUMN agent_version BIGINT;
 CREATE FUNCTION agent_profile_versions_frozen_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.agent_id IS DISTINCT FROM OLD.agent_id OR NEW.agent_version IS DISTINCT FROM OLD.agent_version
