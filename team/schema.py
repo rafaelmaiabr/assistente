@@ -182,6 +182,12 @@ SCHEMAS = {
         topic="slug", occurrences="posint", related_case_ids="list:ref:case", state="enum:GapState",
         decision="enum:GapDecision?", decision_note="text?", decided_by="actor?", decided_at="ts?", follow_up="str?",
         memory_id="ref:memory_item?", fulfilled_at="ts?"),
+    # A task handed to an agent outside this process (A2A). The case owner stays responsible: this record only follows the remote
+    # task. ``state`` "desconhecido" = the send may or may not have arrived (no remote id yet); it blocks a blind repeat.
+    "a2a_task": _entity(
+        "a2a_task", case_id="ref:case", connection_id="ref:connection", requested_by="actor", message_id="str", remote_task_id="str?",
+        remote_state="str?", state="enum:A2ATaskState", objective="text", expected_result="text?", expires_at="ts", checked_at="ts?",
+        result_text="text?", attention="bool", detail="text?"),
     "memory_item": _entity(
         "memory_item", scope="enum:MemoryScope", department_id="ref:department?", subject="str?",
         memory_kind="enum:MemoryKind", text="text", state="enum:MemoryState", source="str", proposed_by="actor",
@@ -408,6 +414,18 @@ def _rule_triage(doc):
     return errors
 
 
+def _rule_a2a_task(doc):
+    errors = []
+    has_remote = doc.get("remote_task_id") is not None
+    if doc["state"] in ("pendente", "em_execucao", "aguardando", "concluida") and not has_remote:
+        errors.append("$.remote_task_id: obrigatorio depois que o agente externo aceitou a tarefa")
+    if doc["state"] == "desconhecido" and has_remote:
+        errors.append("$.state: resultado desconhecido nao tem tarefa remota")
+    if doc.get("result_text") is not None and doc["state"] != "concluida":
+        errors.append("$.result_text: so existe quando a tarefa foi concluida")
+    return errors
+
+
 def _rule_gap(doc):
     errors = []
     if doc["case_id"] not in doc["related_case_ids"] or len(doc["related_case_ids"]) > 20:
@@ -480,7 +498,7 @@ def _rule_asset(doc):
     return [] if _HOSTNAME.match(doc["hostname"]) else ["$.hostname: use um nome DNS minusculo (ex.: exemplo.com.br)"]
 
 
-_RULES = {"capability_gap": _rule_gap, "schedule": _rule_schedule, "financial_record": _rule_financial, "monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
+_RULES = {"a2a_task": _rule_a2a_task, "capability_gap": _rule_gap, "schedule": _rule_schedule, "financial_record": _rule_financial, "monitored_asset": _rule_asset, "memory_item": _rule_memory, "case": _rule_case, "triage_decision": _rule_triage, "case_entry": _rule_entry, "contact_address": _rule_address, "access_grant": _rule_grant, "mcp_catalog_entry": _rule_catalog,
           "model_policy": _rule_policy}
 
 

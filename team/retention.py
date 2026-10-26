@@ -103,6 +103,7 @@ class RetentionService:
                 "evidencias": session.list("evidence", limit=1000, case_id=case_id),
                 "aprovacoes": session.list("approval_request", limit=1000, case_id=case_id),
                 "encaminhamentos": session.list("handoff", limit=1000, case_id=case_id),
+                "tarefas_externas": session.list("a2a_task", limit=1000, case_id=case_id),
                 "mensagens_de_saida": session.list("outbound_message", limit=1000, case_id=case_id),
                 "triagem": session.list("triage_decision", limit=1000, case_id=case_id),
             }
@@ -161,6 +162,7 @@ class RetentionService:
                     ("encaminhamentos", "DELETE FROM handoffs WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("jobs", f"DELETE FROM jobs WHERE tenant_id = ? AND (case_id = ? OR run_id IN {runs})", (tenant, case_id, tenant, case_id)),
                     ("comandos", "DELETE FROM commands WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
+                    ("tarefas_a2a", "DELETE FROM a2a_tasks WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("subtarefas", "DELETE FROM tasks WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("execucoes", "DELETE FROM agent_runs WHERE tenant_id = ? AND case_id = ?", (tenant, case_id)),
                     ("demanda", "DELETE FROM cases WHERE tenant_id = ? AND id = ?", (tenant, case_id)),
