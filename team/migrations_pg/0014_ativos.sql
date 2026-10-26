@@ -2,7 +2,7 @@
 -- 0014: ativos (dominios/hosts) que a empresa autoriza para diagnostico de rede.
 CREATE TABLE monitored_assets (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,

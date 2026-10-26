@@ -2,7 +2,7 @@
 -- 0002: contatos (identidade separada de enderecos) e concessoes de acesso default-deny.
 CREATE TABLE contacts (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE contacts (
 );
 CREATE TABLE contact_addresses (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -20,11 +20,11 @@ CREATE TABLE contact_addresses (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, address_key),
-  FOREIGN KEY (tenant_id, contact_id) REFERENCES contacts(tenant_id, id)
+  FOREIGN KEY (tenant_id, contact_id) REFERENCES contacts(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE contact_links (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -33,12 +33,12 @@ CREATE TABLE contact_links (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, contact_id, department_id),
-  FOREIGN KEY (tenant_id, contact_id) REFERENCES contacts(tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id)
+  FOREIGN KEY (tenant_id, contact_id) REFERENCES contacts(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE access_grants (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,

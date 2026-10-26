@@ -351,6 +351,15 @@ class SqliteRepository(Repository):
             conn.close()
 
     @contextmanager
+    def reader(self):
+        """A plain read connection (no write lock): for lookups that run on every request."""
+        conn = self._connect()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    @contextmanager
     def transaction(self, tenant_id):
         if not isinstance(tenant_id, str) or not tenant_id:
             raise TenantMismatch("contexto de empresa obrigatorio")

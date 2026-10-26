@@ -75,7 +75,11 @@ async def persistence_api(request):
     if lock.locked():
         return web.json_response({'error': 'Já existe uma operação em andamento.'}, status=409)
     async with lock:
-        result = await asyncio.to_thread(persistence.enable if operation == 'enable' else persistence.disable, root)
+        if operation == 'enable':
+            from team.vault import WindowsVault
+            result = await asyncio.to_thread(persistence.enable, root, request.app[CONFIG], WindowsVault(root))
+        else:
+            result = await asyncio.to_thread(persistence.disable, root)
     return web.json_response(result)
 
 

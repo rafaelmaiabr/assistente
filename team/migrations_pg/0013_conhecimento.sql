@@ -2,7 +2,7 @@
 -- 0013: base de conhecimento (documentos versionados), memorias confirmadas e indice de busca local (FTS5).
 CREATE TABLE knowledge_documents (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -11,12 +11,12 @@ CREATE TABLE knowledge_documents (
   status TEXT NOT NULL,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id)
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE INDEX knowledge_by_key ON knowledge_documents (tenant_id, doc_key, created_at);
 CREATE TABLE memory_items (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -25,6 +25,8 @@ CREATE TABLE memory_items (
   scope TEXT NOT NULL,
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id)
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
--- (omitido) indice de texto FTS5: a busca de conhecimento no PostgreSQL pertence a issue #89.;
+CREATE TABLE knowledge_index (title TEXT NOT NULL, body TEXT NOT NULL, tenant_id TEXT NOT NULL, doc_id TEXT NOT NULL, tsv TSVECTOR NOT NULL);
+CREATE INDEX knowledge_index_tsv ON knowledge_index USING GIN (tsv);
+CREATE INDEX knowledge_index_doc ON knowledge_index (doc_id);

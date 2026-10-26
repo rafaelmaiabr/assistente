@@ -9,7 +9,7 @@ and ``to_sqlite`` copies it back into a new SQLite file (the rollback path). Nei
   version that was disabled later); they are back before the transaction ends;
 * compare, per table, the number of rows and a fingerprint of the content (JSON is compared as data, not as text) and fail loudly
   on any difference;
-* leave SQLite-only structures to the module that owns them (the full-text index, issue #89).
+* rebuild the full-text index afterwards: it is derived from the documents, so it is not copied (``reindex``).
 """
 import hashlib
 import json
@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .db import connect, migrate
 from .pgdb import PostgresRepository
+from .repository import SqliteRepository
 
 JSON_COLUMNS = {"doc", "payload", "checkpoint", "result", "budget"}
 SKIP = {"schema_migrations", "sqlite_sequence"}
@@ -127,6 +128,13 @@ def _verify(source, target, plan):
     return {table: _count(source, table) for table, _ in plan}
 
 
+def _reindex(repository):
+    """Rebuild the knowledge search index of every company in a freshly copied database."""
+    from .knowledge import KnowledgeService
+    service = KnowledgeService(repository, None)
+    return sum(service.reindex(tenant["id"]) for tenant in repository.list_global("tenant", limit=1000))
+
+
 def to_postgres(sqlite_path, repository: PostgresRepository):
     """Copy a SQLite database into an empty, migrated PostgreSQL database. Returns ``{table: rows}``; raises on any difference."""
     if not Path(sqlite_path).exists():
@@ -146,7 +154,8 @@ def to_postgres(sqlite_path, repository: PostgresRepository):
             report = _verify(source, target, plan)
             for table in tables:  # back on before the transaction ends; on any failure the whole transaction (triggers included) rolls back
                 target.execute(f"ALTER TABLE {table} ENABLE TRIGGER USER")
-            return report
+        _reindex(repository)
+        return report
     finally:
         source.close()
 
@@ -159,6 +168,7 @@ def to_sqlite(repository: PostgresRepository, sqlite_path):
     migrate(path)
     plan = table_plan()
     target = connect(path)
+    report = None
     try:
         target.execute("BEGIN IMMEDIATE")
         triggers = target.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger'").fetchall()
@@ -166,6 +176,7 @@ def to_sqlite(repository: PostgresRepository, sqlite_path):
             target.execute(f"DROP TRIGGER {name}")
         try:
             with repository._transaction() as source:
+                source.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")  # one snapshot for every table, even while the app writes
                 _require_empty(target, plan)
                 _copy(source, target, plan, "?")
                 report = _verify(source, target, plan)
@@ -175,7 +186,6 @@ def to_sqlite(repository: PostgresRepository, sqlite_path):
             if check:
                 raise MigrationMismatch("Chaves estrangeiras quebradas no SQLite copiado: " + str(check[:3]))
             target.execute("COMMIT")
-            return report
         except BaseException:
             if target.in_transaction:
                 target.execute("ROLLBACK")
@@ -192,6 +202,8 @@ def to_sqlite(repository: PostgresRepository, sqlite_path):
             target.close()
         except sqlite3.Error:
             pass
+    _reindex(SqliteRepository(path))
+    return report
 
 
 def verify(sqlite_path, repository: PostgresRepository):

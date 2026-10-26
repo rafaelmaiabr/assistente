@@ -11,8 +11,8 @@ CREATE TABLE auth_users (
   last_login_at TEXT
 );
 CREATE TABLE auth_memberships (
-  user_id TEXT NOT NULL REFERENCES auth_users(id),
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  user_id TEXT NOT NULL REFERENCES auth_users(id) DEFERRABLE INITIALLY IMMEDIATE,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   role TEXT NOT NULL CHECK (role IN ('leitor', 'atendente', 'aprovador', 'admin')),
   status TEXT NOT NULL CHECK (status IN ('ativo', 'inativo')),
   granted_by TEXT NOT NULL,
@@ -24,7 +24,7 @@ CREATE INDEX auth_memberships_by_tenant ON auth_memberships (tenant_id, status);
 -- Somente o hash do token fica guardado: o valor so existe no cookie do navegador.
 CREATE TABLE auth_sessions (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES auth_users(id),
+  user_id TEXT NOT NULL REFERENCES auth_users(id) DEFERRABLE INITIALLY IMMEDIATE,
   token_hash TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,

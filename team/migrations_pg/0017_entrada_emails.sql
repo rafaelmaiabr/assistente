@@ -3,7 +3,7 @@
 -- ingerida ou ignorada, para deduplicar, encadear respostas e rastrear ate a mensagem fonte.
 CREATE TABLE mailbox_cursors (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -14,12 +14,12 @@ CREATE TABLE mailbox_cursors (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, connection_id, folder),
-  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id),
-  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id)
+  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, department_id) REFERENCES departments(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE TABLE email_messages (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -33,8 +33,8 @@ CREATE TABLE email_messages (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, connection_id, folder, uidvalidity, uid),
-  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id)
+  FOREIGN KEY (tenant_id, connection_id) REFERENCES connections(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 CREATE INDEX email_messages_by_message_id ON email_messages (tenant_id, connection_id, message_id);
 CREATE INDEX email_messages_by_case ON email_messages (tenant_id, case_id);

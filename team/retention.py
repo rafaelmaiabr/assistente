@@ -13,7 +13,6 @@ operator created from the case, contacts, and anything outside this computer.
 """
 import json
 import os
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from .access import AccessContext, NotFound, PermissionDenied
@@ -145,7 +144,7 @@ class RetentionService:
                 if session.get("case", case_id) is None:
                     raise NotFound()
                 conn, tenant = session.conn, ctx.tenant_id
-                conn.execute("PRAGMA defer_foreign_keys = ON")
+                conn.execute("SET CONSTRAINTS ALL DEFERRED" if self.repository.dialect == "postgres" else "PRAGMA defer_foreign_keys = ON")
                 conn.execute("INSERT INTO erasure_guard (token) VALUES (1)")  # lets the append-only tables be deleted, this transaction only
                 runs = "(SELECT id FROM agent_runs WHERE tenant_id = ? AND case_id = ?)"
                 steps = [
@@ -171,7 +170,7 @@ class RetentionService:
                 conn.execute("DELETE FROM erasure_guard")
                 conn.execute("INSERT INTO erasure_log (tenant_id, case_id, erased_at, erased_by, counts) VALUES (?, ?, ?, ?, ?)",
                              (tenant, case_id, _stamp(self.clock()), ctx.principal_id, json.dumps(counts)))
-        except sqlite3.IntegrityError:
+        except self.repository.integrity_errors:
             raise RetentionRejected("A demanda ainda e referenciada por outros registros; nada foi apagado.") from None
         exports = self._drop_exports(lambda e: not (e["tenant_id"] == ctx.tenant_id and e["case_id"] == case_id))
         attachments = AttachmentStore(self.base).delete_case(ctx.tenant_id, case_id)

@@ -1,14 +1,15 @@
 """Consistent local backup and restore of the team database.
 
-A backup is a SQLite online copy (consistent even while the app writes) plus a manifest with the schema
-version, a checksum and row counts. **Secrets are not included**: the credential vault (Windows
+A backup is a SQLite file (an online copy, consistent even while the app writes; on PostgreSQL a verified copy taken in
+one snapshot) plus a manifest with the schema version, a checksum and row counts. The file is the same either way, so a
+backup made on one database can be restored on the other. **Secrets are not included**: the credential vault (Windows
 credential store) lives outside the database, and the database only holds references to it, so after a
 restore on another computer the passwords must be entered again. The backup itself is **not encrypted**:
 it contains customer data, so keep it in a folder only you can read (the files are created readable by the
 current user only where the system supports it) and never publish it.
 
-Restoring replaces the live database (stop the app first), keeps the previous file as ``.pre-restore``, checks
-integrity and the manifest first, and then reconciles what the outside world did while the backup was old:
+Restoring replaces the live SQLite database (stop the app first), keeps the previous file as ``.pre-restore``, checks
+integrity and the manifest first; on PostgreSQL it never overwrites the database in use: it restores into a new, empty one, and then reconciles what the outside world did while the backup was old:
 running jobs return to the queue (or to reconciliation when an external effect was in doubt) and messages that
 were being sent become *unknown* for an operator decision. Nothing is re-sent automatically.
 """
@@ -17,11 +18,13 @@ import json
 import os
 import shutil
 import sqlite3
+import tempfile
 from datetime import datetime, timedelta, timezone
 
 from .access import OperatorContext, PermissionDenied
 from .db import MigrationError, connect, discover, migrate
 from .jobs import JobQueue
+from .pgmigrate import TargetNotEmpty, to_postgres, to_sqlite
 from .repository import SqliteRepository
 
 FORMAT = 1
@@ -68,10 +71,24 @@ class BackupService:
         folder = (destination or self.root) / now.strftime("%Y%m%dT%H%M%SZ")
         folder.mkdir(parents=True, exist_ok=False)
         target = folder / DB_NAME
-        source = connect(self.repository.path)
+        postgres = self.repository.dialect == "postgres"
+        source = None if postgres else connect(self.repository.path)
+        try:
+            if postgres:
+                to_sqlite(self.repository, target)  # one snapshot of the whole database, compared table by table with the copy
+            else:
+                copy = sqlite3.connect(str(target))
+                try:
+                    source.backup(copy)
+                finally:
+                    copy.close()
+        except BaseException:
+            if source is not None:
+                source.close()
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
         copy = sqlite3.connect(str(target))
         try:
-            source.backup(copy)
             check = copy.execute("PRAGMA integrity_check").fetchone()[0]
             if check != "ok":
                 raise BackupInvalid("A copia nao passou na verificacao de integridade; o banco de origem precisa de atencao.")
@@ -86,9 +103,10 @@ class BackupService:
             shutil.rmtree(folder, ignore_errors=True)
             raise
         finally:
-            source.close()
+            if source is not None:
+                source.close()
         copy.close()
-        manifest = {"formato": FORMAT, "criado_em": _stamp(now), "versao_do_esquema": version, "arquivo": DB_NAME,
+        manifest = {"formato": FORMAT, "criado_em": _stamp(now), "origem": self.repository.dialect, "versao_do_esquema": version, "arquivo": DB_NAME,
                     "sha256": _sha256(target), "tamanho": target.stat().st_size, "linhas": rows, "em_andamento": flight,
                     "segredos": "nao incluidos", "criptografado": False, "aviso": NOTICE}
         (folder / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -140,6 +158,8 @@ class BackupService:
     def restore(self, operator, folder, *, overwrite=False):
         self._operator(operator)
         manifest = self.verify(folder)
+        if self.repository.dialect == "postgres":
+            return self._restore_postgres(folder, manifest, overwrite)
         live = self.repository.path
         if live.exists() and not overwrite:
             raise BackupInvalid("Ja existe um banco em uso. Pare o aplicativo e confirme a substituicao (overwrite=True).")
@@ -169,6 +189,24 @@ class BackupService:
         report = self.reconcile()
         return {"restaurado_de": str(folder), "criado_em": manifest["criado_em"], "migracoes_aplicadas": applied,
                 "banco_anterior": None if previous is None else str(previous), **report}
+
+    def _restore_postgres(self, folder, manifest, overwrite):
+        """Restore into a new, empty PostgreSQL database. The database in use is never overwritten, wiped or renamed."""
+        if overwrite:
+            raise BackupInvalid("No PostgreSQL a restauracao nao sobrescreve o banco em uso: crie um banco novo e vazio, aponte o aplicativo para ele e restaure.")
+        with tempfile.TemporaryDirectory(prefix="assistente-restauracao-") as scratch:
+            staged = os.path.join(scratch, DB_NAME)
+            shutil.copy2(folder / DB_NAME, staged)
+            try:
+                applied = migrate(staged)  # an older backup is brought to the current schema before it is copied
+                to_postgres(staged, self.repository)
+            except TargetNotEmpty:
+                raise BackupInvalid("O banco PostgreSQL ja tem dados. Restaure em um banco novo e vazio; nada foi alterado.") from None
+            except MigrationError as error:
+                raise BackupInvalid(f"A migracao do backup falhou: {error}") from None
+        report = self.reconcile()
+        return {"restaurado_de": str(folder), "criado_em": manifest["criado_em"], "migracoes_aplicadas": applied,
+                "banco_anterior": None, **report}
 
     def reconcile(self):
         """Settle what a restored snapshot cannot know: running jobs and messages in the middle of sending."""

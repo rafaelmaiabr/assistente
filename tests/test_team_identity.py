@@ -8,7 +8,6 @@ from team.agents import AgentService
 from team.approvals import ApprovalService
 from team.cases import CaseService
 from team.control import OperatorControl
-from team.db import connect
 from team.gaps import GapService
 from team.handoffs import HandoffService
 from team.identity import Identity, IdentityRejected, IdentityService, LoginDenied, hash_token, normalize_email
@@ -16,6 +15,7 @@ from team.ids import new_id
 from team.knowledge import KnowledgeService
 from team.repository import SqliteRepository
 from team.service import TeamService
+from tests.dbtools import SqlTools
 
 PROFILE = dict(goals=["Atender"], personality={"tone": "claro", "initiative": "proativo"}, scope="Escopo",
                out_of_scope="Outros", model_policy_ref="local-primeiro")
@@ -32,7 +32,7 @@ class Clock:
         self.now += timedelta(**delta)
 
 
-class IdentityBase(unittest.TestCase):
+class IdentityBase(SqlTools, unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -113,10 +113,8 @@ class SignInTests(IdentityBase):
 class SessionTests(IdentityBase):
     def test_only_the_hash_of_the_token_is_stored(self):
         token, session = self.member("ana@empresa.invalid", "admin")[0], None
-        conn = connect(self.path)
-        rows = conn.execute("SELECT token_hash FROM auth_sessions").fetchall()
-        events = conn.execute("SELECT detail FROM auth_events").fetchall()
-        conn.close()
+        rows = self.rows("SELECT token_hash FROM auth_sessions")
+        events = self.rows("SELECT detail FROM auth_events")
         self.assertEqual([r[0] for r in rows], [hash_token(token)])
         self.assertNotIn(token, str(rows) + str(events))
 

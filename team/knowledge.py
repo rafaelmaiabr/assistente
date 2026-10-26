@@ -1,4 +1,4 @@
-"""Knowledge base and memory with scope, versions, retention and local full-text search (SQLite FTS5).
+"""Knowledge base and memory with scope, versions, retention and local full-text search (SQLite FTS5 or PostgreSQL ``tsvector``).
 
 Three things stay separate: the **case history** (read from the case), **confirmed memory** (dated
 preferences and facts) and **published knowledge** (versioned documents with a source). Retrieval
@@ -7,8 +7,10 @@ nothing retrieved can change a policy, a permission or the system prompt. Memory
 is only a proposal until the operator confirms it. Revoking, expiring or deleting removes the text
 from the search index at once.
 
-The index uses SQLite FTS5, so this module needs the SQLite repository (a PostgreSQL adapter would
-provide its own full-text implementation behind the same methods).
+The index is SQLite FTS5 on the SQLite repository and a ``tsvector`` column (``simple`` configuration, GIN index) on PostgreSQL.
+Both index the same words (accents removed, letters and digits only), so a query finds the same documents; only the order of the
+results can differ, because the two engines rank differently. The excerpt is cut by the database on SQLite and in Python on
+PostgreSQL (``excerpt``), so the text shown is the same kind of window around the first match.
 """
 import re
 import unicodedata
@@ -43,11 +45,39 @@ def _parse(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def query_words(text):
+    """The search words of a query: lowercase ASCII letters and digits (accents removed), at most 12, no operators."""
+    plain = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().lower()
+    return list(dict.fromkeys(re.findall(r"[a-z0-9]{2,}", plain)))[:12]
+
+
 def fts_query(text):
     """A safe FTS5 query: quoted word tokens joined with OR (user text can never inject operators)."""
-    plain = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().lower()
-    words = list(dict.fromkeys(re.findall(r"[a-z0-9]{2,}", plain)))[:12]
-    return " OR ".join(f'"{w}"' for w in words)
+    return " OR ".join(f'"{w}"' for w in query_words(text))
+
+
+def _fold_chars(text):
+    """Lowercase ASCII-folded text with exactly one character per original character (so positions line up)."""
+    return "".join((unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode() or c)[:1].lower() for c in text)
+
+
+def index_text(title, body):
+    """What the PostgreSQL index stores: the words of the title and body, folded the way the SQLite tokenizer does."""
+    return " ".join(re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", f"{title} {body}").encode("ascii", "ignore").decode().lower()))
+
+
+def excerpt(body, words, size=40):
+    """A window of about ``size`` words around the first occurrence of any search word (the SQLite ``snippet`` counterpart)."""
+    pieces = list(re.finditer(r"\S+", body))
+    if not pieces:
+        return ""
+    folded = _fold_chars(body)
+    hit = re.search(r"(?<![a-z0-9])(?:" + "|".join(map(re.escape, words)) + r")(?![a-z0-9])", folded) if words else None
+    at = next((i for i, m in enumerate(pieces) if hit and m.end() > hit.start()), 0)
+    start = max(at - size // 4, 0)
+    end = min(start + size, len(pieces))
+    text = body[pieces[start].start():pieces[end - 1].end()]
+    return ("…" if start else "") + text + ("…" if end < len(pieces) else "")
 
 
 class KnowledgeService:
@@ -70,7 +100,14 @@ class KnowledgeService:
             raise NotFound()
         return doc
 
+    def _postgres(self):
+        return getattr(self.repository, "dialect", "sqlite") == "postgres"
+
     def _index(self, session, doc):
+        if self._postgres():
+            session.conn.execute("INSERT INTO knowledge_index (title, body, tenant_id, doc_id, tsv) VALUES (?, ?, ?, ?, to_tsvector('simple', ?))",
+                                 (doc["title"], doc["body"], doc["tenant_id"], doc["id"], index_text(doc["title"], doc["body"])))
+            return
         session.conn.execute("INSERT INTO knowledge_index (title, body, tenant_id, doc_id) VALUES (?, ?, ?, ?)",
                              (doc["title"], doc["body"], doc["tenant_id"], doc["id"]))
 
@@ -197,6 +234,18 @@ class KnowledgeService:
         with self.repository.transaction(ctx.tenant_id) as session:
             return session.list("memory_item", limit=1000, **({"state": state} if state else {}))
 
+    def reindex(self, tenant_id, now=None):
+        """Rebuild this company's search index from the documents (the index is derived data: it is not copied between databases)."""
+        moment = now or self.clock()
+        with self.repository.transaction(tenant_id) as session:
+            session.conn.execute("DELETE FROM knowledge_index WHERE tenant_id = ?", (tenant_id,))
+            count = 0
+            for doc in session.list("knowledge_document", limit=1000):
+                if doc["status"] == "publicado" and not (doc["valid_until"] and _parse(doc["valid_until"]) <= moment):
+                    self._index(session, doc)
+                    count += 1
+        return count
+
     # -- retention ---------------------------------------------------------------------------------------------------
     def purge(self, tenant_id, now=None):
         """Backend sweep: expire dated documents and memories, and erase revoked documents past the retention period."""
@@ -264,10 +313,19 @@ class KnowledgeService:
         match = fts_query(query)
         if not match or budget["left"] <= 0:
             return []
-        rows = session.conn.execute(
-            "SELECT doc_id, snippet(knowledge_index, 1, '', '', '…', 40) FROM knowledge_index "
-            "WHERE knowledge_index MATCH ? AND tenant_id = ? ORDER BY rank LIMIT ?",
-            (match, ctx.tenant_id, max(int(max_items), 1) * 3)).fetchall()
+        limit = max(int(max_items), 1) * 3
+        if self._postgres():
+            words = query_words(query)
+            tsquery = " | ".join(words)
+            rows = [(doc_id, excerpt(body, words)) for doc_id, body in session.conn.execute(
+                "SELECT doc_id, body FROM knowledge_index WHERE tenant_id = ? AND tsv @@ to_tsquery('simple', ?) "
+                "ORDER BY ts_rank(tsv, to_tsquery('simple', ?)) DESC, doc_id LIMIT ?",
+                (ctx.tenant_id, tsquery, tsquery, limit)).fetchall()]
+        else:
+            rows = session.conn.execute(
+                "SELECT doc_id, snippet(knowledge_index, 1, '', '', '…', 40) FROM knowledge_index "
+                "WHERE knowledge_index MATCH ? AND tenant_id = ? ORDER BY rank LIMIT ?",
+                (match, ctx.tenant_id, limit)).fetchall()
         found = []
         for doc_id, snippet in rows:
             doc = session.get("knowledge_document", doc_id)

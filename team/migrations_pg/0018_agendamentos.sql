@@ -2,7 +2,7 @@
 -- 0018: rotinas agendadas (opt-in), notificacoes ao operador e escalonamentos de SLA ja realizados.
 CREATE TABLE schedules (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE schedules (
 CREATE INDEX schedules_due ON schedules (state, next_run_at);
 CREATE TABLE notifications (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE notifications (
 );
 CREATE INDEX notifications_by_key ON notifications (tenant_id, dedupe_key, created_at);
 CREATE TABLE sla_escalations (
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   subject_kind TEXT NOT NULL,
   subject_id TEXT NOT NULL,
   level BIGINT NOT NULL CHECK (level >= 1),

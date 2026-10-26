@@ -2,7 +2,7 @@
 -- 0012: mensagens de saida (rascunho separado do envio; a tabela serve de outbox).
 CREATE TABLE outbound_messages (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) DEFERRABLE INITIALLY IMMEDIATE,
   revision BIGINT NOT NULL CHECK (revision >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -16,10 +16,10 @@ CREATE TABLE outbound_messages (
   doc JSONB NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, dedup_key),
-  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id),
-  FOREIGN KEY (tenant_id, account_id) REFERENCES connections(tenant_id, id),
-  FOREIGN KEY (tenant_id, owner_agent_id) REFERENCES agent_definitions(tenant_id, id),
-  FOREIGN KEY (tenant_id, approval_id) REFERENCES approval_requests(tenant_id, id)
+  FOREIGN KEY (tenant_id, case_id) REFERENCES cases(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, account_id) REFERENCES connections(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, owner_agent_id) REFERENCES agent_definitions(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE,
+  FOREIGN KEY (tenant_id, approval_id) REFERENCES approval_requests(tenant_id, id) DEFERRABLE INITIALLY IMMEDIATE
 );
 -- Serializacao por demanda: no maximo um envio em andamento por vez.
 CREATE UNIQUE INDEX outbound_one_sending_per_case ON outbound_messages (tenant_id, case_id) WHERE state = 'enviando';
