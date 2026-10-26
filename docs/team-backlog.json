@@ -999,7 +999,7 @@
       ],
       "tests": "Dois agentes de teste: continuidade, estados incompatíveis, callback forjado, tarefa duplicada, contraparte revogada e recusa de autenticação.",
       "areas": "Novo adapter A2A e testes de contrato; docs de integração",
-      "decision": "",
+      "decision": "Subdividida antes de codificar (2026-10-26): esta parte entrega o ADR (A2A 1.0), o mapeamento de estados e do Agent Card, a sanitização de saída e o adaptador de transporte isolado com par de teste em memória, sem persistência nova; contrapartes autenticadas, tarefas remotas persistidas e retorno/timeout são T40 (#93). #50 só fecha com a #93.",
       "issue": 50,
       "url": "https://github.com/rafaelmaiabr/assistente/issues/50",
       "depends_on_issues": [
@@ -1139,6 +1139,41 @@
         43,
         45,
         46,
+        48
+      ]
+    },
+    {
+      "code": "T40",
+      "phase": "Escala",
+      "title": "A2A: contrapartes, tarefas remotas e retorno (parte 2 do T35)",
+      "dependencies": [
+        "T35",
+        "T07",
+        "T11",
+        "T13",
+        "T14",
+        "T32",
+        "T33"
+      ],
+      "goal": "Completar o T35: contrapartes A2A autenticadas por empresa, tarefas remotas persistidas com idempotência e retorno, timeout e perda de conexão seguindo T11/T14.",
+      "acceptance": [
+        "Contraparte A2A é uma conexão por empresa, com allowlist, credencial no cofre e revogação imediata; autenticação, escopo de contexto e tenant ficam no gateway.",
+        "Tarefas remotas persistidas (migração SQLite e tradução PostgreSQL com paridade), com idempotência: tarefa duplicada e callback repetido não duplicam efeito.",
+        "Transferir tarefa remota não transfere responsabilidade nem permissão de falar com o cliente; retorno, timeout e perda de conexão seguem T11/T14.",
+        "Cancelamento de melhor esforço refletido no estado local; resultado desconhecido não é tratado como sucesso."
+      ],
+      "tests": "Dois agentes de teste: continuidade, estados incompatíveis, callback forjado, tarefa duplicada, contraparte revogada e recusa de autenticação; nos dois bancos.",
+      "areas": "team/a2a*.py, conexões, delegação, nova migração, docs",
+      "decision": "Parte 2 de #50 (T35).",
+      "issue": 93,
+      "url": "https://github.com/rafaelmaiabr/assistente/issues/93",
+      "depends_on_issues": [
+        50,
+        22,
+        26,
+        28,
+        29,
+        47,
         48
       ]
     }
