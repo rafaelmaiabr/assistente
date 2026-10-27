@@ -12,6 +12,7 @@ A different mail vendor (Gmail or Microsoft by API, an email MCP server) becomes
 """
 from ..imap_mcp import CATALOG_KEY, TOOL_SPECS, TOOLS
 from .registry import Capability
+from .setup import SetupAdapter
 
 IMAP_PROVIDER = "imap"
 SMTP_PROVIDER = "smtp"
@@ -23,7 +24,7 @@ def _arguments(spec):
 
 
 EMAIL_READ = Capability(
-    READ_CAPABILITY,
+    READ_CAPABILITY, label="Email: leitura da caixa",
     required={tool: "read" for tool in TOOLS},
     arguments={tool: _arguments(TOOL_SPECS[tool]) for tool in TOOLS})
 
@@ -31,7 +32,7 @@ EMAIL_READ = Capability(
 _SEND_ARGS = {"para": ("string", True), "assunto": ("string", True), "corpo": ("string", True),
               "chave": ("string", True), "dry_run": ("boolean", False)}
 EMAIL_SEND = Capability(
-    SEND_CAPABILITY,
+    SEND_CAPABILITY, label="Email: envio de mensagens",
     required={"enviar-mensagem": "send"},
     arguments={"enviar-mensagem": _SEND_ARGS},
     bindings={"enviar-mensagem": {"recipient_argument": "para"}},
@@ -73,8 +74,58 @@ SMTP_DESCRIPTOR = {
 }
 
 
-def register_email_drivers(registry, imap_transport):
-    """Register both capabilities and both drivers. ``imap_transport`` is the ``ImapTransport`` of the application."""
+_LOOPBACK = {"127.0.0.1", "localhost", "::1"}  # the only hosts the clients accept without TLS (a local bridge or a test server)
+
+
+def _folders(text):
+    return tuple(part.strip() for part in str(text).split(",") if part.strip())
+
+
+class ImapSetup(SetupAdapter):
+    """Panel adapter over ``ImapAccounts`` (host, user, authorized folders; the password goes to the vault)."""
+
+    def __init__(self, accounts):
+        self.accounts = accounts
+
+    def configure(self, operator, ctx, connection_id, values):
+        self.accounts.configure(operator, ctx, connection_id, host=values["servidor"], username=values["usuario"],
+                                folders=_folders(values["pastas"]), port=values.get("porta", 993),
+                                tls=values["servidor"] not in _LOOPBACK)
+
+    def current(self, tenant_id, connection_id):
+        config = self.accounts.registry.get(tenant_id, connection_id)
+        if config is None:
+            return None
+        return {"servidor": config.host, "porta": config.port, "usuario": config.username, "pastas": ", ".join(config.folders)}
+
+    def test(self, ctx, connection_id):
+        return self.accounts.test(ctx, connection_id)
+
+
+class SmtpSetup(SetupAdapter):
+    """Panel adapter over ``SmtpAccounts``."""
+
+    def __init__(self, accounts):
+        self.accounts = accounts
+
+    def configure(self, operator, ctx, connection_id, values):
+        self.accounts.configure(operator, ctx, connection_id, host=values["servidor"], username=values["usuario"],
+                                from_address=values["remetente"], port=values.get("porta", 587),
+                                security="plain" if values["servidor"] in _LOOPBACK else "starttls")
+
+    def current(self, tenant_id, connection_id):
+        config = self.accounts.registry.get(tenant_id, connection_id)
+        if config is None:
+            return None
+        return {"servidor": config.host, "porta": config.port, "usuario": config.username, "remetente": config.from_address}
+
+    def test(self, ctx, connection_id):
+        return self.accounts.test(ctx, connection_id)
+
+
+def register_email_drivers(registry, imap_transport, imap_setup=None, smtp_setup=None):
+    """Register both capabilities and both drivers. ``imap_transport`` is the ``ImapTransport`` of the application;
+    the optional setup adapters let the panel configure and test them."""
     registry.register_capability(EMAIL_READ)
     registry.register_capability(EMAIL_SEND)
-    return (registry.register_driver(IMAP_DESCRIPTOR, imap_transport), registry.register_driver(SMTP_DESCRIPTOR))
+    return (registry.register_driver(IMAP_DESCRIPTOR, imap_transport, imap_setup), registry.register_driver(SMTP_DESCRIPTOR, setup=smtp_setup))

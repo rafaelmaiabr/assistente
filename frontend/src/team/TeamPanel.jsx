@@ -6,12 +6,13 @@ import {PersistenceSettings} from '../PersistenceSettings.jsx';
 import {AgentsSection} from './AgentsSection.jsx';
 import {SkillsSection} from './SkillsSection.jsx';
 import {ConnectionsSection} from './ConnectionsSection.jsx';
+import {ConnectorsSection} from './ConnectorsSection.jsx';
 import {CasesSection} from './CasesSection.jsx';
 import {MembersSection} from './MembersSection.jsx';
 import {DoctorSection, OnboardingSection} from './OnboardingSection.jsx';
 import {ROLE_LABEL, visibleTabs} from './authModel.js';
 
-const TABS = [['cases', 'Demandas'], ['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões'], ['members', 'Membros']];
+const TABS = [['cases', 'Demandas'], ['departments', 'Departamentos'], ['agents', 'Agentes'], ['skills', 'Skills'], ['connections', 'Conexões'], ['connectors', 'Conectores'], ['members', 'Membros']];
 
 function Departments({base}) {
   const {data, error, reload} = useList(`${base}/departments`);
@@ -100,6 +101,7 @@ export function TeamPanel({onOpenMenu, focus, remote = false}) {
             {tab === 'agents' && <AgentsSection base={base}/>}
             {tab === 'skills' && <SkillsSection base={base}/>}
             {tab === 'connections' && <ConnectionsSection base={base}/>}
+            {tab === 'connectors' && <ConnectorsSection base={base} remote={remote}/>}
             {tab === 'members' && <MembersSection base={base}/>}
           </div></> : <p className="team-empty">{remote ? 'Você ainda não participa de nenhuma empresa.' : 'Crie ou selecione uma empresa, ou use "Configurar por um modelo", para começar.'}</p>}
       </>}

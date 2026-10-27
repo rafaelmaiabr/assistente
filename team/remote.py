@@ -76,6 +76,13 @@ POLICY = {
     "GET /api/team/companies/{tenant}/gaps": "admin",
     "POST /api/team/companies/{tenant}/gaps": "atendente",
     "POST /api/team/companies/{tenant}/gaps/{id}/{action}": "admin",
+    # Connector catalog (#106): reading is for administrators. Configuring or testing writes files and the vault of this computer and
+    # opens network connections to a host the operator typed, so a remote session must not do it (it could aim at an internal address).
+    "GET /api/team/companies/{tenant}/connectors": "admin",
+    "GET /api/team/companies/{tenant}/connectors/audit": "admin",
+    "POST /api/team/companies/{tenant}/connectors/{provider}/connections": "local",
+    "PUT /api/team/companies/{tenant}/connectors/connections/{id}": "local",
+    "POST /api/team/companies/{tenant}/connectors/connections/{id}/test": "local",
     "GET /api/team/companies/{tenant}/mcp-catalog": "admin",
     "POST /api/team/companies/{tenant}/mcp-catalog": "local",
     "PATCH /api/team/companies/{tenant}/mcp-catalog/{id}": "local",

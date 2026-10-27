@@ -6,7 +6,7 @@ per company. Copy this file as the starting point for a real driver (see docs/TE
 from ..gateway import McpTransport
 from .registry import Capability
 
-CAPABILITY = Capability("exemplo", {"listar-itens": "read", "criar-item": "write"})
+CAPABILITY = Capability("exemplo", required={"listar-itens": "read", "criar-item": "write"})
 DESCRIPTOR = {
     "provider": "exemplo",
     "capability": "exemplo",

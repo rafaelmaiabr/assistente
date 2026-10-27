@@ -43,7 +43,7 @@ export function scopeLabel(member, departments = []) {
 
 /** Which tabs a role sees. Members is for administrators (and the local owner). */
 export function visibleTabs(tabs, role) {
-  const needs = {cases: 'leitor', departments: 'admin', agents: 'admin', skills: 'admin', connections: 'admin', members: 'admin'};
+  const needs = {cases: 'leitor', departments: 'admin', agents: 'admin', skills: 'admin', connections: 'admin', connectors: 'admin', members: 'admin'};
   return tabs.filter(([id]) => canAt(role, needs[id] || 'admin'));
 }
 

@@ -22,7 +22,14 @@ from .outbound import OutboundGateway
 from .connections import ConnectionService, LauncherRegistry
 from .llm import ModelPolicyService
 from .service import TeamService
+from .connectors import ConnectorRegistry
+from .connectors.catalog import ConnectorCatalog
+from .connectors.erp import ERP
+from .connectors.mail import ImapSetup, SmtpSetup, register_email_drivers
+from .connectors.setup import ConnectorAudit
+from .imap_mcp import ImapAccountRegistry, ImapAccounts, ImapTransport
 from .skills import SkillService
+from .smtp_transport import SmtpAccountRegistry, SmtpAccounts
 from .vault import LegacyElevenLabsAdapter, WindowsVault
 
 
@@ -68,6 +75,14 @@ class TeamApp:
             connections = ConnectionService(
                 repo, access, self._vault or WindowsVault(self.root),
                 LauncherRegistry(persistence.data_dir(self.root) / "launchers.json", access.operator_id), legacy)
+            data = persistence.data_dir(self.root)
+            imap_registry = ImapAccountRegistry(data / "imap-accounts.json", access.operator_id)
+            smtp_registry = SmtpAccountRegistry(data / "smtp-accounts.json", access.operator_id)
+            registry = ConnectorRegistry()
+            registry.register_capability(ERP)  # no ERP driver yet (Bling is issue #104): the panel says so
+            register_email_drivers(registry, ImapTransport(imap_registry), ImapSetup(ImapAccounts(connections, imap_registry)),
+                                   SmtpSetup(SmtpAccounts(connections, smtp_registry)))
+            registry.attach(connections)
             cases = CaseService(repo, access)
             handoffs = HandoffService(repo, access, cases)
             approvals = ApprovalService(repo, access, cases)
@@ -78,7 +93,8 @@ class TeamApp:
             self._built = SimpleNamespace(
                 repo=repo, access=access, operator=access.local_operator(), team=team, triage=triage,
                 onboarding=OnboardingService(access, team, agents, triage),
-                policies=policies, agents=agents, connections=connections, skills=SkillService(repo, access, agents),
+                policies=policies, agents=agents, connections=connections,
+                connectors=ConnectorCatalog(registry, connections, ConnectorAudit(data / "connector-audit.jsonl")), skills=SkillService(repo, access, agents),
                 cases=cases, handoffs=handoffs, approvals=approvals, queue=queue,
                 knowledge=knowledge, gaps=GapService(repo, access, cases, knowledge), identity=IdentityService(repo, access),
                 control=OperatorControl(repo, access, cases, approvals, handoffs, queue),

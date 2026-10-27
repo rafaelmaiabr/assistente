@@ -760,6 +760,10 @@ ul.team-error{padding-left:18px;margin:0}
 .team-credential{margin:8px 0;background:#181b21;border-color:#2e323d}
 .badge{display:inline-block;font-size:10px;letter-spacing:.4px;padding:2px 7px;border-radius:99px;background:#2d3a2b;color:#cfe6c7;margin-left:6px}
 .badge.off{background:#3a2f2f;color:#e8c4bd}
+.badge.warn{background:#4a3a1c;color:#f4dca0}
+.connector-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.connector-head .badge{margin-left:0}
+.connector-note{color:#e6d6a0;font-size:12px;margin:4px 0;border-left:3px solid #8a7a3a;padding-left:8px}
 .badge.demo{background:#3b3a24;color:#ece7a8}
 .demo-note{flex-basis:100%;margin:0;font-size:11px;color:#a8b1a2}
 @media(max-width:900px){.team-split{grid-template-columns:1fr}.team-company-bar form{flex-wrap:wrap}.team-company-bar select,.team-company-bar input{min-width:0;width:100%}.team-body{padding-left:16px;padding-right:16px}}
