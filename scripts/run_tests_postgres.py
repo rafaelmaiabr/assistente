@@ -24,6 +24,7 @@ DEFAULT = [
     "tests.test_team_remote_scope", "tests.test_team_scope", "tests.test_team_oauth", "tests.test_team_oauth_microsoft", "tests.test_team_smtp",
     "tests.test_team_imap", "tests.test_team_email_ingest", "tests.test_team_finance", "tests.test_team_renewal", "tests.test_team_evals",
     "tests.test_team_diagnostics", "tests.test_team_onboarding", "tests.test_team_repository", "tests.test_team_database_pg", "tests.test_team_a2a_service",
+    "tests.test_team_erp",
 ]
 
 

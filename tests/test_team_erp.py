@@ -9,7 +9,7 @@ from team.cases import CaseService
 from team.connectors import ConnectorRegistry, DescriptorRejected
 from team.connectors import erp_fake
 from team.connectors.erp import ERP, ChargeRejected, emission_blockers, normalize_charge, verify_hmac_sha256
-from team.connectors.erp_ledger import LedgerRejected, NotSent, Reconciler, UnknownResult, run_emission
+from team.connectors.erp_ledger import LedgerRejected, MemoryStore, NotSent, Reconciler, UnknownResult, run_emission
 from team.gateway import ApprovalRequired, Gateway
 from tests.connector_contract import ConnectorContractMixin
 from tests.team_fixtures import MANIFEST, GatewayCase
@@ -121,28 +121,31 @@ class FinanceGateTests(FinanceCase):
         self.assertEqual(self.blockers("Consultoria Epsilon", "FAT-500"), ["cobranca_de_outra_empresa"])
 
 
-class ReconcilerTests(unittest.TestCase):
+class ReconcilerSuite:
+    """Reconciliation rules; run against every store (see the concrete classes below)."""
+
     def setUp(self):
-        self.rec = Reconciler()
-        self.rec.record_issued(TENANT, P, CHARGE)
+        self.make_world()
+        self.rec = Reconciler(self.store)
+        self.rec.record_issued(self.T, P, CHARGE)
 
-    def state(self, tenant=TENANT):
-        return self.rec.charge(tenant, P, "NF-1")
+    def state(self, tenant=None):
+        return self.rec.charge(tenant or self.T, P, "NF-1")
 
-    def apply(self, raw, source="webhook", tenant=TENANT):
-        return self.rec.apply(tenant, P, raw, source=source)
+    def apply(self, raw, source="webhook", tenant=None):
+        return self.rec.apply(tenant or self.T, P, raw, source=source)
 
     def test_unauthenticated_webhook_changes_nothing_and_can_be_retried_signed(self):
         transport = erp_fake.FakeErpTransport(self.rec)
         body, signature = transport.webhook("NF-1", "paga", event_id="w1", occurred_at=at(1))
         for bad in ("0" * 64, "", signature[:-1] + ("0" if signature[-1] != "0" else "1")):
-            self.assertEqual(self.rec.ingest_webhook(TENANT, P, body, bad, erp_fake.WEBHOOK_SECRET, erp_fake.parse_webhook),
+            self.assertEqual(self.rec.ingest_webhook(self.T, P, body, bad, erp_fake.WEBHOOK_SECRET, erp_fake.parse_webhook),
                              {"resultado": "assinatura_invalida"})
         self.assertEqual(self.state()["status"], "emitida")
-        ok = self.rec.ingest_webhook(TENANT, P, body, signature, erp_fake.WEBHOOK_SECRET, erp_fake.parse_webhook)
+        ok = self.rec.ingest_webhook(self.T, P, body, signature, erp_fake.WEBHOOK_SECRET, erp_fake.parse_webhook)
         self.assertEqual((ok["resultado"], ok["estado"]), ("aplicado", "paga"))
         garbage = b"nao e json"
-        self.assertEqual(self.rec.ingest_webhook(TENANT, P, garbage, erp_fake.sign(garbage), erp_fake.WEBHOOK_SECRET,
+        self.assertEqual(self.rec.ingest_webhook(self.T, P, garbage, erp_fake.sign(garbage), erp_fake.WEBHOOK_SECRET,
                                                  erp_fake.parse_webhook), {"resultado": "evento_invalido"})
 
     def test_duplicate_events_never_duplicate_the_receipt(self):
@@ -155,14 +158,14 @@ class ReconcilerTests(unittest.TestCase):
         self.assertEqual(receipts[0]["valor_centavos"], 150_00)
 
     def test_pending_status_is_not_a_payment(self):
-        result = self.rec.apply_snapshot(TENANT, P, {**CHARGE, "status": "pendente"}, at(1))
+        result = self.rec.apply_snapshot(self.T, P, {**CHARGE, "status": "pendente"}, at(1))
         self.assertEqual((result["resultado"], result["estado"]), ("ja_aplicado", "emitida"))
         self.assertEqual(self.state()["recibos"], [])
 
     def test_polling_is_idempotent_and_applies_the_erp_view(self):
         paid = {**CHARGE, "status": "paga"}
-        self.assertEqual(self.rec.apply_snapshot(TENANT, P, paid, at(1))["resultado"], "aplicado")
-        self.assertEqual(self.rec.apply_snapshot(TENANT, P, paid, at(5))["resultado"], "duplicado")
+        self.assertEqual(self.rec.apply_snapshot(self.T, P, paid, at(1))["resultado"], "aplicado")
+        self.assertEqual(self.rec.apply_snapshot(self.T, P, paid, at(5))["resultado"], "duplicado")
         self.assertEqual(len(self.state()["recibos"]), 1)
 
     def test_out_of_order_refund_waits_for_the_payment(self):
@@ -202,17 +205,17 @@ class ReconcilerTests(unittest.TestCase):
 
     def test_unknown_documents_and_other_companies_are_not_touched(self):
         self.assertEqual(self.apply({**event("x1", "paga", 1), "documento": "NF-999"})["resultado"], "desconhecida")
-        self.assertEqual(self.apply(event("o1", "paga", 1), tenant=OTHER)["resultado"], "desconhecida")  # NF-1 is not theirs
-        self.assertIsNone(self.rec.charge(OTHER, P, "NF-1"))
+        self.assertEqual(self.apply(event("o1", "paga", 1), tenant=self.O)["resultado"], "desconhecida")  # NF-1 is not theirs
+        self.assertIsNone(self.rec.charge(self.O, P, "NF-1"))
         self.assertEqual(self.state()["status"], "emitida")
-        self.rec.record_issued(OTHER, P, {**CHARGE, "cliente": "Beta"})
-        self.assertEqual(self.apply(event("o2", "paga", 1, cliente="Beta"), tenant=OTHER)["resultado"], "aplicado")
+        self.rec.record_issued(self.O, P, {**CHARGE, "cliente": "Beta"})
+        self.assertEqual(self.apply(event("o2", "paga", 1, cliente="Beta"), tenant=self.O)["resultado"], "aplicado")
         self.assertEqual(self.state()["status"], "emitida")
 
     def test_a_customer_message_is_a_claim_not_proof(self):
-        claim = self.rec.note_customer_claim(TENANT, P, "NF-1", "Ja paguei ontem, segue comprovante")
+        claim = self.rec.note_customer_claim(self.T, P, "NF-1", "Ja paguei ontem, segue comprovante")
         self.assertEqual((claim["resultado"], claim["estado"]), ("alegacao_registrada", "emitida"))
-        self.assertEqual(self.rec.note_customer_claim(TENANT, P, "NF-404")["resultado"], "desconhecida")
+        self.assertEqual(self.rec.note_customer_claim(self.T, P, "NF-404")["resultado"], "desconhecida")
         for source in ("mensagem_cliente", "email", "operador", "", None):
             self.assertEqual(self.apply(event(f"m-{source}", "paga", 1), source=source)["resultado"], "fonte_nao_prova_pagamento")
         self.assertEqual((self.state()["status"], self.state()["recibos"]), ("emitida", []))
@@ -226,9 +229,10 @@ class ReconcilerTests(unittest.TestCase):
         self.assertEqual(self.state()["status"], "emitida")
 
 
-class EmissionTests(unittest.IsolatedAsyncioTestCase):
+class EmissionSuite:
     def setUp(self):
-        self.rec = Reconciler()
+        self.make_world()
+        self.rec = Reconciler(self.store)
         self.payload = {"documento": "NF-2", "valor_centavos": 100_00}
 
     async def test_success_replay_and_key_reuse(self):
@@ -238,26 +242,26 @@ class EmissionTests(unittest.IsolatedAsyncioTestCase):
             calls.append(1)
             return normalize_charge({**CHARGE, "documento": "NF-2"})
 
-        first = await run_emission(self.rec, TENANT, P, "k1", self.payload, call)
-        again = await run_emission(self.rec, TENANT, P, "k1", self.payload, call)
+        first = await run_emission(self.rec, self.T, P, "k1", self.payload, call)
+        again = await run_emission(self.rec, self.T, P, "k1", self.payload, call)
         self.assertEqual((first, again), ({"repetida": False, "documento": "NF-2"}, {"repetida": True, "documento": "NF-2"}))
         self.assertEqual(len(calls), 1)
-        self.assertEqual(self.rec.charge(TENANT, P, "NF-2")["status"], "emitida")
+        self.assertEqual(self.rec.charge(self.T, P, "NF-2")["status"], "emitida")
         with self.assertRaises(LedgerRejected):
-            await run_emission(self.rec, TENANT, P, "k1", {**self.payload, "valor_centavos": 1}, call)
+            await run_emission(self.rec, self.T, P, "k1", {**self.payload, "valor_centavos": 1}, call)
 
     async def test_a_lost_response_blocks_repeating_until_verified(self):
         async def lost():
             raise ConnectionError("sem resposta")
 
         with self.assertRaises(ConnectionError):
-            await run_emission(self.rec, TENANT, P, "k2", self.payload, lost)
-        self.assertEqual(self.rec.emission_state(TENANT, P, "k2"), "desconhecido")
+            await run_emission(self.rec, self.T, P, "k2", self.payload, lost)
+        self.assertEqual(self.rec.emission_state(self.T, P, "k2"), "desconhecido")
         with self.assertRaises(UnknownResult):
-            await run_emission(self.rec, TENANT, P, "k2", self.payload, lost)
-        self.assertEqual(self.rec.resolve_emission(TENANT, P, "k2", found={**CHARGE, "documento": "NF-2"}), "emitida")
-        self.assertEqual(self.rec.charge(TENANT, P, "NF-2")["documento"], "NF-2")
-        self.assertEqual((await run_emission(self.rec, TENANT, P, "k2", self.payload, lost))["repetida"], True)
+            await run_emission(self.rec, self.T, P, "k2", self.payload, lost)
+        self.assertEqual(self.rec.resolve_emission(self.T, P, "k2", found={**CHARGE, "documento": "NF-2"}), "emitida")
+        self.assertEqual(self.rec.charge(self.T, P, "NF-2")["documento"], "NF-2")
+        self.assertEqual((await run_emission(self.rec, self.T, P, "k2", self.payload, lost))["repetida"], True)
 
     async def test_verified_absence_releases_the_key_and_unsent_calls_never_block(self):
         async def lost():
@@ -267,15 +271,15 @@ class EmissionTests(unittest.IsolatedAsyncioTestCase):
             raise NotSent()
 
         with self.assertRaises(TimeoutError):
-            await run_emission(self.rec, TENANT, P, "k3", self.payload, lost)
-        self.assertEqual(self.rec.resolve_emission(TENANT, P, "k3", found=None), "nao_emitida")
+            await run_emission(self.rec, self.T, P, "k3", self.payload, lost)
+        self.assertEqual(self.rec.resolve_emission(self.T, P, "k3", found=None), "nao_emitida")
         with self.assertRaises(NotSent):
-            await run_emission(self.rec, TENANT, P, "k3", self.payload, never_left)
-        self.assertEqual(self.rec.emission_state(TENANT, P, "k3"), "nao_emitida")
+            await run_emission(self.rec, self.T, P, "k3", self.payload, never_left)
+        self.assertEqual(self.rec.emission_state(self.T, P, "k3"), "nao_emitida")
         with self.assertRaises(LedgerRejected):
-            self.rec.resolve_emission(TENANT, P, "k3", found=None)  # nothing left to resolve
+            self.rec.resolve_emission(self.T, P, "k3", found=None)  # nothing left to resolve
         with self.assertRaises(LedgerRejected):
-            self.rec.resolve_emission(TENANT, P, "nunca-vista")
+            self.rec.resolve_emission(self.T, P, "nunca-vista")
 
     async def test_a_cancelled_call_is_treated_as_unknown(self):
         import asyncio
@@ -285,19 +289,160 @@ class EmissionTests(unittest.IsolatedAsyncioTestCase):
             started.set()
             await asyncio.sleep(30)
 
-        task = asyncio.ensure_future(run_emission(self.rec, TENANT, P, "k4", self.payload, slow))
+        task = asyncio.ensure_future(run_emission(self.rec, self.T, P, "k4", self.payload, slow))
         await started.wait()
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
-        self.assertEqual(self.rec.emission_state(TENANT, P, "k4"), "desconhecido")
+        self.assertEqual(self.rec.emission_state(self.T, P, "k4"), "desconhecido")
 
     async def test_keys_do_not_cross_companies(self):
         async def call():
             return normalize_charge({**CHARGE, "documento": "NF-2"})
 
-        await run_emission(self.rec, TENANT, P, "k5", self.payload, call)
-        self.assertIsNone(self.rec.emission_state(OTHER, P, "k5"))
-        self.assertIsNone(self.rec.charge(OTHER, P, "NF-2"))
+        await run_emission(self.rec, self.T, P, "k5", self.payload, call)
+        self.assertIsNone(self.rec.emission_state(self.O, P, "k5"))
+        self.assertIsNone(self.rec.charge(self.O, P, "NF-2"))
+
+
+class MemoryWorld:
+    def make_world(self):
+        self.T, self.O, self.store = TENANT, OTHER, MemoryStore()
+
+
+class SqlWorld:
+    """Two real companies on a SQLite team database, with the durable store (#110)."""
+
+    def make_world(self):
+        import tempfile
+        from team.access import AccessService
+        from team.connectors.erp_store import LedgerStore
+        from team.ids import new_id
+        from team.repository import SqliteRepository
+        from team.service import TeamService
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.repo = SqliteRepository(Path(self.temp.name) / "team.sqlite3")
+        self.repo.migrate()
+        access = AccessService(self.repo, new_id("user"))
+        team = TeamService(self.repo, access)
+        operator = access.local_operator()
+        self.T, self.O = (team.create_company(operator, name)["id"] for name in ("Empresa A", "Empresa B"))
+        self.store = LedgerStore(self.repo)
+
+
+class MemoryReconcilerTests(ReconcilerSuite, MemoryWorld, unittest.TestCase):
+    pass
+
+
+class SqlReconcilerTests(ReconcilerSuite, SqlWorld, unittest.TestCase):
+    pass
+
+
+class MemoryEmissionTests(EmissionSuite, MemoryWorld, unittest.IsolatedAsyncioTestCase):
+    pass
+
+
+class SqlEmissionTests(EmissionSuite, SqlWorld, unittest.IsolatedAsyncioTestCase):
+    pass
+
+
+class DurableLedgerTests(SqlWorld, unittest.TestCase):
+    """What only a durable, shared store guarantees (#110)."""
+
+    def setUp(self):
+        self.make_world()
+        self.rec = Reconciler(self.store)
+        self.rec.record_issued(self.T, P, CHARGE)
+
+    def other_process(self):
+        return Reconciler(__import__("team.connectors.erp_store", fromlist=["LedgerStore"]).LedgerStore(self.repo))
+
+    def test_state_receipts_seen_events_and_unknown_emissions_survive_a_restart(self):
+        self.rec.apply(self.T, P, event("e1", "paga", 1), source="webhook")
+        self.rec.begin_emission(self.T, P, "k1", {"a": 1})
+        self.rec.finish_emission(self.T, P, "k1", "desconhecido")
+        again = self.other_process()  # a new process with the same database
+        self.assertEqual(again.charge(self.T, P, "NF-1")["status"], "paga")
+        self.assertEqual(len(again.charge(self.T, P, "NF-1")["recibos"]), 1)
+        self.assertEqual(again.apply(self.T, P, event("e1", "paga", 1), source="webhook")["resultado"], "duplicado")
+        with self.assertRaises(UnknownResult):
+            again.begin_emission(self.T, P, "k1", {"a": 1})
+
+    def deliver_at_once(self, documento, event_ids):
+        """One thread per delivery, each with its own Reconciler (as separate processes would have), released together."""
+        import threading
+        workers = [self.other_process() for _ in event_ids]
+        gate, results = threading.Barrier(len(workers)), []
+
+        def run(rec, event_id):
+            gate.wait()
+            results.append(rec.apply(self.T, P, {**event(event_id, "paga", 1), "documento": documento}, source="webhook")["resultado"])
+
+        threads = [threading.Thread(target=run, args=(rec, event_id)) for rec, event_id in zip(workers, event_ids)]
+        [t.start() for t in threads]
+        [t.join(60) for t in threads]
+        self.assertEqual(len(results), len(event_ids), "uma entrega travou")
+        return results
+
+    def test_the_same_event_delivered_at_once_is_applied_once(self):
+        results = self.deliver_at_once("NF-1", ["mesmo-id"] * 8)
+        self.assertEqual(results.count("aplicado"), 1, results)
+        self.assertEqual(set(results) - {"aplicado"}, {"duplicado"})
+        self.assertEqual(len(self.state()["recibos"]), 1)
+
+    def test_the_same_fact_with_different_ids_at_once_pays_once(self):
+        self.rec.record_issued(self.T, P, {**CHARGE, "documento": "NF-2"})
+        results = self.deliver_at_once("NF-2", [f"id-{n}" for n in range(8)])
+        self.assertEqual(results.count("aplicado"), 1, results)
+        self.assertEqual(set(results) - {"aplicado"}, {"ja_aplicado"})
+        self.assertEqual(len(self.rec.charge(self.T, P, "NF-2")["recibos"]), 1)
+
+    def test_a_failure_in_the_middle_of_a_step_leaves_nothing_half_applied(self):
+        from team.connectors.erp_store import LedgerStore
+
+        class Flaky(LedgerStore):
+            def put(self, tenant_id, namespace, provider, key, value):
+                if namespace == "event":
+                    raise RuntimeError("disco cheio")
+                super().put(tenant_id, namespace, provider, key, value)
+
+        broken = Reconciler(Flaky(self.repo))
+        with self.assertRaises(RuntimeError):
+            broken.apply(self.T, P, event("e9", "paga", 1), source="webhook")
+        self.assertEqual((self.state()["status"], self.state()["recibos"]), ("emitida", []))
+        self.assertEqual(self.rec.apply(self.T, P, event("e9", "paga", 1), source="webhook")["resultado"], "aplicado")
+
+    def state(self):
+        return self.rec.charge(self.T, P, "NF-1")
+
+    def test_companies_cannot_reach_each_others_rows(self):
+        self.assertIsNone(self.store.get(self.O, "charge", P, "NF-1"))
+        with self.repo.transaction(self.O) as session:
+            self.assertEqual(session.list("erp_ledger_entry"), [])
+        with self.repo.transaction(self.T) as session:
+            entries = session.list("erp_ledger_entry")
+            self.assertEqual([e["namespace"] for e in entries], ["charge"])
+            theirs = entries[0]
+        from team.repository import RepositoryError, TenantMismatch
+        with self.repo.transaction(self.O) as session:
+            with self.assertRaises(TenantMismatch):  # a document naming the other company
+                session.save({**theirs, "revision": theirs["revision"] + 1})
+            with self.assertRaises(RepositoryError):  # claiming the other company's row id as its own
+                session.save({**theirs, "tenant_id": self.O, "revision": 1})
+        self.assertEqual(self.rec.charge(self.T, P, "NF-1")["status"], "emitida")
+
+    def test_the_database_refuses_a_second_row_for_the_same_key(self):
+        from team.ids import new_id
+        from team.repository import IntegrityViolation
+        with self.repo.transaction(self.T) as session:
+            existing = session.list("erp_ledger_entry")[0]
+            with self.assertRaises(IntegrityViolation):
+                session.save({**existing, "id": new_id("erp_ledger_entry"), "revision": 1})
+
+    def test_one_transaction_belongs_to_one_company(self):
+        with self.store.atomic(self.T):
+            with self.assertRaises(ValueError):
+                self.store.get(self.O, "charge", P, "NF-1")
 
 
 IDENTITY = {"tenant_id": TENANT, "agent_id": "a", "run_id": "r", "connection_id": "c", "operation": "write"}

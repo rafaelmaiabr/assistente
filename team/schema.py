@@ -188,6 +188,9 @@ SCHEMAS = {
         "a2a_task", case_id="ref:case", connection_id="ref:connection", requested_by="actor", message_id="str", remote_task_id="str?",
         remote_state="str?", state="enum:A2ATaskState", objective="text", expected_result="text?", expires_at="ts", checked_at="ts?",
         result_text="text?", attention="bool", detail="text?"),
+    # One row of the ERP charge ledger (#110): a charge's reconciled state, an event already applied (idempotency) or an issue
+    # request whose outcome may be unknown. (tenant, namespace, provider, entry_key) is unique, so a duplicate cannot be stored twice.
+    "erp_ledger_entry": _entity("erp_ledger_entry", namespace="enum:LedgerNamespace", provider="slug", entry_key="str", payload="obj"),
     "memory_item": _entity(
         "memory_item", scope="enum:MemoryScope", department_id="ref:department?", subject="str?",
         memory_kind="enum:MemoryKind", text="text", state="enum:MemoryState", source="str", proposed_by="actor",
