@@ -41,7 +41,7 @@ class ConnectorContractMixin:
         raise NotImplementedError
 
     def server(self):
-        return {"transport": self.descriptor.get("mcp_transport"), "key": self.descriptor["provider"]}
+        return {"transport": self.descriptor.get("mcp_transport"), "key": self.descriptor.get("catalog_key", self.descriptor["provider"])}
 
     def identity(self, tenant_id="tenant-a", operation="read"):
         return {"tenant_id": tenant_id, "agent_id": "agent-1", "run_id": "run-1", "connection_id": "conn-1", "operation": operation}
