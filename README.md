@@ -22,7 +22,7 @@ Use fones para reduzir o retorno do som do alto-falante ao microfone. A permiss�
 
 O iniciador seleciona explicitamente o microfone físico Intel e a saída Realtek, pelo backend MME, em `config.json` (`input_device` e `output_device`). Isso evita o microfone virtual NVIDIA Broadcast, que estava definido como padrão e apresentou sinal praticamente nulo no diagnóstico. Para usar um headset, altere esses campos para o nome do dispositivo e seu backend ou o ID listado pelo comando acima. Feche e reabra o assistente depois de alterar a configuração.
 
-**A caixa de email é fictícia.** A consulta passa por um servidor MCP real, iniciado como subprocesso, mas retorna dois emails de demonstração. Nenhuma conta de email real está conectada.
+**Por padrão a caixa de email é fictícia.** A consulta passa por um servidor MCP real, iniciado como subprocesso, mas retorna dois emails de demonstração. Para ler a sua caixa real (somente leitura, senha de aplicativo no cofre do Windows), siga [email pessoal](docs/PERSONAL-MAIL.md); esse caminho só foi testado com um servidor IMAP falso.
 
 ## Configuração
 
@@ -35,7 +35,7 @@ O Whisper `base` transcreve português na CPU, reservando a GPU para a LLM. Em *
 ## Escopo
 
 - Implementado: chat React no navegador com Ollama/MCP reais e contexto da sessão; voz/texto no console; detecção de fala com Silero; LLM configurável.
-- Ainda não implementado: persistência de conversas, integração de email real e roteamento automático entre LLMs.
+- Ainda não implementado: persistência de conversas, envio de email e roteamento automático entre LLMs.
 - A fluidez, interrupções e latência precisam ser avaliadas falando no microfone. Kokoro permite avaliar vozes neurais locais; esta entrega ainda gera o áudio completo antes de reproduzir. O console legado continua usando SAPI.
 
 ## Evolução para uma equipe

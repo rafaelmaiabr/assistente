@@ -27,7 +27,7 @@ class BrowserAgent:
         update = event.update
         if update.type == "tool_call_started":
             name = update.function_call.name
-            self.emit({"type": "status", "state": "executing", "label": "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Executando ferramenta…"})
+            self.emit({"type": "status", "state": "executing", "label": "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Executando ferramenta…"})
             self.emit({"type": "tool", "name": name, "state": "started"})
         elif update.type == "tool_call_ended":
             self.emit({"type": "tool", "state": update.status})
