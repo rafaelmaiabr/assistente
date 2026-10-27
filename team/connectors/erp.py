@@ -18,7 +18,7 @@ _CHARGE_ARGS = {"cliente": ("string", True), "beneficiario": ("string", True), "
 _CHARGE_BINDINGS = {"recipient_argument": "cliente", "amount_argument": "valor_centavos", "currency_argument": "moeda"}
 
 ERP = Capability(
-    "erp",
+    "erp", label="ERP (clientes, cobranças e pedidos)",
     required={"consultar-clientes": "read", "consultar-cobrancas": "read", "status-cobranca": "read"},
     optional={"consultar-pedidos": "read", "emitir-cobranca": "write", "alterar-cobranca": "write"},
     arguments={"consultar-clientes": {"busca": ("string", False)},

@@ -23,6 +23,7 @@ class Capability:
     argument that carries the vendor idempotency key. Drivers may add arguments and tools of their own.
     """
     name: str
+    label: str = ""
     required: dict = field(default_factory=dict)
     optional: dict = field(default_factory=dict)
     arguments: dict = field(default_factory=dict)
@@ -37,6 +38,7 @@ class Capability:
 class Driver:
     descriptor: dict
     transport: McpTransport | None = None
+    setup: object | None = None  # a ``SetupAdapter`` (see setup.py) when the panel can configure and test this driver
 
     @property
     def provider(self):
@@ -85,7 +87,7 @@ class ConnectorRegistry:
                 raise DescriptorRejected(f"Operacao invalida para {tool} na capacidade {capability.name}.")
         self._capabilities[capability.name] = capability
 
-    def register_driver(self, descriptor, transport: McpTransport | None = None) -> Driver:
+    def register_driver(self, descriptor, transport: McpTransport | None = None, setup=None) -> Driver:
         clean = validate_descriptor(descriptor)
         capability = self._capabilities.get(clean["capability"])
         if capability is None:
@@ -98,7 +100,7 @@ class ConnectorRegistry:
         self._check_contract(capability, clean)
         if clean["protocol"] == "mcp" and clean["mcp_transport"] == "local" and transport is None:
             raise DescriptorRejected("Driver MCP local precisa de um transporte.")
-        driver = Driver(clean, transport)
+        driver = Driver(clean, transport, setup)
         self._drivers[clean["provider"]] = driver
         return driver
 
@@ -121,6 +123,9 @@ class ConnectorRegistry:
         for tool, argument in capability.idempotent.items():
             if tool in tools and clean["idempotency_arguments"].get(tool) != argument:
                 raise DescriptorRejected(f"{tool} deve declarar {argument} como chave de idempotencia.")
+
+    def capabilities(self):
+        return sorted(self._capabilities.values(), key=lambda c: c.name)
 
     def get(self, provider):
         return self._drivers.get(provider) if isinstance(provider, str) else None

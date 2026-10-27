@@ -35,18 +35,33 @@ Validado por `validate_descriptor` antes de qualquer registro (`DescriptorReject
 - `approve(connections, operator, provider)`: o operador aprova o driver MCP no catálogo, com a classificação confiável do descritor. Drivers não-MCP não entram no catálogo.
 - `local_transport()`: um único transporte `local` para o gateway, que despacha pela chave do catálogo (`catalog_key`, padrão = provider) ao transporte de cada driver; servidor desconhecido se comporta como inexistente.
 
+## Painel de conectores (C6, #106)
+
+Aba **Conectores** da seção Equipe (`frontend/src/team/ConnectorsSection.jsx`), API `GET /api/team/companies/{id}/connectors`, `POST …/connectors/{provider}/connections`, `PUT …/connectors/connections/{id}`, `POST …/connectors/connections/{id}/test` e `GET …/connectors/audit` (`team/connectors/catalog.py`, `setup.py`; `team/web.py`). Só administradores veem a aba e só o operador altera.
+
+- **Lista capacidades e drivers** registrados (`TeamApp.services()` registra `erp`, `email-leitura` e `email-envio`), com as conexões da empresa e o estado **real** de cada uma: não configurada, sem credencial, credencial revogada, desativada, **não testada** (configurada ainda não é "funcionando"), "testada: funcionou" ou "teste falhou". O último teste vem do histórico de configuração; nada é inferido. Capacidade sem driver mostra "nenhum conector instalado" (hoje `erp`: o Bling é a #104).
+- **O formulário nasce do descritor** (`fields`): texto, número, URL e senha. Os valores são validados contra o descritor (campo desconhecido, obrigatório ausente, tipo errado). Campos do tipo `secret` vão **só ao cofre** (`set_credential`); os demais vão ao cadastro de conta do driver. Nenhuma resposta, erro ou registro devolve o segredo; ao reconfigurar, senha em branco mantém a atual. O campo é `type=password`, sem autocompletar, e é limpo após cada tentativa.
+- **Aviso quando o driver não é MCP**, com a justificativa do descritor.
+- **Testar conexão** roda o teste real do driver com a credencial do cofre e grava o resultado.
+- **Histórico de configuração** (`connector-audit.jsonl` na pasta de dados, só anexa): quem fez, a ação (`conectar`, `configurar`, `testar`), o fornecedor, a conexão e um código fixo do resultado; **sem segredos, sem valores dos campos e sem texto vindo de servidores**.
+- Um driver só pode ser configurado pelo painel se tiver um `SetupAdapter` (`configure`, `current`, `test`); sem ele, o painel diz que ainda não é possível. Hoje: IMAP e SMTP (`team/connectors/mail.py`). Em `127.0.0.1`/`localhost` os adaptadores usam conexão sem TLS (conector local ou servidor de teste); em qualquer outro servidor o TLS é obrigatório, como antes.
+
 ## Como adicionar um conector
 
 1. Copie `team/connectors/example.py`; escreva o descritor (MCP primeiro; fora disso, justifique).
 2. Registre a capacidade (se nova) e o driver; chame `attach` e `approve`.
 3. Crie uma classe de teste com `ConnectorContractMixin` (veja `ExampleDriverContract` em `tests/test_team_connectors.py`) e implemente `seed`, `probe` e `effects`.
 4. Acrescente os testes específicos do fornecedor (fixtures, erros do provedor, limites). O kit não os substitui.
+5. Para configurar pelo painel, declare `fields` no descritor e passe um `SetupAdapter` ao `register_driver` (veja `ImapSetup` em `team/connectors/mail.py`): o formulário, a validação, o cofre, o teste e o histórico já vêm da camada.
 
 ## Kit de contrato
 
 Para qualquer driver: classificação confiável e coerente com o que o servidor afirma (`describe`), ferramenta inexistente recusada, argumentos desconhecidos/de escopo rejeitados, ferramentas que alteram algo **não têm efeito** sem `dry_run` explícito, resultados nunca repetem o segredo e empresas são isoladas. Um teste do próprio kit confirma que um driver que vaza segredo, ignora dry-run e mistura empresas é reprovado.
 
 ## Limites
+
+- A escolha do driver de uma capacidade por empresa é implícita: vale o que a empresa conectou (uma conexão por driver). Não há uma configuração à parte de "driver ativo".
+- Largura de celular e Electron não foram conferidos visualmente (a janela de teste não encolhe abaixo de ~680 px); o painel foi conferido em navegador de mesa com um servidor IMAP falso.
 
 - Validado só com o driver de exemplo e fakes; nenhuma conta ou serviço real.
 - O kit cobre o que é comum; aprovação exata (#28), limites de tempo/tamanho e revalidação continuam sendo do gateway e já têm testes próprios. Os testes aqui não passam por skills nem pelo gateway completo.

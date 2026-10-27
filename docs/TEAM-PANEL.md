@@ -14,7 +14,7 @@ Nada é conectado ou contratado automaticamente: instalar uma skill não concede
 
 Mesma origem apenas: o servidor exige o `Origin` exato (ou `Sec-Fetch-Site: same-origin`, que o navegador envia em GETs do mesmo site) em **toda** rota `/api/team`, inclusive GET, e `Content-Type: application/json` em POST/PUT/PATCH. Corpo até 64 KB, campos desconhecidos recusados. Sem o atendimento persistente ligado, as rotas respondem 409 (`persistence_disabled`).
 
-Rotas por empresa (`/api/team/companies/{id}/…`): departamentos, `agents` (+ `validate`, `versions`), `skills` (+ `demos`, `review`, `install`), `grants`, `connections` (+ `credential`), `mcp-catalog`. Empresa inexistente, id de outra empresa ou recurso invisível respondem **o mesmo 404** ("Recurso nao encontrado."); listas só devolvem o que a empresa possui. Conflito de revisão → 409; dados inválidos → 400 com caminhos de campo, nunca valores; falhas inesperadas → 500 genérico sem detalhes.
+Rotas por empresa (`/api/team/companies/{id}/…`): departamentos, `agents` (+ `validate`, `versions`), `skills` (+ `demos`, `review`, `install`), `grants`, `connections` (+ `credential`), `connectors` (catálogo de conectores; ver [TEAM-CONNECTORS.md](TEAM-CONNECTORS.md)), `mcp-catalog`. Empresa inexistente, id de outra empresa ou recurso invisível respondem **o mesmo 404** ("Recurso nao encontrado."); listas só devolvem o que a empresa possui. Conflito de revisão → 409; dados inválidos → 400 com caminhos de campo, nunca valores; falhas inesperadas → 500 genérico sem detalhes.
 
 **Segredos:** `PUT …/credential` recebe o valor uma vez; nenhuma resposta (nem erro) o devolve, só estado (`ativa`, `revogada`, onde está guardada). O campo é `type=password`, sem autocompletar, e é limpo depois de cada tentativa.
 

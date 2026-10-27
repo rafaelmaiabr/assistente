@@ -388,6 +388,39 @@ async def set_mcp_status(request):
     return _json({"id": entry["id"], "status": entry["status"], "revision": entry["revision"]})
 
 
+# -- connector catalog (#106) --------------------------------------------------------------------------------------------------
+@api
+async def connectors_overview(request):
+    services, ctx = _tenant(request)
+    return _json(services.connectors.overview(ctx))
+
+
+@api
+async def connector_connect(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("label", "values"))
+    return _json(services.connectors.connect(services.operator, ctx, request.match_info["provider"], data["label"], data["values"]), 201)
+
+
+@api
+async def connector_reconfigure(request):
+    services, ctx = _tenant(request)
+    data = _fields(await _body(request), ("values",))
+    return _json(services.connectors.reconfigure(services.operator, ctx, request.match_info["id"], data["values"]))
+
+
+@api
+async def connector_test(request):
+    services, ctx = _tenant(request)
+    return _json(services.connectors.test(ctx, request.match_info["id"]))
+
+
+@api
+async def connector_audit(request):
+    services, ctx = _tenant(request)
+    return _json(services.connectors.recent_audit(ctx))
+
+
 # -- cases center -----------------------------------------------------------------------------------------------------------
 @api
 async def cases_list(request):
@@ -615,6 +648,11 @@ def register(app, team_app):
     r.add_get(f"{t}/gaps", gaps_list)
     r.add_post(f"{t}/gaps", gap_report)
     r.add_post(f"{t}/gaps/{{id}}/{{action}}", gap_action)
+    r.add_get(f"{t}/connectors", connectors_overview)
+    r.add_get(f"{t}/connectors/audit", connector_audit)
+    r.add_post(f"{t}/connectors/{{provider}}/connections", connector_connect)
+    r.add_put(f"{t}/connectors/connections/{{id}}", connector_reconfigure)
+    r.add_post(f"{t}/connectors/connections/{{id}}/test", connector_test)
     r.add_get(f"{t}/mcp-catalog", mcp_catalog)
     r.add_post(f"{t}/mcp-catalog", approve_mcp)
     r.add_patch(f"{t}/mcp-catalog/{{id}}", set_mcp_status)
