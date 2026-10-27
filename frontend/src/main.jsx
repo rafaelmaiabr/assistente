@@ -9,6 +9,8 @@ import {ConversationLink} from './ConversationLink.jsx';
 import {LoginScreen, RemoteApp, readSession} from './RemoteApp.jsx';
 import {Markdown} from './markdown.jsx';
 import {api} from './team/api.js';
+import {DraftCard, SetupCard, SkillChip} from './MailCards.jsx';
+import {applyMailEvent, closeSetup, decisionMessage, initialMail, setupMessage, startSetup} from './mailModel.js';
 import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
 function Icon({name, ...props}) {
@@ -33,6 +35,7 @@ function App() {
   const [error, setError] = useState('');
   const [fatal, setFatal] = useState(false);
   const [tools, setTools] = useState([]);
+  const [mail, setMail] = useState(initialMail);
   const [menu, setMenu] = useState(false);
   const [view, setView] = useState('chat');
   const [conv, setConv] = useState(initialConversation);
@@ -85,6 +88,7 @@ function App() {
         const again = reattachMessage(convRef.current);  // a reconnection forgot the attachment; asking again never touches the microphone
         if (again) ws.send(JSON.stringify(again));
       }
+      setMail(current => applyMailEvent(current, data));  // setup form, drafts and the skill chip; none of it is model output
       if (data.type === 'binding') setError('');
       if (data.type === 'cancelled') {busy.current = false; setState('ready'); setLabel('Resposta interrompida');}
       if (data.type === 'status') {
@@ -132,7 +136,11 @@ function App() {
     socket.current.send(JSON.stringify({type: 'message', text: content, speak: speakRef.current}));
     setText(''); input.current?.focus();
   };
-  const reset = () => {setMessages([]); setText(''); setTools([]); setMenu(false); setView('chat'); setEpoch(n => n + 1);};
+  const sendRaw = payload => {if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(payload));};
+  const openSetup = () => setMail(current => applyMailEvent(current, {type: 'setup'}));
+  const submitSetup = form => {setMail(startSetup); sendRaw(setupMessage(form));};
+  const decide = (draft, decision) => sendRaw(decisionMessage(draft, decision));
+  const reset = () => {setMail(initialMail()); setMessages([]); setText(''); setTools([]); setMenu(false); setView('chat'); setEpoch(n => n + 1);};
   // Leaving the conversation always turns the microphone off: capture never continues out of sight.
   const go = next => {if (next !== 'chat') voiceRef.current.stopAll(); setView(next); setMenu(false);};
   const sendControl = payload => {if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(payload));};
@@ -169,21 +177,28 @@ function App() {
           <h1>O que vamos fazer hoje?</h1>
           <p>Uma pergunta, uma ideia ou uma tarefa.<br/>É só começar a conversa.</p>
           <div className="suggestions">
-            <button disabled={!canSend} onClick={() => send('Verifique a caixa de email X e resuma as mensagens.')}><Icon name="mail"/><strong>Consultar meus e-mails</strong><span>Experimentar com uma caixa fictícia</span><span className="card-arrow">↗</span></button>
+            {mail.skills.email === 'configurar'
+              ? <button disabled={!canSend} onClick={openSetup}><Icon name="mail"/><strong>Configurar caixa de email</strong><span>Conectar o email e ativar a habilidade</span><span className="card-arrow">↗</span></button>
+              : <button disabled={!canSend} onClick={() => send('Liste meus últimos emails.')}><Icon name="mail"/><strong>Consultar meus e-mails</strong><span>Ler e responder com a sua aprovação</span><span className="card-arrow">↗</span></button>}
             <button disabled={!canSend} onClick={() => send('Me ajude a organizar minhas prioridades para hoje. Faça uma pergunta de cada vez.')}><Icon name="spark"/><strong>Organizar minhas ideias</strong><span>Encontrar um bom ponto de partida</span><span className="card-arrow">↗</span></button>
           </div>
-          <div className="demo-note">A consulta de e-mails usa dados de demonstração. Nenhuma conta real está conectada.</div>
+          {mail.skills.email === 'configurar' && <div className="demo-note">Sem a habilidade de email configurada, a consulta usa dados de demonstração.</div>}
         </section> : <section className="messages" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions">
           {messages.map(item => <article key={item.id} className={`message ${item.role}`}><div className="message-avatar">{item.role === 'assistant' ? <Icon name="spark"/> : 'EU'}</div><div className="message-content"><div className="message-author">{item.role === 'assistant' ? 'Assistente' : 'Você'}</div><div className="message-text">{item.role === 'assistant' ? <Markdown text={item.text}/> : item.text}</div></div></article>)}
           {waiting && <div className="working"><span className="spinner"/>{label}</div>}
           {tools.length > 0 && <div className="tool-result"><Icon name="mail"/>{tools.some(t => t.state === 'error') ? 'A ferramenta encontrou um erro.' : tools.some(t => t.state === 'done') ? 'Consulta de ferramenta concluída nesta resposta.' : 'Ferramenta em execução…'}</div>}
         </section>}
+        <div className="mail-stack">
+          <SetupCard setup={mail.setup} onSubmit={submitSetup} onClose={() => setMail(closeSetup)}/>
+          {mail.drafts.map(draft => <DraftCard key={draft.id} draft={draft} onApprove={item => decide(item, 'approve')} onDiscard={item => decide(item, 'discard')}/>)}
+        </div>
         <div ref={bottom}/>
       </div>
       <div className="composer-area">
         <ConversationLink conv={conv} view={{speaking: voice.speaking, fatal, connection: state}} onAttach={attach} onDetach={detach}
           onInterrupt={() => sendControl({type: 'cancel'})} onStopSpeech={voice.stopPlayback} onPause={pauseCase}
           onOpenCase={ref => {setFocus(ref); go('team');}}/>
+        <SkillChip state={mail.skills.email} onConfigure={openSetup}/>
         {error && <div className="error" role="alert"><span>{error}</span>{fatal && <button onClick={reset}>Nova conversa</button>}</div>}
         <div className="voice-controls">
           <VoiceSettings onPlay={wav => voice.play(wav)} onOpen={() => voice.stopAll()}/>

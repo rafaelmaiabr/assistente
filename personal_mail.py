@@ -6,15 +6,41 @@ below, and everything they return is marked as untrusted data. Nothing here send
 """
 import json
 import os
+import re
+import smtplib
+import ssl
 from pathlib import Path
 
+from team.connections import ConnectionRejected
 from team.imap_client import ImapConfig, ImapError, ReadOnlyImap
+from team.smtp_transport import SmtpConfig
 from team.vault import SecretVault, VaultError, WindowsVault
 
 FILE = "mail-account.json"
 TENANT, SLOT = "pessoal", "email-imap"
 MAX_ITEMS = 10
 MAX_TEXT = 6000
+
+
+# Known providers by address domain: (IMAP host, SMTP host). Anything else is guessed as imap.<domain>/smtp.<domain>; the form
+# lets the person correct both. Several providers disable app-password login by default: the test says so instead of guessing.
+PRESETS = {
+    "gmail.com": ("imap.gmail.com", "smtp.gmail.com"), "googlemail.com": ("imap.gmail.com", "smtp.gmail.com"),
+    "outlook.com": ("outlook.office365.com", "smtp.office365.com"), "hotmail.com": ("outlook.office365.com", "smtp.office365.com"),
+    "live.com": ("outlook.office365.com", "smtp.office365.com"), "yahoo.com": ("imap.mail.yahoo.com", "smtp.mail.yahoo.com"),
+    "yahoo.com.br": ("imap.mail.yahoo.com", "smtp.mail.yahoo.com"), "icloud.com": ("imap.mail.me.com", "smtp.mail.me.com"),
+    "me.com": ("imap.mail.me.com", "smtp.mail.me.com"), "zoho.com": ("imap.zoho.com", "smtp.zoho.com"),
+}
+_EMAIL = re.compile(r"^[^@\s,;<>]+@([^@\s,;<>]+\.[^@\s,;<>]+)$")
+
+
+def guess_servers(address):
+    """``(imap_host, smtp_host)`` for an address, or None when it is not an address."""
+    match = _EMAIL.match(address or "")
+    if not match:
+        return None
+    domain = match.group(1).lower()
+    return PRESETS.get(domain, (f"imap.{domain}", f"smtp.{domain}"))
 
 
 class MailNotConfigured(Exception):
@@ -28,21 +54,89 @@ class PersonalMail:
         self.ssl_context = ssl_context
 
     # -- account ------------------------------------------------------------------------------------------------------------
-    def configure(self, *, host, username, password, folders=("INBOX",), port=993, tls=True):
+    def configure(self, *, host, username, password, folders=("INBOX",), port=993, tls=True, smtp=None):
+        """``smtp`` (optional) is ``{host, port, security, from_address, from_name}``; the app password is the same one."""
         config = ImapConfig(host=host, port=port, username=username, folders=tuple(folders), tls=tls)
         try:
             config.validate()
         except ImapError as error:
             raise ValueError(error.message) from None
-        self.vault.put(TENANT, SLOT, password)
         data = {"host": host, "port": port, "username": username, "folders": list(folders), "tls": tls}
+        if smtp:
+            data["smtp"] = {key: smtp.get(key) for key in ("host", "port", "security", "from_address", "from_name")}
+            self._smtp_from(data, username).validate()
+        self.vault.put(TENANT, SLOT, password)
         temp = self.path.with_suffix(".tmp")
         temp.write_text(json.dumps(data, indent=2), encoding="utf-8")
         os.replace(temp, self.path)
 
+    def setup(self, address, password, *, imap_host=None, smtp_host=None, read_only=False, ssl_context=None, imap_port=993, imap_tls=True,
+              smtp_port=587, smtp_security="starttls", smtp_factory=None):
+        """Configure from the form: guess the servers, keep nothing unless both connections work, and leave the old account intact on failure.
+
+        Returns ``{"ok": True, ...}`` or ``{"erro": ...}``; neither ever contains the password.
+        """
+        servers = guess_servers(address)
+        if servers is None or not isinstance(password, str) or not password.strip() or len(password) > 200:
+            return {"erro": "Informe um endereço de email válido e a senha de aplicativo."}
+        imap, smtp = (imap_host or servers[0]).strip(), (smtp_host or servers[1]).strip()
+        before_file = self.path.read_bytes() if self.path.exists() else None
+        before_secret = self.secret()
+
+        def restore():
+            if before_file is None:
+                self.path.unlink(missing_ok=True)
+            else:
+                self.path.write_bytes(before_file)
+            try:
+                self.vault.put(TENANT, SLOT, before_secret) if before_secret else self.vault.delete(TENANT, SLOT)
+            except VaultError:
+                pass
+        try:
+            self.configure(host=imap, username=address, password=password.strip(), port=imap_port, tls=imap_tls, smtp=None if read_only else {
+                "host": smtp, "port": smtp_port, "security": smtp_security, "from_address": address, "from_name": None})
+        except (ValueError, VaultError) as error:
+            restore()
+            return {"erro": str(error) if isinstance(error, ValueError) else "Não foi possível guardar a senha no cofre do Windows."}
+        reading = self.test_imap(ssl_context)
+        if "erro" in reading:
+            restore()
+            return {"erro": reading["erro"] + " Nada foi guardado."}
+        if not read_only:
+            sending = self.test_smtp(ssl_context, smtp_factory)
+            if "erro" in sending:
+                restore()
+                return {"erro": sending["erro"] + " Nada foi guardado."}
+        return {"ok": True, "leitura": True, "envio": not read_only, "servidor": imap, "usuario": address}
+
     def remove(self):
         self.vault.delete(TENANT, SLOT)
         self.path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _smtp_from(data, username):
+        raw = data.get("smtp") or {}
+        return SmtpConfig(host=raw.get("host") or "", username=username, from_address=raw.get("from_address") or username,
+                          port=raw.get("port") or 587, security=raw.get("security") or "starttls", from_name=raw.get("from_name"))
+
+    def smtp_config(self):
+        """The outbound account, or None when only reading was configured."""
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if not data.get("smtp"):
+                return None
+            config = self._smtp_from(data, data["username"])
+            config.validate()
+            return config
+        except (OSError, ValueError, KeyError, TypeError, ConnectionRejected):
+            return None
+
+    def secret(self):
+        """The app password (the vault is the only place it exists), or None."""
+        try:
+            return self.vault.get(TENANT, SLOT) or None
+        except VaultError:
+            return None
 
     def configured(self) -> bool:
         return self._config() is not None
@@ -110,6 +204,48 @@ class PersonalMail:
                     "truncado": message["truncated"] or len(message["text"]) > MAX_TEXT}
         return self._run(action)
 
+    def original(self, uid, uidvalidity, folder=None):
+        """The parsed message a reply is about (for the outbox, never shown to the model as is), or ``{"erro": ...}``."""
+        return self._run(lambda imap: imap.read_message(self._folder(folder), int(uid), int(uidvalidity)))
+
+    def test_smtp(self, ssl_context=None, factory=None):
+        """Connect, negotiate TLS and log in with the app password, then quit. No message is sent."""
+        config, secret = self.smtp_config(), self.secret()
+        if config is None or not secret:
+            return {"erro": "O envio não está configurado."}
+        context = ssl_context or ssl.create_default_context()
+        try:
+            if config.security == "ssl":
+                server = (factory or smtplib.SMTP_SSL)(config.host, config.port, timeout=config.timeout, context=context)
+            else:
+                server = (factory or smtplib.SMTP)(config.host, config.port, timeout=config.timeout)
+            try:
+                server.ehlo()
+                if config.security == "starttls":
+                    server.starttls(context=context)
+                    server.ehlo()
+                server.login(config.username, secret)
+            finally:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+            return {"ok": True}
+        except smtplib.SMTPAuthenticationError:
+            return {"erro": "O servidor de saída recusou o usuário ou a senha (use senha de aplicativo)."}
+        except ssl.SSLError:
+            return {"erro": "Falha de TLS ou certificado não aceito no servidor de saída."}
+        except (smtplib.SMTPException, OSError):
+            return {"erro": "Não foi possível conectar ao servidor de saída (confira servidor, porta e segurança)."}
+
     def test(self):
         """The connection check the setup script shows: folders reachable, no message content."""
         return self._run(lambda imap: {"ok": True, "pastas": imap.list_folders()})
+
+    def test_imap(self, ssl_context=None):
+        original, self.ssl_context = self.ssl_context, ssl_context or self.ssl_context
+        try:
+            result = self.test()
+        finally:
+            self.ssl_context = original
+        return result

@@ -3,10 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from personal_mail import FILE, PersonalMail
+from personal_mail import FILE, PersonalMail, guess_servers
 from team.vault import MemoryVault
 from tests.imap_case import build
 from tests.imap_fake import FakeImap
+from tests.smtp_fake import FakeSmtp
 
 PASSWORD = "senha-de-app"
 
@@ -118,6 +119,65 @@ class ReadingTests(MailCase):
         result = self.mail.test()
         self.assertTrue(result["ok"])
         self.assertEqual([f["name"] for f in result["pastas"]], ["INBOX"])
+
+
+class SetupTests(MailCase):
+    def setUp(self):
+        super().setUp()
+        self.smtp = FakeSmtp(user="ana@exemplo.invalid", password=PASSWORD)
+        self.addCleanup(self.smtp.stop)
+
+    def run_setup(self, **kwargs):
+        options = dict(imap_host="127.0.0.1", smtp_host="127.0.0.1", imap_port=self.server.port, imap_tls=False,
+                       smtp_port=self.smtp.port, smtp_security="plain")
+        return self.mail.setup("ana@exemplo.invalid", kwargs.pop("password", PASSWORD), **{**options, **kwargs})
+
+    def test_the_servers_are_guessed_from_the_address(self):
+        self.assertEqual(guess_servers("a@gmail.com"), ("imap.gmail.com", "smtp.gmail.com"))
+        self.assertEqual(guess_servers("a@outlook.com")[0], "outlook.office365.com")
+        self.assertEqual(guess_servers("a@minhaempresa.com.br"), ("imap.minhaempresa.com.br", "smtp.minhaempresa.com.br"))
+        self.assertIsNone(guess_servers("sem-arroba"))
+
+    def test_a_working_account_is_kept_with_reading_and_sending(self):
+        result = self.run_setup()
+        self.assertEqual((result["ok"], result["leitura"], result["envio"]), (True, True, True))
+        self.assertTrue(self.mail.configured())
+        self.assertIsNotNone(self.mail.smtp_config())
+        self.assertNotIn(PASSWORD, json.dumps(result))
+        self.assertNotIn(PASSWORD, (self.root / FILE).read_text(encoding="utf-8"))
+
+    def test_read_only_skips_the_outgoing_server(self):
+        result = self.run_setup(read_only=True, smtp_host="servidor-que-nao-existe.invalid")
+        self.assertEqual((result["ok"], result["envio"]), (True, False))
+        self.assertIsNone(self.mail.smtp_config())
+
+    def test_a_wrong_password_keeps_nothing_and_leaves_the_old_account_intact(self):
+        self.run_setup()
+        before = (self.root / FILE).read_text(encoding="utf-8")
+        result = self.run_setup(password="senha-errada-123")
+        self.assertIn("erro", result)
+        self.assertIn("Nada foi guardado", result["erro"])
+        self.assertNotIn("senha-errada-123", json.dumps(result))
+        self.assertEqual((self.root / FILE).read_text(encoding="utf-8"), before)
+        self.assertEqual(self.vault.get("pessoal", "email-imap"), PASSWORD)
+
+    def test_a_failed_first_setup_leaves_no_file_and_no_secret(self):
+        self.assertIn("erro", self.run_setup(password="senha-errada-123"))
+        self.assertFalse(self.mail.configured())
+        self.assertFalse((self.root / FILE).exists())
+        self.assertIsNone(self.vault.get("pessoal", "email-imap"))
+
+    def test_an_outgoing_failure_also_undoes_everything(self):
+        self.smtp.password = "outra-senha"
+        result = self.run_setup()
+        self.assertIn("erro", result)
+        self.assertFalse(self.mail.configured())
+        self.assertIsNone(self.vault.get("pessoal", "email-imap"))
+
+    def test_invalid_input_is_refused_without_touching_anything(self):
+        for address, password in (("sem-arroba", PASSWORD), ("ana@exemplo.invalid", ""), ("ana@exemplo.invalid", "x" * 300), ("ana@exemplo.invalid", None)):
+            self.assertIn("erro", self.mail.setup(address, password))
+        self.assertFalse((self.root / FILE).exists())
 
 
 if __name__ == "__main__":

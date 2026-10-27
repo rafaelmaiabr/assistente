@@ -3,6 +3,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import uuid
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
@@ -11,6 +12,8 @@ from team.access import NotFound
 from team import web as team_web
 from team.app import TeamApp
 from speech_service import SpeechService, decode_audio
+from personal_mail import PersonalMail
+from personal_outbox import PersonalOutbox
 
 PORT = 8765
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
@@ -23,6 +26,8 @@ VOICE_OPERATION = web.AppKey('voice_operation', object)
 DATA_DIR = web.AppKey('data_dir', object)
 MAX_TEXT = 8000
 TURN_TIMEOUT = 120
+SETUP_INTENT = re.compile(r'(?i)\b(configur\w*|conect\w*|ativ\w*|troc\w*)\b.*\b(e-?mail|caixa)\b')
+SETUP_LOCK = asyncio.Lock()
 
 
 @web.middleware
@@ -147,6 +152,11 @@ async def chat(request):
     sender = None
     count = 0
     answers = []
+    def mail_account():
+        return PersonalMail(request.app[DATA_DIR], request.app[team_web.TEAM].vault())
+
+    outbox = PersonalOutbox(request.app[DATA_DIR], mail_account())
+    decisions = set()
     attachment = None  # (company id, case id) the conversation is attached to, or None for the plain local assistant
     announced = conversation.fingerprint(conversation.local_binding())  # the partner the client was last told about
     active = {"turn": 0, "binding": conversation.local_binding()}  # captured at the start of each turn, never changed mid-turn
@@ -209,6 +219,49 @@ async def chat(request):
         else:
             emit({"type": "status", "state": "ready", "label": "Pronto para conversar"})
 
+    async def configure_mail(data):
+        fields = {key: data.get(key) for key in ('email', 'password', 'imap_host', 'smtp_host')}
+        try:
+            if not all(isinstance(fields[key], str) for key in ('email', 'password')) or any(
+                    fields[key] is not None and not isinstance(fields[key], str) for key in ('imap_host', 'smtp_host')):
+                raise ValueError('Preencha o email e a senha de aplicativo.')
+            async with SETUP_LOCK:
+                result = await asyncio.to_thread(
+                    mail_account().setup, fields['email'].strip(), fields['password'],
+                    imap_host=(fields['imap_host'] or '').strip() or None, smtp_host=(fields['smtp_host'] or '').strip() or None,
+                    read_only=data.get('read_only') is True)
+            if 'erro' in result:
+                emit({'type': 'setup_result', 'ok': False, 'message': result['erro']})
+                return
+            refresh = getattr(agent, 'refresh', None)
+            if refresh is not None:
+                with contextlib.suppress(Exception):
+                    await refresh()
+            emit({'type': 'setup_result', 'ok': True, 'reply': result['envio'], 'user': result['usuario'],
+                  'message': 'Caixa conectada. A habilidade de email está ativa' + (' e você aprova cada resposta antes do envio.' if result['envio'] else ' (somente leitura).')})
+            emit({'type': 'skill', 'id': 'email', 'state': 'ativa'})
+        except ValueError as error:
+            emit({'type': 'setup_result', 'ok': False, 'message': str(error)})
+        except Exception:
+            emit({'type': 'setup_result', 'ok': False, 'message': 'Não foi possível configurar a caixa. Confira os dados e tente novamente.'})
+
+    async def decide(data):
+        draft_id, decision = data.get('id'), data.get('decision')
+        try:
+            if not isinstance(draft_id, str) or decision not in ('approve', 'discard'):
+                raise ValueError('Decisão inválida.')
+            if decision == 'discard':
+                result = await asyncio.to_thread(outbox.discard, draft_id)
+            else:
+                emit({'type': 'draft_result', 'draft': {'id': draft_id, 'state': 'enviando'}})
+                result = await asyncio.to_thread(outbox.approve, draft_id, data.get('hash'))
+            emit({'type': 'draft_result', 'draft': {'id': draft_id, **result}})  # an error result still names its draft
+        except ValueError as error:
+            emit({'type': 'rejected', 'message': str(error)})
+        except Exception:
+            emit({'type': 'draft_result', 'draft': {'id': draft_id, 'state': 'desconhecida',
+                                                    'detail': 'Erro inesperado. Confira a pasta Enviados antes de tentar de novo.'}})
+
     async def queue_drained():
         # Give the sole sender a chance to flush terminal events before closing.
         for _ in range(20):
@@ -222,7 +275,12 @@ async def chat(request):
         emit({"type": "status", "state": "connecting", "label": "Preparando assistente…"})
         agent = request.app[FACTORY](request.app[CONFIG], emit)
         await asyncio.wait_for(agent.start(), timeout=30)
-        emit({"type": "session", "model": request.app[CONFIG]["model"]})
+        mail = mail_account()
+        emit({"type": "session", "model": request.app[CONFIG]["model"], "mail": "real" if mail.configured() else "demo",
+              "reply": mail.configured() and mail.smtp_config() is not None})
+        pending = await asyncio.to_thread(outbox.pending)
+        if pending:  # drafts still waiting after a reload; the approval is the person's, so they come back to the screen
+            emit({"type": "drafts", "drafts": pending})
         emit({"type": "status", "state": "ready", "label": "Pronto para conversar"})
         async for message in ws:
             if message.type != WSMsgType.TEXT:
@@ -241,6 +299,16 @@ async def chat(request):
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                 else:
                     emit({'type': 'rejected', 'message': 'Nao ha resposta em andamento.'})
+            elif isinstance(data, dict) and data.get('type') == 'setup_mail':
+                # The form posts the credentials straight here: they never pass through the model, the history or the logs.
+                task = asyncio.create_task(configure_mail(data))
+                decisions.add(task)
+                task.add_done_callback(decisions.discard)
+            elif isinstance(data, dict) and data.get('type') == 'draft_decision':
+                # The only way an email leaves: the person's click, as a message the model cannot produce.
+                task = asyncio.create_task(decide(data))
+                decisions.add(task)
+                task.add_done_callback(decisions.discard)
             elif turn and not turn.done():
                 emit({"type": "rejected", "message": "Aguarde a resposta em andamento.", "busy": True})
             elif isinstance(data, dict) and data.get('type') in ('attach', 'detach'):
@@ -279,6 +347,14 @@ async def chat(request):
                         raise ValueError('Mensagem inválida.')
                 except ValueError as error:
                     emit({'type': 'rejected', 'message': str(error)})
+                    continue
+                if text and len(text) <= 120 and SETUP_INTENT.search(text):
+                    # "Configurar caixa de email": no model needed to open the secure form (a small model may not call the tool).
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    emit({'type': 'setup', 'skill': 'email'})
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text':
+                          'Abri o formulário seguro para configurar sua caixa de email. A senha vai direto da tela para o cofre do Windows, sem passar pela conversa.'})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 count += 1
                 turns += 1
