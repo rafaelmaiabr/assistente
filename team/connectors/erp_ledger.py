@@ -13,13 +13,17 @@ Rules (``Reconciler``):
 * A charge unknown to this company is ``desconhecida`` (also what another company's document looks like).
 * A lost response to an issue request blocks repeating it until the result is verified (``UnknownResult``).
 
-Storage is a small key-value interface (``MemoryStore`` here); the persistent store is a separate delivery (see
-docs/TEAM-CONNECTORS-ERP.md). Nothing in this module moves money, issues anything or contacts a customer.
+Storage is a small interface (``get``/``put`` per company, namespace and provider, plus ``atomic``): ``MemoryStore``
+here, ``LedgerStore`` (erp_store.py) on the team database. Every mutating operation runs inside ``atomic``, so a duplicate
+event delivered twice at once is applied once. Nothing in this module moves money, issues anything or contacts a customer.
 """
 import copy
+import functools
 import hashlib
 import json
 import re
+import threading
+from contextlib import contextmanager
 
 from .erp import CHARGE_STATES, ChargeRejected, normalize_charge, verify_hmac_sha256
 
@@ -30,6 +34,7 @@ _RANK = {"emitida": 0, "vencida": 1, "paga": 2, "estornada": 3, "cancelada": 3}
 _CONFLICTS = {("cancelada", "paga"), ("cancelada", "estornada"), ("paga", "cancelada"), ("estornada", "cancelada")}
 _MOMENT = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 MAX_PARKED, MAX_HISTORY, MAX_NOTES = 20, 50, 20
+RETRIES = 3
 
 
 class LedgerRejected(ValueError):
@@ -45,18 +50,27 @@ class NotSent(Exception):
     input rejected locally): the key is released instead of marked unknown."""
 
 
+class StoreConflict(Exception):
+    """Two writers raced on the same entry; the transaction was rolled back, so the caller may simply run again."""
+
+
 class MemoryStore:
-    """Namespaced key-value store (JSON-serializable values, copied in and out)."""
+    """In-process store (tests, single process). JSON-serializable values, copied in and out."""
 
     def __init__(self):
-        self._data = {}
+        self._data, self._lock = {}, threading.RLock()
 
-    def get(self, namespace, key):
-        value = self._data.get((namespace, key))
+    @contextmanager
+    def atomic(self, tenant_id):
+        with self._lock:
+            yield
+
+    def get(self, tenant_id, namespace, provider, key):
+        value = self._data.get((tenant_id, namespace, provider, key))
         return None if value is None else copy.deepcopy(value)
 
-    def put(self, namespace, key, value):
-        self._data[(namespace, key)] = copy.deepcopy(value)
+    def put(self, tenant_id, namespace, provider, key, value):
+        self._data[(tenant_id, namespace, provider, key)] = copy.deepcopy(value)
 
 
 def _key(*parts):
@@ -86,17 +100,38 @@ def _event(raw):
             "cliente": raw.get("cliente"), "valor_centavos": valor, "moeda": moeda.lower() if moeda else None}
 
 
+def _atomic(method):
+    """Run a mutating operation as one transaction for the company. The outermost call retries when another writer
+    raced it (the loser rolled back, so on retry it sees the winner's event and answers ``duplicado``), up to ``RETRIES`` times."""
+    @functools.wraps(method)
+    def wrapper(self, tenant_id, *args, **kwargs):
+        nested = getattr(self._depth, "value", 0)
+        for attempt in range(1, RETRIES + 1):
+            self._depth.value = nested + 1
+            try:
+                with self.store.atomic(tenant_id):
+                    return method(self, tenant_id, *args, **kwargs)
+            except StoreConflict:
+                if nested or attempt == RETRIES:
+                    raise
+            finally:
+                self._depth.value = nested
+    return wrapper
+
+
 class Reconciler:
     def __init__(self, store=None):
         self.store = store or MemoryStore()
+        self._depth = threading.local()
 
     # -- charges -------------------------------------------------------------------------------------------------------
     def charge(self, tenant_id, provider, documento):
-        return self.store.get("charge", _key(tenant_id, provider, documento))
+        return self.store.get(tenant_id, "charge", provider, documento)
 
     def _save(self, tenant_id, provider, charge):
-        self.store.put("charge", _key(tenant_id, provider, charge["documento"]), charge)
+        self.store.put(tenant_id, "charge", provider, charge["documento"], charge)
 
+    @_atomic
     def record_issued(self, tenant_id, provider, snapshot):
         """Register a charge the ERP confirmed (an issue that succeeded, or an adopted one). Returns the ledger entry."""
         data = normalize_charge(snapshot)
@@ -133,6 +168,7 @@ class Reconciler:
                                                 "occurred_at": observed_at, "cliente": data["cliente"],
                                                 "valor_centavos": data["valor_centavos"], "moeda": data["moeda"]}, source="polling")
 
+    @_atomic
     def note_customer_claim(self, tenant_id, provider, documento, text=None):
         """A customer says they paid. That is a claim, not proof: recorded for the person at Finance, state unchanged."""
         charge = self.charge(tenant_id, provider, documento) if isinstance(documento, str) else None
@@ -143,20 +179,22 @@ class Reconciler:
         return {"resultado": "alegacao_registrada", "estado": charge["status"],
                 "aviso": "Mensagem do cliente nao comprova pagamento; aguarde confirmacao do ERP."}
 
+    @_atomic
     def apply(self, tenant_id, provider, raw_event, *, source):
         if source not in SOURCES:
             return {"resultado": "fonte_nao_prova_pagamento"}
         event = _event(raw_event)
-        seen_key = _key(tenant_id, provider, event["event_id"])
-        if self.store.get("event", seen_key) is not None:
+        if self.store.get(tenant_id, "event", provider, event["event_id"]) is not None:
             return {"resultado": "duplicado"}
         charge = self.charge(tenant_id, provider, event["documento"])
         if charge is None:
-            self.store.put("event", seen_key, True)
+            self.store.put(tenant_id, "event", provider, event["event_id"], {"visto": True})
             return {"resultado": "desconhecida"}
+        before = copy.deepcopy(charge)
         result = self._decide(tenant_id, provider, charge, event, source)
-        self.store.put("event", seen_key, True)
-        self._save(tenant_id, provider, charge)
+        self.store.put(tenant_id, "event", provider, event["event_id"], {"visto": True})
+        if charge != before:  # an event that changes nothing must not rewrite the charge (it would only make writers collide)
+            self._save(tenant_id, provider, charge)
         return result
 
     def _decide(self, tenant_id, provider, charge, event, source):
@@ -207,10 +245,11 @@ class Reconciler:
                     break
 
     # -- issue requests: a lost response blocks repeating ---------------------------------------------------------------
+    @_atomic
     def begin_emission(self, tenant_id, provider, chave, payload):
         """Reserve ``chave`` for one issue request. Replays return the charge; unknown outcomes block."""
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
-        record = self.store.get("emission", _key(tenant_id, provider, chave))
+        record = self.store.get(tenant_id, "emission", provider, chave)
         if record is not None:
             if record["payload"] != digest:
                 raise LedgerRejected("A chave de idempotencia ja foi usada com outros dados.")
@@ -218,11 +257,12 @@ class Reconciler:
                 return {"repetida": True, "documento": record["documento"]}
             if record["state"] in ("em_andamento", "desconhecido"):
                 raise UnknownResult("Uma tentativa anterior com esta chave nao teve resposta confirmada: verifique no ERP antes de repetir.")
-        self.store.put("emission", _key(tenant_id, provider, chave), {"state": "em_andamento", "payload": digest, "documento": None})
+        self.store.put(tenant_id, "emission", provider, chave, {"state": "em_andamento", "payload": digest, "documento": None})
         return {"repetida": False}
 
+    @_atomic
     def finish_emission(self, tenant_id, provider, chave, outcome, snapshot=None):
-        record = self.store.get("emission", _key(tenant_id, provider, chave))
+        record = self.store.get(tenant_id, "emission", provider, chave)
         if record is None or outcome not in ("emitida", "desconhecido"):
             raise LedgerRejected("Emissao desconhecida.")
         if outcome == "emitida":
@@ -230,28 +270,30 @@ class Reconciler:
             record.update(state="emitida", documento=entry["documento"])
         else:
             record["state"] = "desconhecido"
-        self.store.put("emission", _key(tenant_id, provider, chave), record)
+        self.store.put(tenant_id, "emission", provider, chave, record)
 
+    @_atomic
     def resolve_emission(self, tenant_id, provider, chave, found=None):
         """After checking the ERP: ``found`` is the charge it holds for this key, or None if it holds none."""
-        record = self.store.get("emission", _key(tenant_id, provider, chave))
+        record = self.store.get(tenant_id, "emission", provider, chave)
         if record is None or record["state"] not in ("em_andamento", "desconhecido"):
             raise LedgerRejected("Nada a resolver para esta chave.")
         if found is not None:
             self.finish_emission(tenant_id, provider, chave, "emitida", found)
         else:
             record["state"] = "nao_emitida"
-            self.store.put("emission", _key(tenant_id, provider, chave), record)
-        return self.store.get("emission", _key(tenant_id, provider, chave))["state"]
+            self.store.put(tenant_id, "emission", provider, chave, record)
+        return self.store.get(tenant_id, "emission", provider, chave)["state"]
 
+    @_atomic
     def release_emission(self, tenant_id, provider, chave):
-        record = self.store.get("emission", _key(tenant_id, provider, chave))
+        record = self.store.get(tenant_id, "emission", provider, chave)
         if record is not None and record["state"] == "em_andamento":
             record["state"] = "nao_emitida"
-            self.store.put("emission", _key(tenant_id, provider, chave), record)
+            self.store.put(tenant_id, "emission", provider, chave, record)
 
     def emission_state(self, tenant_id, provider, chave):
-        record = self.store.get("emission", _key(tenant_id, provider, chave))
+        record = self.store.get(tenant_id, "emission", provider, chave)
         return None if record is None else record["state"]
 
 
@@ -273,4 +315,4 @@ async def run_emission(ledger, tenant_id, provider, chave, payload, call):
     return {"repetida": False, "documento": snapshot["documento"]}
 
 
-__all__ = ["ChargeRejected", "LedgerRejected", "MemoryStore", "NotSent", "Reconciler", "UnknownResult", "run_emission"]
+__all__ = ["ChargeRejected", "LedgerRejected", "MemoryStore", "NotSent", "Reconciler", "StoreConflict", "UnknownResult", "run_emission"]
