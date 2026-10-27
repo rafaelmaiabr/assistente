@@ -25,3 +25,5 @@ deploy/postgres/secrets/
 # Caixa de email pessoal (docs/PERSONAL-MAIL.md): servidor e usuario, nunca a senha
 mail-account.json
 mail-account.tmp
+mail-outbox.json
+mail-outbox.tmp

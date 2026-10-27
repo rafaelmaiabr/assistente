@@ -811,3 +811,27 @@ code{background:#14161c;padding:1px 5px;border-radius:4px}
 .message-text h3, .message-text h4, .message-text h5, .message-text h6 {margin: .4em 0 .3em; font-size: 1em}
 .message-text pre {overflow-x: auto; padding: .6em .8em; border-radius: 6px; background: rgba(127, 127, 127, .15)}
 .message-text code {font-family: ui-monospace, Consolas, monospace; font-size: .92em}
+.mail-stack{display:flex;flex-direction:column;gap:12px;margin:12px 0 0 48px;max-width:640px}
+.mail-card{display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid #3c4252;border-radius:12px;background:#20232c;font-size:13px;line-height:1.5}
+.mail-card p{margin:0;color:#aeb4c2}
+.mail-card label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#aeb4c2}
+.mail-card label.check{flex-direction:row;align-items:center;gap:8px}
+.mail-card input:not([type=checkbox]){padding:9px 10px;border:1px solid #454c5e;border-radius:8px;background:#181a21;color:inherit;font:inherit}
+.mail-card small{color:#99a58f;font-size:11px}
+.mail-card dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}
+.mail-card dt{color:#99a58f}
+.mail-card dd{margin:0;word-break:break-word}
+.mail-card.ok{border-color:#4f6b46}
+.mail-card.enviada{border-color:#4f6b46}
+.mail-card.falhou,.mail-card.desconhecida{border-color:#6b4840}
+.mail-card.descartada,.mail-card.expirada{opacity:.7}
+.draft-body{white-space:pre-wrap;word-break:break-word;margin:0;padding:10px;border-radius:8px;background:#181a21;font:inherit}
+.mail-actions{display:flex;gap:8px;flex-wrap:wrap}
+.mail-actions button{padding:8px 14px;border:1px solid #454c5e;border-radius:8px;background:none;color:inherit;font:inherit;cursor:pointer}
+.mail-actions button.primary{background:#c6ddb9;border-color:#c6ddb9;color:#1b2418;font-weight:600}
+.mail-actions button:disabled{opacity:.5;cursor:default}
+.mail-error{padding:9px 11px;border:1px solid #6b4840;border-radius:8px;background:#352724;color:#f1c0ae;font-size:12px}
+.skill-chip{align-self:flex-start;margin:0 0 8px;padding:4px 10px;border:1px solid #454c5e;border-radius:999px;background:none;color:#aeb4c2;font:inherit;font-size:11px;cursor:pointer}
+.skill-chip.ativa,.skill-chip.usando{border-color:#4f6b46;color:#c6ddb9;cursor:default}
+.skill-chip.usando{animation:pulse 1.5s infinite}
+@media (max-width:700px){.mail-stack{margin-left:0}}
