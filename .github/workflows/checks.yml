@@ -15,7 +15,7 @@ jobs:
       - run: python scripts/run_evals.py --markdown evals-report.md
       - run: Get-Content evals-report.md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
         if: always() && hashFiles('evals-report.md') != ''
-      - run: python -m compileall -q agent.py assistant_core.py browser_agent.py web_server.py team/web.py speech_service.py voice_profiles.py voice_engine.py local_audio.py demo_mcp.py settings.py verificar.py team scripts/export_team_schemas.py scripts/smoke_vault.py scripts/smoke_ollama.py scripts/smoke_team_runtime.py scripts/eval_triage.py scripts/run_evals.py scripts/remote_setup.py scripts/pg_migrate.py scripts/run_tests_postgres.py scripts/translate_migrations_pg.py evals
+      - run: python -m compileall -q agent.py assistant_core.py personal_mail.py browser_agent.py web_server.py team/web.py speech_service.py voice_profiles.py voice_engine.py local_audio.py demo_mcp.py settings.py verificar.py team scripts/export_team_schemas.py scripts/smoke_vault.py scripts/mail_setup.py scripts/smoke_ollama.py scripts/smoke_team_runtime.py scripts/eval_triage.py scripts/run_evals.py scripts/remote_setup.py scripts/pg_migrate.py scripts/run_tests_postgres.py scripts/translate_migrations_pg.py evals
   postgres:
     # Contract, queue, migration and service tests on a real PostgreSQL. The service is an ephemeral container of this job only;
     # its password is a throw-away value for it (docs/TEAM-POSTGRES.md).
