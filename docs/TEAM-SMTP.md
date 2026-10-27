@@ -1,5 +1,7 @@
 # Saída de emails por SMTP com aprovação e reconciliação (T22)
 
+> **Camada de conectores:** este servidor/transporte é o driver `smtp` da capacidade `email-envio` (sem mudança de comportamento); ver [TEAM-CONNECTORS-EMAIL.md](TEAM-CONNECTORS-EMAIL.md).
+
 Entrega da issue [#37](https://github.com/rafaelmaiabr/assistente/issues/37): `team/smtp_transport.py` (SMTP real, simulado, roteador e configuração), `team/attachments.py` (anexos locais), ampliação de `team/outbound.py` (Cc/Cco, anexos, threading, Message-ID próprio, resultado técnico). Sobre a comunicação externa da T14 ([TEAM-OUTBOUND.md](TEAM-OUTBOUND.md)), aprovações ([TEAM-APPROVALS.md](TEAM-APPROVALS.md)) e entrada de emails ([TEAM-EMAIL-INTAKE.md](TEAM-EMAIL-INTAKE.md)).
 
 Estado: validado com um **servidor SMTP falso**, inclusive TLS (`STARTTLS` com certificado autoassinado gerado com `openssl`). **Nenhum email real foi enviado.** O teste real exige uma conta e um destinatário autorizados, e só deve ser feito com os dois (roteiro abaixo). Não há tela nem ligação ao `TeamApp`. OAuth (T19/T20) não existe: a autenticação é usuário + senha de aplicativo no cofre.

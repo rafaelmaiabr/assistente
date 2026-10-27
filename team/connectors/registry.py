@@ -46,6 +46,11 @@ class Driver:
     def capability(self):
         return self.descriptor["capability"]
 
+    @property
+    def catalog_key(self):
+        """Key of the approved catalog entry (what the gateway puts in ``server["key"]``); defaults to the provider."""
+        return self.descriptor["catalog_key"]
+
 
 class LocalRouter(McpTransport):
     """One ``local`` gateway transport for every in-process driver, dispatched by catalog key (= provider)."""
@@ -54,7 +59,7 @@ class LocalRouter(McpTransport):
         self.registry = registry
 
     def _driver(self, server):
-        driver = self.registry.get(server.get("key")) if isinstance(server, dict) else None
+        driver = self.registry.by_catalog_key(server.get("key")) if isinstance(server, dict) else None
         return driver if driver is not None and driver.transport is not None else None
 
     async def describe(self, server, tool):
@@ -85,8 +90,8 @@ class ConnectorRegistry:
         capability = self._capabilities.get(clean["capability"])
         if capability is None:
             raise DescriptorRejected("Capacidade desconhecida: registre a capacidade antes do driver.")
-        if clean["provider"] in self._drivers:
-            raise DescriptorRejected("Ja existe um driver para este provider.")
+        if clean["provider"] in self._drivers or self.by_catalog_key(clean["catalog_key"]) is not None:
+            raise DescriptorRejected("Ja existe um driver para este provider ou catalogo.")
         for tool, operation in capability.required.items():
             if clean["tools"].get(tool, {}).get("operation") != operation:
                 raise DescriptorRejected(f"A capacidade {capability.name} exige a ferramenta {tool} classificada como {operation}.")
@@ -119,6 +124,9 @@ class ConnectorRegistry:
 
     def get(self, provider):
         return self._drivers.get(provider) if isinstance(provider, str) else None
+
+    def by_catalog_key(self, key):
+        return next((d for d in self._drivers.values() if d.catalog_key == key), None) if isinstance(key, str) else None
 
     def supports(self, provider, tool):
         driver = self.get(provider)
@@ -154,5 +162,5 @@ class ConnectorRegistry:
             raise DescriptorRejected("Apenas drivers MCP registrados entram no catalogo MCP.")
         descriptor = driver.descriptor
         return connections.approve_mcp_server(
-            operator, catalog_key=provider, entry_version=descriptor["version"], transport=descriptor["mcp_transport"],
+            operator, catalog_key=driver.catalog_key, entry_version=descriptor["version"], transport=descriptor["mcp_transport"],
             url=url, launcher=launcher, tools=list(descriptor["tools"]), tool_specs=descriptor["tools"], status=status)

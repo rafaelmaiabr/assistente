@@ -1,5 +1,7 @@
 # Servidor MCP IMAP somente leitura (T18)
 
+> **Camada de conectores:** este servidor/transporte é o driver `imap` da capacidade `email-leitura` (sem mudança de comportamento); ver [TEAM-CONNECTORS-EMAIL.md](TEAM-CONNECTORS-EMAIL.md).
+
 Entrega da issue [#33](https://github.com/rafaelmaiabr/assistente/issues/33): `team/imap_client.py` (cliente e leitor MIME), `team/imap_mcp.py` (servidor MCP local, registro de contas, teste de conexão), `scripts/smoke_imap.py`. Usa conexões/cofre/catálogo ([TEAM-CONNECTIONS.md](TEAM-CONNECTIONS.md)), skills ([TEAM-SKILLS.md](TEAM-SKILLS.md)) e o gateway ([TEAM-GATEWAY.md](TEAM-GATEWAY.md)). Biblioteca padrão apenas (`imaplib`, `ssl`, `email`).
 
 Estado: o servidor está implementado e testado com um servidor IMAP falso, **mas não está ligado ao `TeamApp` nem a nenhuma tela**: ainda não existe ligação do gateway real no app (ver [TEAM-GATEWAY.md](TEAM-GATEWAY.md)). Não foi validado com conta real; o roteiro está abaixo. Isto **não** é envio de email nem resposta automática (T19/T20/T21 tratam de conectores completos e OAuth).

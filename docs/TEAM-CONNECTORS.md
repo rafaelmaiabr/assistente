@@ -6,7 +6,7 @@ Entrega da issue [#101](https://github.com/rafaelmaiabr/assistente/issues/101), 
 
 ## Conceitos
 
-- **Capacidade** (`erp`, `email`...): o que a empresa quer fazer. `Capability(nome, required, optional, arguments, bindings, idempotent)`: `required` mapeia as ferramentas que todo driver precisa oferecer à sua classe exata de operação (`read/write/send/spend`); `optional` faz o mesmo para ferramentas que o driver pode não suportar (`ConnectorRegistry.unsupported` informa quais faltam, nada é simulado); `arguments`, `bindings` e `idempotent` fixam os argumentos, os campos mostrados na aprovação e a chave de idempotência das ferramentas de contrato. A primeira capacidade com contrato completo é `erp` ([TEAM-CONNECTORS-ERP.md](TEAM-CONNECTORS-ERP.md)).
+- **Capacidade** (`erp`, `email`...): o que a empresa quer fazer. `Capability(nome, required, optional, arguments, bindings, idempotent)`: `required` mapeia as ferramentas que todo driver precisa oferecer à sua classe exata de operação (`read/write/send/spend`); `optional` faz o mesmo para ferramentas que o driver pode não suportar (`ConnectorRegistry.unsupported` informa quais faltam, nada é simulado); `arguments`, `bindings` e `idempotent` fixam os argumentos, os campos mostrados na aprovação e a chave de idempotência das ferramentas de contrato. As capacidades com contrato completo são `erp` ([TEAM-CONNECTORS-ERP.md](TEAM-CONNECTORS-ERP.md)) e `email-leitura`/`email-envio` ([TEAM-CONNECTORS-EMAIL.md](TEAM-CONNECTORS-EMAIL.md)).
 - **Driver**: o fornecedor que cumpre uma capacidade (Bling, IMAP...). Tem um **descritor** e, se for in-process, um transporte `McpTransport`.
 - **Resolução**: `ConnectorRegistry.resolve(conexão, capacidade)` escolhe o driver pelo `provider` da **conexão da empresa**. Agente, skill e modelo nunca escolhem fornecedor.
 
@@ -17,6 +17,7 @@ Validado por `validate_descriptor` antes de qualquer registro (`DescriptorReject
 | Campo | Regra |
 |---|---|
 | `provider`, `capability`, `version` | identificadores simples (`a-z0-9._-`) e versão `1.0.0` |
+| `catalog_key` | opcional; chave da entrada aprovada no catálogo MCP (padrão: o provider). Permite manter uma chave já referenciada por skills |
 | `protocol` | `mcp` (preferido), `imap`, `smtp`, `http`, `outro` |
 | `mcp_transport` | `http`/`sse`/`stdio`/`local`; obrigatório só no MCP |
 | `non_mcp_justification` | 30–500 caracteres, **obrigatória** fora do MCP e proibida no MCP |
@@ -32,7 +33,7 @@ Validado por `validate_descriptor` antes de qualquer registro (`DescriptorReject
 
 - `attach(connections)`: registra o provider como conector para o cofre (`use_credential`).
 - `approve(connections, operator, provider)`: o operador aprova o driver MCP no catálogo, com a classificação confiável do descritor. Drivers não-MCP não entram no catálogo.
-- `local_transport()`: um único transporte `local` para o gateway, que despacha pela chave do catálogo (= provider) ao transporte de cada driver; servidor desconhecido se comporta como inexistente.
+- `local_transport()`: um único transporte `local` para o gateway, que despacha pela chave do catálogo (`catalog_key`, padrão = provider) ao transporte de cada driver; servidor desconhecido se comporta como inexistente.
 
 ## Como adicionar um conector
 

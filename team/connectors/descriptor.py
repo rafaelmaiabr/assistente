@@ -18,7 +18,7 @@ MAX_FIELDS = 12
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 _VERSION = re.compile(r"^\d{1,4}\.\d{1,4}\.\d{1,4}$")
 _DESCRIPTOR_KEYS = {"provider", "capability", "version", "protocol", "mcp_transport", "non_mcp_justification", "auth",
-                    "tools", "idempotency_arguments", "fields"}
+                    "tools", "idempotency_arguments", "fields", "catalog_key"}
 _FIELD_KEYS = {"name", "label", "kind", "required", "help"}
 
 
@@ -60,6 +60,9 @@ def validate_descriptor(raw):
         if key not in raw:
             raise DescriptorRejected(f"Descritor sem {key}.")
     provider, capability = raw["provider"], raw["capability"]
+    catalog_key = raw.get("catalog_key", provider)
+    if not (isinstance(catalog_key, str) and _SLUG.match(catalog_key)):
+        raise DescriptorRejected("catalog_key deve ser um identificador simples.")
     if not (isinstance(provider, str) and _SLUG.match(provider)) or not (isinstance(capability, str) and _SLUG.match(capability)):
         raise DescriptorRejected("provider e capability devem ser identificadores simples (a-z, 0-9, ponto, hifen).")
     if not (isinstance(raw["version"], str) and _VERSION.match(raw["version"])):
@@ -101,7 +104,7 @@ def validate_descriptor(raw):
     for name, argument in idempotency.items():
         if name not in specs or specs[name]["operation"] == "read" or argument not in specs[name].get("arguments", {}):
             raise DescriptorRejected("idempotency_arguments deve apontar para um argumento de uma ferramenta que altera algo.")
-    return {"descriptor_version": DESCRIPTOR_VERSION, "provider": provider, "capability": capability,
+    return {"descriptor_version": DESCRIPTOR_VERSION, "provider": provider, "capability": capability, "catalog_key": catalog_key,
             "version": raw["version"], "protocol": protocol, "mcp_transport": mcp_transport,
             "non_mcp_justification": justification, "auth": {"type": auth["type"], "scopes": list(scopes)},
             "tools": specs, "idempotency_arguments": dict(idempotency), "fields": _check_fields(raw.get("fields", []))}
