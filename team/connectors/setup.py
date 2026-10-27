@@ -33,6 +33,43 @@ class SetupAdapter:
         """Try the connection with the vaulted credential: ``{"ok": bool, "erro"?, "mensagem"?}``. Must never echo a secret."""
         raise NotImplementedError
 
+    # -- browser sign-in (OAuth), only for drivers whose descriptor says ``auth.type == "oauth"`` ---------------------------------
+    def oauth_begin(self, ctx, connection_id):
+        """Start the authorization: ``{"flow_id", "url", "expires_at"}``. The person opens ``url`` themselves."""
+        raise NotImplementedError
+
+    def oauth_complete(self, flow_id, timeout=None):
+        """Block until the browser step ends: ``{"ok": bool, "erro"?, "mensagem"?}``. Run it off the event loop."""
+        raise NotImplementedError
+
+    def oauth_cancel(self, ctx, flow_id):
+        raise NotImplementedError
+
+
+class OAuthBrowserSetup(SetupAdapter):
+    """Base for drivers that sign in through the browser using the OAuth service (#34/#35): subclasses provide the account
+    settings (``configure``/``current``) and the provider key; the begin/complete/cancel hooks wrap ``OAuthService``."""
+
+    provider_key = None
+
+    def __init__(self, oauth):
+        self.oauth = oauth
+
+    def oauth_begin(self, ctx, connection_id):
+        started = self.oauth.begin(ctx, connection_id, provider_key=self.provider_key)
+        return {"flow_id": started["flow_id"], "url": started["url"], "expires_at": started.get("expires_at")}
+
+    def oauth_complete(self, flow_id, timeout=None):
+        from ..oauth import OAuthError
+        try:
+            self.oauth.complete(flow_id, timeout)
+        except OAuthError as error:
+            return {"ok": False, "erro": error.code, "mensagem": error.message}
+        return {"ok": True}
+
+    def oauth_cancel(self, ctx, flow_id):
+        self.oauth.cancel(ctx, flow_id)
+
 
 def validate_values(descriptor, values, *, partial=False):
     """Split ``values`` into (public, secret). ``partial`` allows omitting required fields (reconfiguring)."""

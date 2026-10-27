@@ -18,7 +18,7 @@ MAX_FIELDS = 12
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 _VERSION = re.compile(r"^\d{1,4}\.\d{1,4}\.\d{1,4}$")
 _DESCRIPTOR_KEYS = {"provider", "capability", "version", "protocol", "mcp_transport", "non_mcp_justification", "auth",
-                    "tools", "idempotency_arguments", "fields", "catalog_key"}
+                    "tools", "idempotency_arguments", "fields", "catalog_key", "label", "aliases", "steps"}
 _FIELD_KEYS = {"name", "label", "kind", "required", "help"}
 
 
@@ -50,6 +50,14 @@ def _check_fields(fields):
                       "required": field.get("required", True),
                       "help": _text(field["help"], 1, 300, "help") if field.get("help") else None})
     return clean
+
+
+def _short_list(value, count, size, what):
+    if value is None:
+        return []
+    if not (isinstance(value, list) and len(value) <= count and all(isinstance(item, str) and 1 <= len(item.strip()) <= size for item in value)):
+        raise DescriptorRejected(f"{what} deve ser uma lista de ate {count} textos de ate {size} caracteres.")
+    return [item.strip() for item in value]
 
 
 def validate_descriptor(raw):
@@ -104,7 +112,9 @@ def validate_descriptor(raw):
     for name, argument in idempotency.items():
         if name not in specs or specs[name]["operation"] == "read" or argument not in specs[name].get("arguments", {}):
             raise DescriptorRejected("idempotency_arguments deve apontar para um argumento de uma ferramenta que altera algo.")
-    return {"descriptor_version": DESCRIPTOR_VERSION, "provider": provider, "capability": capability, "catalog_key": catalog_key,
+    label = _text(raw["label"], 1, 60, "label") if raw.get("label") else provider
+    return {"descriptor_version": DESCRIPTOR_VERSION, "label": label, "aliases": _short_list(raw.get("aliases"), 8, 40, "aliases"),
+            "steps": _short_list(raw.get("steps"), 8, 300, "steps"), "provider": provider, "capability": capability, "catalog_key": catalog_key,
             "version": raw["version"], "protocol": protocol, "mcp_transport": mcp_transport,
             "non_mcp_justification": justification, "auth": {"type": auth["type"], "scopes": list(scopes)},
             "tools": specs, "idempotency_arguments": dict(idempotency), "fields": _check_fields(raw.get("fields", []))}

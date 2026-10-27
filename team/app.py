@@ -94,7 +94,7 @@ class TeamApp:
                 repo=repo, access=access, operator=access.local_operator(), team=team, triage=triage,
                 onboarding=OnboardingService(access, team, agents, triage),
                 policies=policies, agents=agents, connections=connections,
-                connectors=ConnectorCatalog(registry, connections, ConnectorAudit(data / "connector-audit.jsonl")), skills=SkillService(repo, access, agents),
+                registry=registry, connectors=ConnectorCatalog(registry, connections, ConnectorAudit(data / "connector-audit.jsonl")), skills=SkillService(repo, access, agents),
                 cases=cases, handoffs=handoffs, approvals=approvals, queue=queue,
                 knowledge=knowledge, gaps=GapService(repo, access, cases, knowledge), identity=IdentityService(repo, access),
                 control=OperatorControl(repo, access, cases, approvals, handoffs, queue),

@@ -13,6 +13,7 @@ class BrowserAgent:
             turn_handling={"turn_detection": "manual", "interruption": {"enabled": False}})
         self.failed = False
         self.agent = None
+        self.on_integration = None  # set by the server when the team services exist; the tool is absent otherwise
         self.answers = 0
         self.session.on("conversation_item_added", self.on_message)
         self.session.on("tool_execution_updated", self.on_tool)
@@ -28,7 +29,7 @@ class BrowserAgent:
         update = event.update
         if update.type == "tool_call_started":
             name = update.function_call.name
-            self.emit({"type": "status", "state": "executing", "label": "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Preparando o rascunho…" if name == "preparar_resposta" else "Executando ferramenta…"})
+            self.emit({"type": "status", "state": "executing", "label": "Mostrando o cartão de integração…" if name == "solicitar_integracao" else "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Preparando o rascunho…" if name == "preparar_resposta" else "Executando ferramenta…"})
             self.emit({"type": "tool", "name": name, "state": "started"})
             if name in SKILL_OF:
                 self.emit({"type": "skill", "id": SKILL_OF[name], "state": "usando"})
@@ -42,13 +43,13 @@ class BrowserAgent:
 
     async def start(self):
         self.agent = make_agent(self.config, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
-                                on_setup=lambda: self.emit({"type": "setup", "skill": "email"}))
+                                on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
         await self.session.start(agent=self.agent)
 
     async def refresh(self):
         """After a skill was set up from the form: new instructions and tools for the running conversation (history is kept)."""
         instructions, tools = agent_parts(self.config, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
-                                          on_setup=lambda: self.emit({"type": "setup", "skill": "email"}))
+                                          on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
         await self.agent.update_tools(tools)
         await self.agent.update_instructions(instructions)
 

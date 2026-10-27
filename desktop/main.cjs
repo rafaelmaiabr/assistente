@@ -2,7 +2,7 @@ const {app, BrowserWindow, ipcMain, session, screen, shell} = require('electron'
 const path = require('node:path');
 const fs = require('node:fs');
 const {pathToFileURL} = require('node:url');
-const {BASE_URL, trustedChat, sanitizeStatus, audioPermission} = require('./policy.cjs');
+const {BASE_URL, trustedChat, sanitizeStatus, audioPermission, externalAuthUrl} = require('./policy.cjs');
 const {BackendRuntime}=require('./runtime.cjs');
 if(!app.isPackaged) app.setPath('userData',path.join(__dirname,'..','.runtime','desktop'));
 // Small 2D windows do not need to compete with local inference for GPU memory.
@@ -64,6 +64,10 @@ ipcMain.on('assistant:status',(event,value)=>{
   if(event.sender!==chat?.webContents || !trustedChat(event.senderFrame?.url)) return;
   const next=sanitizeStatus(value); if(!next) return;
   status=next; if(avatar && !avatar.isDestroyed()) avatar.webContents.send('avatar:status',status);
+});
+ipcMain.on('integration:open-external',(event,url)=>{
+  if(event.sender!==chat?.webContents || !trustedChat(event.senderFrame?.url)) return;
+  const safe=externalAuthUrl(url); if(safe) void shell.openExternal(safe);
 });
 ipcMain.on('avatar:action',(event,action)=>{
   if(event.sender!==avatar?.webContents || event.senderFrame?.url!==avatarPage) return;

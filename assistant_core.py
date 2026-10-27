@@ -19,6 +19,9 @@ BASE = ("Você é um assistente em português brasileiro. Responda brevemente, s
         "Nunca peça nem aceite senhas ou chaves no chat; se o usuário digitar uma, peça para trocá-la e use o formulário seguro. ")
 CATALOG = ("Habilidades: email (ler a caixa de email e responder com aprovação do usuário). Para usar, chame as ferramentas dela; "
            "se a habilidade ainda não estiver configurada, a ferramenta abre um formulário seguro na tela e você só avisa o usuário. ")
+INTEGRATIONS = ("Integrações (ERP como o Bling, email e outros conectores): quando o usuário pedir para conectar ou integrar um sistema, chame "
+                "solicitar_integracao; um cartão com botões aparece na tela e o usuário decide. Você nunca abre o formulário, nunca escolhe a empresa "
+                "e nunca pede nem recebe dados de acesso. Se o cartão disser que não há conector instalado, repita isso sem prometer a integração. ")
 DEMO = ("A habilidade de email ainda não está configurada. A caixa demo ou X contém apenas dados fictícios; diga isso ao apresentá-los. "
         "Nunca afirme ter acessado uma conta real. Se o usuário quiser a caixa real, chame configurar_caixa_de_email. ")
 REAL = ("A habilidade de email está ativa: você pode ler a caixa de email real do usuário, somente leitura (listar, buscar e ler). "
@@ -80,22 +83,39 @@ def email_tools(mail, outbox, on_draft=None, on_setup=None):
     return [configurar_caixa_de_email, listar_emails, buscar_emails, ler_email, preparar_resposta]
 
 
-def agent_parts(config=None, mail=None, outbox=None, on_draft=None, on_setup=None):
+def integration_tools(on_integration=None):
+    """One tool: ask for the card that starts connecting a system. It cannot open a form, choose a company or take data."""
+    @function_tool(description="Mostra na tela um cartão para o usuário conectar um sistema (por exemplo Bling, ERP ou email). Informe o nome do "
+                               "sistema em fornecedor e/ou o tipo em capacidade (erp, email). O usuário decide clicando; você não preenche nada.")
+    async def solicitar_integracao(fornecedor: str = "", capacidade: str = "") -> dict:
+        if on_integration is None:
+            return {"erro": "As integrações não estão disponíveis nesta sessão."}
+        card = await asyncio.to_thread(on_integration, str(fornecedor)[:80], str(capacidade)[:80])
+        estado = card.get("state")
+        aviso = {"indisponivel": "Nao ha conector instalado para isso; o cartao diz isso ao usuario. Nao prometa que vai conectar.",
+                 "escolher": "Ha mais de um conector possivel; o usuario escolhe no cartao.",
+                 "sem_empresa": "O usuario precisa criar uma empresa na secao Equipe antes."}.get(estado, "Peça ao usuario para usar os botoes do cartao.")
+        return {"cartao_aberto": True, "estado": estado, "instrucao": aviso + " Nao peca senhas ou chaves no chat."}
+
+    return [solicitar_integracao]
+
+
+def agent_parts(config=None, mail=None, outbox=None, on_draft=None, on_setup=None, on_integration=None):
     """``(instructions, tools)`` for the current state of the skills; also used to refresh a running agent after a setup."""
     config = config or load_config()
     mail = mail or PersonalMail(DATA_ROOT)
     outbox = outbox or PersonalOutbox(DATA_ROOT, mail)
-    tools = email_tools(mail, outbox, on_draft, on_setup)
+    tools = email_tools(mail, outbox, on_draft, on_setup) + (integration_tools(on_integration) if on_integration else [])
     if not mail.configured():
         tools.append(mcp.MCPToolset(id="email-demo", mcp_server=mcp.MCPServerStdio(
             command=sys.executable, args=[str(ROOT / "demo_mcp.py")], cwd=ROOT)))
     for index, server in enumerate(config["mcp_servers"]):
         tools.append(mcp.MCPToolset(id=f"external-{index}", mcp_server=mcp.MCPServerHTTP(server["url"])))
-    return instructions_for(mail), tools
+    return instructions_for(mail) + (INTEGRATIONS if on_integration else ""), tools
 
 
-def make_agent(config=None, mail=None, on_draft=None, on_setup=None, outbox=None):
+def make_agent(config=None, mail=None, on_draft=None, on_setup=None, outbox=None, on_integration=None):
     config = config or load_config()
-    instructions, tools = agent_parts(config, mail, outbox, on_draft, on_setup)
+    instructions, tools = agent_parts(config, mail, outbox, on_draft, on_setup, on_integration)
     return Agent(instructions=instructions, tools=tools,
                  llm=openai.LLM(model=config["model"], base_url=config["ollama_url"], api_key="ollama", temperature=0.3))
