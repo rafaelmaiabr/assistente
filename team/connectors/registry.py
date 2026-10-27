@@ -14,9 +14,23 @@ from .descriptor import DescriptorRejected, validate_descriptor
 
 @dataclass(frozen=True)
 class Capability:
-    """``required`` maps each tool every driver of this capability must offer to its exact operation class."""
+    """What a company can ask for, independent of the vendor.
+
+    ``required`` maps each tool every driver must offer to its exact operation class; ``optional`` does the same for
+    tools a driver may leave out (it then *does not support* them; nothing is simulated). For any contract tool the
+    driver offers, ``arguments`` (tool -> {argument: (type, required)}) must be declared as given, ``bindings``
+    (tool -> {approval key: argument}) must match the approval fields, and ``idempotent`` (tool -> argument) names the
+    argument that carries the vendor idempotency key. Drivers may add arguments and tools of their own.
+    """
     name: str
     required: dict = field(default_factory=dict)
+    optional: dict = field(default_factory=dict)
+    arguments: dict = field(default_factory=dict)
+    bindings: dict = field(default_factory=dict)
+    idempotent: dict = field(default_factory=dict)
+
+    def operations(self):
+        return {**self.optional, **self.required}
 
 
 @dataclass(frozen=True)
@@ -76,14 +90,45 @@ class ConnectorRegistry:
         for tool, operation in capability.required.items():
             if clean["tools"].get(tool, {}).get("operation") != operation:
                 raise DescriptorRejected(f"A capacidade {capability.name} exige a ferramenta {tool} classificada como {operation}.")
+        self._check_contract(capability, clean)
         if clean["protocol"] == "mcp" and clean["mcp_transport"] == "local" and transport is None:
             raise DescriptorRejected("Driver MCP local precisa de um transporte.")
         driver = Driver(clean, transport)
         self._drivers[clean["provider"]] = driver
         return driver
 
+    @staticmethod
+    def _check_contract(capability, clean):
+        tools = clean["tools"]
+        for tool, operation in capability.optional.items():
+            if tool in tools and tools[tool]["operation"] != operation:
+                raise DescriptorRejected(f"A ferramenta {tool} da capacidade {capability.name} deve ser classificada como {operation}.")
+        for tool, expected in capability.arguments.items():
+            declared = tools.get(tool, {}).get("arguments", {})
+            for argument, (kind, required) in expected.items():
+                rule = declared.get(argument)
+                if tool in tools and (rule is None or rule["type"] != kind or bool(rule.get("required")) != required):
+                    raise DescriptorRejected(f"{tool} deve declarar o argumento {argument} ({kind}{', obrigatorio' if required else ''}).")
+        for tool, binds in capability.bindings.items():
+            for key, argument in binds.items():
+                if tool in tools and tools[tool].get(key) != argument:
+                    raise DescriptorRejected(f"{tool} deve ligar {key} ao argumento {argument} (campo mostrado na aprovacao).")
+        for tool, argument in capability.idempotent.items():
+            if tool in tools and clean["idempotency_arguments"].get(tool) != argument:
+                raise DescriptorRejected(f"{tool} deve declarar {argument} como chave de idempotencia.")
+
     def get(self, provider):
         return self._drivers.get(provider) if isinstance(provider, str) else None
+
+    def supports(self, provider, tool):
+        driver = self.get(provider)
+        return driver is not None and tool in driver.descriptor["tools"]
+
+    def unsupported(self, provider):
+        """Optional contract tools the driver leaves out: reported to the caller, never simulated."""
+        driver = self.get(provider)
+        capability = self._capabilities.get(driver.capability) if driver else None
+        return [] if capability is None else sorted(set(capability.optional) - set(driver.descriptor["tools"]))
 
     def drivers(self, capability=None):
         return sorted((d for d in self._drivers.values() if capability in (None, d.capability)), key=lambda d: d.provider)

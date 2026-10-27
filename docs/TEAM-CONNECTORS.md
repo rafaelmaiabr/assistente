@@ -6,7 +6,7 @@ Entrega da issue [#101](https://github.com/rafaelmaiabr/assistente/issues/101), 
 
 ## Conceitos
 
-- **Capacidade** (`erp`, `email`...): o que a empresa quer fazer. `Capability(nome, required)`, onde `required` mapeia as ferramentas que todo driver da capacidade precisa oferecer à sua classe exata de operação (`read/write/send/spend`).
+- **Capacidade** (`erp`, `email`...): o que a empresa quer fazer. `Capability(nome, required, optional, arguments, bindings, idempotent)`: `required` mapeia as ferramentas que todo driver precisa oferecer à sua classe exata de operação (`read/write/send/spend`); `optional` faz o mesmo para ferramentas que o driver pode não suportar (`ConnectorRegistry.unsupported` informa quais faltam, nada é simulado); `arguments`, `bindings` e `idempotent` fixam os argumentos, os campos mostrados na aprovação e a chave de idempotência das ferramentas de contrato. A primeira capacidade com contrato completo é `erp` ([TEAM-CONNECTORS-ERP.md](TEAM-CONNECTORS-ERP.md)).
 - **Driver**: o fornecedor que cumpre uma capacidade (Bling, IMAP...). Tem um **descritor** e, se for in-process, um transporte `McpTransport`.
 - **Resolução**: `ConnectorRegistry.resolve(conexão, capacidade)` escolhe o driver pelo `provider` da **conexão da empresa**. Agente, skill e modelo nunca escolhem fornecedor.
 
