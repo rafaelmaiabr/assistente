@@ -39,6 +39,7 @@ EMAIL_SEND = Capability(
     idempotent={"enviar-mensagem": "chave"})
 
 IMAP_DESCRIPTOR = {
+    "label": "Email (leitura, IMAP)", "aliases": ["imap", "leitura de email"],
     "provider": IMAP_PROVIDER, "capability": READ_CAPABILITY, "version": "1.0.0", "catalog_key": CATALOG_KEY,
     "protocol": "mcp", "mcp_transport": "local",
     # Password (app password) or OAuth (XOAUTH2, #34/#35) is chosen per account by the operator; both are read-only.
@@ -53,6 +54,7 @@ IMAP_DESCRIPTOR = {
 }
 
 SMTP_DESCRIPTOR = {
+    "label": "Email (envio, SMTP)", "aliases": ["smtp", "envio de email"],
     "provider": SMTP_PROVIDER, "capability": SEND_CAPABILITY, "version": "1.0.0",
     "protocol": "smtp",
     "non_mcp_justification": ("O envio de email sai pelo servico de saida (rascunho, aprovacao exata de uso unico, "

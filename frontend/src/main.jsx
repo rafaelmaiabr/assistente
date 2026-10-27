@@ -11,6 +11,8 @@ import {Markdown} from './markdown.jsx';
 import {api} from './team/api.js';
 import {DraftCard, SetupCard, SkillChip} from './MailCards.jsx';
 import {applyMailEvent, closeSetup, decisionMessage, initialMail, setupMessage, startSetup} from './mailModel.js';
+import {IntegrationCards} from './IntegrationCards.jsx';
+import {applyIntegrationEvent, initialIntegrations, isIntegrationEvent, resumeText, safeAuthUrl, shouldResume} from './integrationModel.js';
 import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
 function Icon({name, ...props}) {
@@ -36,6 +38,8 @@ function App() {
   const [fatal, setFatal] = useState(false);
   const [tools, setTools] = useState([]);
   const [mail, setMail] = useState(initialMail);
+  const [integrations, setIntegrations] = useState(initialIntegrations);
+  const [resume, setResume] = useState('');
   const [menu, setMenu] = useState(false);
   const [view, setView] = useState('chat');
   const [conv, setConv] = useState(initialConversation);
@@ -89,6 +93,16 @@ function App() {
         if (again) ws.send(JSON.stringify(again));
       }
       setMail(current => applyMailEvent(current, data));  // setup form, drafts and the skill chip; none of it is model output
+      if (isIntegrationEvent(data)) {
+        setIntegrations(current => applyIntegrationEvent(current, data));  // cards the backend decided to show; the model cannot press their buttons
+        if (data.type === 'integration_oauth' && safeAuthUrl(data.url)) {
+          // The desktop app asks its main process to open the system browser; a browser tab may block a window opened after an async answer,
+          // which is why the card also shows the same address as a link.
+          if (window.desktopBridge?.openExternal) window.desktopBridge.openExternal(data.url); else window.open(data.url, '_blank', 'noopener,noreferrer');
+        }
+        if (data.type === 'integration_result' && shouldResume({ok: data.ok, resume: data.resume, next: data.next})) setResume(typeof data.label === 'string' && data.label ? data.label : 'o sistema');
+        return;
+      }
       if (data.type === 'binding') setError('');
       if (data.type === 'cancelled') {busy.current = false; setState('ready'); setLabel('Resposta interrompida');}
       if (data.type === 'status') {
@@ -137,10 +151,12 @@ function App() {
     setText(''); input.current?.focus();
   };
   const sendRaw = payload => {if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(payload));};
+  // After a connection works the assistant resumes what was asked before; the sentence is shown in the conversation like any message.
+  useEffect(() => {if (resume && canSend) {send(resumeText(resume)); setResume('');}}, [resume, canSend]);
   const openSetup = () => setMail(current => applyMailEvent(current, {type: 'setup'}));
   const submitSetup = form => {setMail(startSetup); sendRaw(setupMessage(form));};
   const decide = (draft, decision) => sendRaw(decisionMessage(draft, decision));
-  const reset = () => {setMail(initialMail()); setMessages([]); setText(''); setTools([]); setMenu(false); setView('chat'); setEpoch(n => n + 1);};
+  const reset = () => {setMail(initialMail()); setIntegrations(initialIntegrations()); setResume(''); setMessages([]); setText(''); setTools([]); setMenu(false); setView('chat'); setEpoch(n => n + 1);};
   // Leaving the conversation always turns the microphone off: capture never continues out of sight.
   const go = next => {if (next !== 'chat') voiceRef.current.stopAll(); setView(next); setMenu(false);};
   const sendControl = payload => {if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(payload));};
@@ -190,6 +206,7 @@ function App() {
         </section>}
         <div className="mail-stack">
           <SetupCard setup={mail.setup} onSubmit={submitSetup} onClose={() => setMail(closeSetup)}/>
+          <IntegrationCards integrations={integrations} send={sendRaw}/>
           {mail.drafts.map(draft => <DraftCard key={draft.id} draft={draft} onApprove={item => decide(item, 'approve')} onDiscard={item => decide(item, 'discard')}/>)}
         </div>
         <div ref={bottom}/>

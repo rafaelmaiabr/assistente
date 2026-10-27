@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('desktopBridge', {
     return () => ipcRenderer.removeListener('avatar:status', handler);
   },
   avatarAction: action => ipcRenderer.send('avatar:action', action),
+  openExternal: url => ipcRenderer.send('integration:open-external', url),
   runtimeAction: action => ipcRenderer.send('runtime:action',action),
   onRuntime: callback => {
     const handler=(_,status)=>callback(status);ipcRenderer.on('runtime:status',handler);

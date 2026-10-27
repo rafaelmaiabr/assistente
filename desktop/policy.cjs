@@ -15,7 +15,15 @@ function sanitizeStatus(value) {
     waitingHuman: value.waitingHuman === true, caseRef, caseLabel: caseRef ? label(value.caseLabel, 80) : null,
     agentName: caseRef ? label(value.agentName, 60) : null};
 }
+// The sign-in page of a connected system, opened in the system browser: https only, no credentials in the address, bounded length.
+function externalAuthUrl(url) {
+  try {
+    if (typeof url !== 'string' || url.length > 2000) return null;
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname && !parsed.username && !parsed.password ? parsed.href : null;
+  } catch {return null;}
+}
 function audioPermission(url, types) {
   return trustedChat(url) && Array.isArray(types) && types.length > 0 && types.every(type => type === 'audio');
 }
-module.exports = {BASE_URL, trustedChat, sanitizeStatus, audioPermission};
+module.exports = {BASE_URL, trustedChat, sanitizeStatus, audioPermission, externalAuthUrl};

@@ -46,6 +46,8 @@ Aba **Conectores** da seção Equipe (`frontend/src/team/ConnectorsSection.jsx`)
 - **Histórico de configuração** (`connector-audit.jsonl` na pasta de dados, só anexa): quem fez, a ação (`conectar`, `configurar`, `testar`), o fornecedor, a conexão e um código fixo do resultado; **sem segredos, sem valores dos campos e sem texto vindo de servidores**.
 - Um driver só pode ser configurado pelo painel se tiver um `SetupAdapter` (`configure`, `current`, `test`); sem ele, o painel diz que ainda não é possível. Hoje: IMAP e SMTP (`team/connectors/mail.py`). Em `127.0.0.1`/`localhost` os adaptadores usam conexão sem TLS (conector local ou servidor de teste); em qualquer outro servidor o TLS é obrigatório, como antes.
 
+Pela conversa ("conectar ao <sistema>"): cartão com botões, formulário seguro e teste real; ver [TEAM-CONNECTORS-CHAT.md](TEAM-CONNECTORS-CHAT.md). O descritor aceita `label`, `aliases` (nomes pelos quais a pessoa chama o sistema) e `steps` (passo a passo mostrado antes da autorização no navegador).
+
 ## Como adicionar um conector
 
 1. Copie `team/connectors/example.py`; escreva o descritor (MCP primeiro; fora disso, justifique).

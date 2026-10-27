@@ -11,7 +11,8 @@ from .setup import validate_values
 
 def _public(driver):
     descriptor = driver.descriptor
-    return {"provider": driver.provider, "capability": driver.capability, "version": descriptor["version"],
+    return {"provider": driver.provider, "label": descriptor["label"], "steps": descriptor["steps"],
+            "capability": driver.capability, "version": descriptor["version"],
             "mcp": descriptor["protocol"] == "mcp", "protocol": descriptor["protocol"],
             "non_mcp_justification": descriptor["non_mcp_justification"],
             "auth": descriptor["auth"]["type"], "fields": descriptor["fields"], "configurable": driver.setup is not None,

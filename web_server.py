@@ -11,6 +11,7 @@ from team import conversation, persistence
 from team.access import NotFound
 from team import web as team_web
 from team.app import TeamApp
+from team.connectors.conversation import IntegrationSession, disabled_card
 from speech_service import SpeechService, decode_audio
 from personal_mail import PersonalMail
 from personal_outbox import PersonalOutbox
@@ -27,6 +28,8 @@ DATA_DIR = web.AppKey('data_dir', object)
 MAX_TEXT = 8000
 TURN_TIMEOUT = 120
 SETUP_INTENT = re.compile(r'(?i)\b(configur\w*|conect\w*|ativ\w*|troc\w*)\b.*\b(e-?mail|caixa)\b')
+INTEGRATION_INTENT = re.compile(
+    r'(?i)^\s*(?:(?:quero|preciso|pode|vamos|gostaria de)\s+)?(?:conectar|integrar|ligar)\s+(?:(?:o|a|os|as|ao|à|no|na|com)\s+)*(?P<alvo>[^\n?!.]{2,60})[?!.]?\s*$')
 SETUP_LOCK = asyncio.Lock()
 
 
@@ -157,6 +160,23 @@ async def chat(request):
 
     outbox = PersonalOutbox(request.app[DATA_DIR], mail_account())
     decisions = set()
+    integration = {"session": None, "last_text": None}  # the cards of this conversation; the text that led to the last one
+    loop = asyncio.get_running_loop()
+
+    def integrations():
+        services = request.app[team_web.TEAM].services()
+        if services is None:
+            return None
+        if integration["session"] is None or integration["session"].services is not services:
+            integration["session"] = IntegrationSession(services)
+        return integration["session"]
+
+    def card_for(vendor, capability):
+        """Called by the agent tool in a worker thread: the model names a system, the backend builds the card."""
+        session = integrations()
+        card = disabled_card() if session is None else session.request(capability, vendor, original=integration["last_text"])
+        loop.call_soon_threadsafe(emit, {"type": "integration_card", "card": card})
+        return card
     attachment = None  # (company id, case id) the conversation is attached to, or None for the plain local assistant
     announced = conversation.fingerprint(conversation.local_binding())  # the partner the client was last told about
     active = {"turn": 0, "binding": conversation.local_binding()}  # captured at the start of each turn, never changed mid-turn
@@ -199,6 +219,7 @@ async def chat(request):
                     emit({'type': 'warning', 'message': 'Não identifiquei fala. Confira o microfone e tente novamente.'})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     return
+            integration["last_text"] = text[:300]
             emit({"type": "message", "id": uuid.uuid4().hex, "role": "user", "text": text})
             emit({"type": "status", "state": "processing", "label": "Pensando…"})
             await asyncio.wait_for(agent.reply(text), timeout=TURN_TIMEOUT)
@@ -262,6 +283,63 @@ async def chat(request):
             emit({'type': 'draft_result', 'draft': {'id': draft_id, 'state': 'desconhecida',
                                                     'detail': 'Erro inesperado. Confira a pasta Enviados antes de tentar de novo.'}})
 
+    def integration_result(request_id, result):
+        emit({'type': 'integration_result', 'request_id': request_id, 'ok': bool(result.get('ok')), 'message': result.get('message', ''),
+              'next': result.get('next'), 'resume': bool(result.get('original')), 'label': result.get('label')})
+
+    async def refresh_card(request_id):
+        # the rows of a card must show what is true now, whatever the attempt did
+        with contextlib.suppress(Exception):
+            emit({'type': 'integration_card', 'card': await asyncio.to_thread(integrations().refresh, request_id)})
+
+    async def wait_oauth(request_id):
+        try:
+            integration_result(request_id, await asyncio.to_thread(integrations().oauth_wait, request_id))
+            await refresh_card(request_id)
+        except Exception:
+            integration_result(request_id, {'ok': False, 'message': 'A autorização não foi concluída.'})
+
+    async def integrate(data):
+        """The person's clicks on an integration card. The model cannot produce these messages; secrets live only in ``values``."""
+        kind, request_id, company = data.get('type'), data.get('request_id'), data.get('company_id')
+        session = integrations()
+        try:
+            if session is None or not isinstance(request_id, str):
+                raise NotFound()
+            if kind == 'integration_pick':
+                emit({'type': 'integration_card', 'card': await asyncio.to_thread(session.pick, request_id, data.get('provider'))})
+            elif kind == 'integration_open':
+                emit({'type': 'integration_form', 'form': await asyncio.to_thread(session.open, request_id, company)})
+            elif kind == 'integration_use':
+                integration_result(request_id, await asyncio.to_thread(session.use, request_id, company))
+            elif kind == 'integration_submit':
+                values, label = data.get('values'), data.get('label')
+                if not isinstance(values, dict) or not (label is None or isinstance(label, str)):
+                    raise ValueError('formulario')
+                emit({'type': 'integration_busy', 'request_id': request_id, 'text': 'Salvando e testando a conexão…'})
+                integration_result(request_id, await asyncio.to_thread(session.submit, request_id, company, label, values))
+                await refresh_card(request_id)
+            elif kind == 'integration_oauth':
+                begun = await asyncio.to_thread(session.oauth_begin, request_id, company)
+                if not begun.get('ok'):
+                    integration_result(request_id, begun)
+                else:
+                    emit({'type': 'integration_oauth', 'request_id': request_id, 'url': begun['url']})
+                    task = asyncio.create_task(wait_oauth(request_id))
+                    decisions.add(task)
+                    task.add_done_callback(decisions.discard)
+            elif kind == 'integration_cancel':
+                await asyncio.to_thread(session.oauth_cancel, request_id)
+                integration_result(request_id, {'ok': False, 'message': 'A autorização foi cancelada.'})
+            else:
+                raise ValueError('tipo')
+        except NotFound:
+            emit({'type': 'integration_error', 'request_id': request_id if isinstance(request_id, str) else None,
+                  'message': 'Este cartão expirou. Peça a integração de novo.'})
+        except Exception:
+            emit({'type': 'integration_error', 'request_id': request_id if isinstance(request_id, str) else None,
+                  'message': 'Não foi possível concluir. Tente novamente.'})
+
     async def queue_drained():
         # Give the sole sender a chance to flush terminal events before closing.
         for _ in range(20):
@@ -274,6 +352,8 @@ async def chat(request):
         sender = asyncio.create_task(send())
         emit({"type": "status", "state": "connecting", "label": "Preparando assistente…"})
         agent = request.app[FACTORY](request.app[CONFIG], emit)
+        if hasattr(agent, 'on_integration'):
+            agent.on_integration = card_for  # the tool exists only where the team services can answer it
         await asyncio.wait_for(agent.start(), timeout=30)
         mail = mail_account()
         emit({"type": "session", "model": request.app[CONFIG]["model"], "mail": "real" if mail.configured() else "demo",
@@ -302,6 +382,10 @@ async def chat(request):
             elif isinstance(data, dict) and data.get('type') == 'setup_mail':
                 # The form posts the credentials straight here: they never pass through the model, the history or the logs.
                 task = asyncio.create_task(configure_mail(data))
+                decisions.add(task)
+                task.add_done_callback(decisions.discard)
+            elif isinstance(data, dict) and str(data.get('type', '')).startswith('integration_'):
+                task = asyncio.create_task(integrate(data))
                 decisions.add(task)
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and data.get('type') == 'draft_decision':
@@ -354,6 +438,17 @@ async def chat(request):
                     emit({'type': 'setup', 'skill': 'email'})
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text':
                           'Abri o formulário seguro para configurar sua caixa de email. A senha vai direto da tela para o cofre do Windows, sem passar pela conversa.'})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
+                intent = INTEGRATION_INTENT.search(text) if text and len(text) <= 120 else None
+                session = integrations() if intent else None
+                if session is not None and await asyncio.to_thread(session.match, '', intent.group('alvo').strip()):
+                    # "Conectar ao <sistema instalado>": the card needs no model (a small one may not call the tool).
+                    card = await asyncio.to_thread(session.request, '', intent.group('alvo').strip())
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    emit({'type': 'integration_card', 'card': card})
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant',
+                          'text': 'Mostrei na tela o cartão da integração. Os dados de acesso são digitados no formulário seguro, nunca na conversa.'})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 count += 1
