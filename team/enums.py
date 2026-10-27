@@ -22,10 +22,12 @@ TASK_STATES = ("pendente", "em_execucao", "aguardando", "concluida", "falhou", "
 RUN_STATES = ("enfileirada", "em_execucao", "pausada", "concluida", "falhou", "cancelada", "expirada")
 APPROVAL_STATES = ("pendente", "aprovada", "negada", "expirada", "consumida", "cancelada")
 EFFECT_OUTCOMES = ("desconhecido", "confirmado", "falhou")
+# A task handed to an external A2A agent: "desconhecido" is a send whose outcome is not known (no remote id yet); the rest follow TASK_STATES.
+A2A_TASK_STATES = ("desconhecido", "pendente", "em_execucao", "aguardando", "concluida", "falhou", "cancelada", "expirada")
 HANDOFF_KINDS = ("delegacao", "transferencia")
 HANDOFF_STATES = ("proposto", "aceito", "recusado", "expirado", "devolvido", "cancelado")
 OPERATIONS = ("read", "write", "send", "spend")
-CONNECTION_KINDS = ("mcp", "imap", "smtp", "http", "outro")
+CONNECTION_KINDS = ("mcp", "imap", "smtp", "http", "a2a", "outro")
 MCP_TRANSPORTS = ("http", "sse", "stdio", "local")
 STATUSES = ("ativo", "inativo")
 CREDENTIAL_STORES = ("cofre-local", "elevenlabs-legado", "oauth")
@@ -73,7 +75,7 @@ RESOURCE_KINDS = (
 )
 
 ENUMS = {
-    "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
+    "A2ATaskState": A2A_TASK_STATES, "CaseState": CASE_STATES, "TaskState": TASK_STATES, "RunState": RUN_STATES,
     "ApprovalState": APPROVAL_STATES, "HandoffKind": HANDOFF_KINDS, "HandoffState": HANDOFF_STATES,
     "Operation": OPERATIONS, "ConnectionKind": CONNECTION_KINDS, "McpTransport": MCP_TRANSPORTS,
     "Status": STATUSES, "OAuthState": OAUTH_STATES, "ScheduleFrequency": SCHEDULE_FREQUENCIES, "CatchUp": CATCH_UP_POLICIES, "ScheduleState": SCHEDULE_STATES,

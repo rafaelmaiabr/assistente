@@ -47,6 +47,7 @@
         "imap",
         "smtp",
         "http",
+        "a2a",
         "outro"
       ]
     },

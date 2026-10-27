@@ -51,7 +51,9 @@ class WithoutServerTests(unittest.TestCase):
 @requires_postgres
 class SchemaParityTests(PostgresCase):
     """The PostgreSQL schema is the SQLite one, translated: same tables, columns, explicit indexes and guard triggers."""
-    FTS = ("knowledge_index",)           # the text-search index belongs to issue #89
+    FTS = ("knowledge_index",)           # SQLite's FTS5 virtual table (and its shadow tables)
+    PG_ONLY_TABLES = {"knowledge_index"}  # ...is an ordinary table with a tsvector column on PostgreSQL (team/knowledge.py)
+    PG_ONLY_INDEXES = {"knowledge_index_doc", "knowledge_index_tsv"}
     EXTRA_COLUMNS = {("jobs", "seq")}    # PostgreSQL has no rowid: the queue orders ties by this column
 
     def sqlite_schema(self):
@@ -86,7 +88,8 @@ class SchemaParityTests(PostgresCase):
     def test_tables_columns_and_nullability_match(self):
         s_tables, s_columns, _, _ = self.sqlite_schema()
         p_tables, p_columns, _, _ = self.postgres_schema()
-        self.assertEqual(s_tables, p_tables)
+        self.assertEqual(s_tables, p_tables - self.PG_ONLY_TABLES)
+        p_columns = {k: v for k, v in p_columns.items() if k[0] not in self.PG_ONLY_TABLES}
         self.assertEqual({k for k in p_columns if k not in s_columns}, self.EXTRA_COLUMNS)
         self.assertEqual({k for k in s_columns if k not in p_columns}, set())
         different = {k for k, required in s_columns.items() if p_columns[k] != required}
@@ -95,7 +98,7 @@ class SchemaParityTests(PostgresCase):
     def test_explicit_indexes_and_guard_triggers_match(self):
         _, _, s_indexes, s_triggers = self.sqlite_schema()
         _, _, p_indexes, p_triggers = self.postgres_schema()
-        self.assertEqual(s_indexes, p_indexes)
+        self.assertEqual(s_indexes, p_indexes - self.PG_ONLY_INDEXES)
         self.assertEqual(s_triggers, p_triggers)
 
     def test_the_committed_postgres_migrations_are_exactly_the_translation(self):

@@ -14,7 +14,7 @@ from team.repository import (
 from team.samples import IDS, NOW, bundle
 
 ORDER = ["tenant", "skill_definition", "mcp_catalog_entry", "department", "credential", "connection",
-         "model_policy", "capability", "agent_definition", "agent_profile_version", "skill_grant", "case", "task", "agent_run", "approval_request", "handoff", "evidence", "case_entry", "triage_decision", "outbound_message", "knowledge_document", "memory_item", "monitored_asset", "financial_record", "email_message", "mailbox_cursor", "schedule", "notification", "oauth_app", "oauth_grant", "capability_gap",
+         "model_policy", "capability", "agent_definition", "agent_profile_version", "skill_grant", "case", "task", "agent_run", "approval_request", "handoff", "evidence", "case_entry", "triage_decision", "outbound_message", "knowledge_document", "memory_item", "monitored_asset", "financial_record", "email_message", "mailbox_cursor", "schedule", "notification", "oauth_app", "oauth_grant", "capability_gap", "a2a_task",
          "contact", "contact_address", "contact_link", "access_grant"]
 
 

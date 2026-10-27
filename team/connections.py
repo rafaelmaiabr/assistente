@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import re
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
 from .access import AccessContext, AccessError, NotFound, OperatorContext, PermissionDenied
@@ -159,6 +160,12 @@ class ConnectionService:
             if endpoint is not None or transport is not None:
                 raise ConnectionRejected("Conexoes MCP usam o transporte e a origem do catalogo aprovado.")
             transport_value, endpoint_value = entry["transport"], entry["url"]
+        elif connection_kind == "a2a":
+            if provider != "a2a" or transport is not None or catalog_entry_id is not None:
+                raise ConnectionRejected("Contraparte A2A usa o provedor `a2a`, sem transporte nem catalogo.")
+            host = urlsplit(endpoint).hostname if isinstance(endpoint, str) else None
+            if not host or not (endpoint.startswith("https://") or (endpoint.startswith("http://") and host in ("127.0.0.1", "localhost", "::1"))):
+                raise ConnectionRejected("O endereco da contraparte A2A deve ser https (http so em loopback).")
         elif catalog_entry_id is not None:
             raise ConnectionRejected("Somente conexoes MCP usam o catalogo.")
         now = _now()

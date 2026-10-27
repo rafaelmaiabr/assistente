@@ -10,7 +10,7 @@ _NAMES = [
     ("skill", "skl"), ("grant", "grt"), ("conn", "con"), ("cred", "crd"), ("case", "cas"), ("task", "tsk"),
     ("approval", "apr"), ("handoff", "hof"), ("evidence", "evd"), ("run", "run"), ("command", "cmd"),
     ("event", "evt"), ("corr", "cor"), ("user", "usr"), ("contact", "ctc"), ("address", "adr"),
-    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("sch", "sch"), ("ntf", "ntf"), ("oap", "oap"), ("oag", "oag"), ("mem", "mem"), ("gap", "gap"),
+    ("observed", "adr"), ("link", "lnk"), ("acl", "acl"), ("mcpentry", "mcp"), ("apv_fin", "apv"), ("apv_sup", "apv"), ("policy", "mpl"), ("entry", "ent"), ("cap", "cap"), ("tri", "tri"), ("msg", "msg"), ("kdoc", "kdc"), ("ast", "ast"), ("fre", "fre"), ("eml", "eml"), ("mbx", "mbx"), ("sch", "sch"), ("ntf", "ntf"), ("oap", "oap"), ("oag", "oag"), ("mem", "mem"), ("gap", "gap"), ("a2t", "atk"),
 ]
 IDS = {name: f"{prefix}_{number:032x}" for number, (name, prefix) in enumerate(_NAMES, start=1)}
 
@@ -137,6 +137,9 @@ def bundle():
              tried=["skill diagnostico-dominio (RDAP): nao cobre a Cloudflare"], gap_type="ferramenta", topic="dominio-cloudflare", occurrences=1,
              related_case_ids=[IDS["case"]], state="aberta", decision=None, decision_note=None, decided_by=None, decided_at=None, follow_up=None,
              memory_id=None, fulfilled_at=None),
+        _doc("a2a_task", "a2t", case_id=IDS["case"], connection_id=IDS["conn"], requested_by=IDS["agt_sup"], message_id="m-0123456789abcdef0123456789abcdef",
+             remote_task_id="t-1", remote_state="TASK_STATE_WORKING", state="em_execucao", objective="Analisar o contrato",
+             expected_result="Resumo das clausulas", expires_at="2026-01-16T12:00:00Z", checked_at=NOW, result_text=None, attention=False, detail=None),
         _doc("memory_item", "mem", scope="cliente", department_id=None, subject="cliente-exemplo", memory_kind="preferencia",
              text="Prefere contato por email.", state="confirmada", source="confirmado pelo operador",
              proposed_by=IDS["agt_sup"], decided_by=IDS["user"], decided_at=NOW, observed_at=NOW, expires_at=None),
