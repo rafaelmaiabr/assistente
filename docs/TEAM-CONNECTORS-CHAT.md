@@ -3,6 +3,8 @@
 Entrega da issue [#107](https://github.com/rafaelmaiabr/assistente/issues/107), parte do acompanhamento [#100](https://github.com/rafaelmaiabr/assistente/issues/100): `team/connectors/conversation.py` (planejador de integrações por conversa), a ferramenta `solicitar_integracao` (`assistant_core.py`), as mensagens do chat (`web_server.py`) e os cartões da tela (`frontend/src/IntegrationCards.jsx`, `integrationModel.js`). Usa a camada de conectores e o painel ([TEAM-CONNECTORS.md](TEAM-CONNECTORS.md)).
 
 > **Estado real:** o fluxo funciona de ponta a ponta com **email (IMAP e SMTP)**, os conectores instalados hoje, validado em navegador com um servidor IMAP falso. **Não há conector de ERP** (o Bling é a [#104](https://github.com/rafaelmaiabr/assistente/issues/104)): pedir "conectar ao Bling" mostra um cartão dizendo que não há conector instalado, sem prometer nada. O caminho de **autorização no navegador (OAuth)** existe e foi testado só com um adaptador falso, porque nenhum conector instalado o usa ainda. Vale para a conversa **local** (o chat não existe no acesso remoto).
+>
+> **O chat ainda não lê por estas conexões.** O cartão cria e **testa** uma conexão da **empresa** na camada de conectores, mas as ferramentas de leitura do chat (`listar_emails`, `buscar_emails`, `ler_email`) usam só o **email pessoal**, configurado pela habilidade de email ("configurar a caixa de email"). Conectar pelo cartão não faz o assistente ler aquela caixa. Por isso o cartão mostra um aviso e o pedido original **não é retomado**. Ligar o chat a estas conexões é a issue [#117](https://github.com/rafaelmaiabr/assistente/issues/117); quando ela for entregue, a capacidade entra em `CHAT_CAPABILITIES` e esta ressalva sai.
 
 ## O fluxo
 
@@ -16,7 +18,7 @@ Entrega da issue [#107](https://github.com/rafaelmaiabr/assistente/issues/107), 
 4. Um clique abre o **formulário seguro**, gerado do descritor do driver (campos, tipos, ajuda). O foco vai para o primeiro campo. Senha em `type=password`, sem autocompletar, limpa depois de enviar; ao reconfigurar, em branco mantém a atual.
 5. **Conectar e testar:** cria ou atualiza a conexão (cofre, validação do descritor, histórico de configuração do painel) e **roda o teste real**. Só então aparece "conectado e testado". Se o teste falha, a conexão fica e o próximo envio **reconfigura** (não duplica). O cartão é atualizado depois de cada tentativa, para as linhas dizerem o que é verdade.
 6. **Autorização no navegador:** para um driver com `auth.type = "oauth"` o formulário mostra os passos do descritor (`steps`, por exemplo criar o aplicativo no portal do provedor e a URL de retorno), salva as configurações e oferece **Autorizar no navegador**. A página abre no navegador (no aplicativo desktop, pelo navegador do sistema, https apenas) e também aparece como link; há estado de espera e **Cancelar**; ao terminar, a conexão é testada de verdade.
-7. **Retomada:** se a integração nasceu de um pedido ("consulte minhas mensagens"), depois de conectar a tela envia, como mensagem visível da pessoa, "Conclui a conexão com <sistema>. Pode continuar com o que eu pedi."
+7. **Retomada, só quando é verdade:** se a integração nasceu de um pedido e o chat **realmente usa** aquela conexão, depois de conectar a tela envia, como mensagem visível da pessoa, "Conclui a conexão com <sistema>. Pode continuar com o que eu pedi." Hoje **nenhum** conector é lido pelo chat (`CHAT_CAPABILITIES` em `conversation.py` está vazio), então a retomada **não acontece** e o resultado e o cartão dizem isso (ver o estado real acima).
 
 ## O que o modelo, uma mensagem ou uma página **não** conseguem
 
@@ -35,6 +37,6 @@ O aplicativo nega `window.open`; por isso o preload expõe `openExternal`, e o p
 
 - **OAuth** só testado com adaptador falso; nenhum conector instalado o usa, e as particularidades de um provedor (por exemplo porta fixa na URL de retorno) serão tratadas na #104. A ponte do desktop (`openExternal`) foi testada na política, **não** exercitada no aplicativo Electron real.
 - Largura de celular não foi conferida visualmente; a conferência foi em navegador de mesa.
-- A retomada é uma mensagem automática no chat (visível); se o assistente não estiver pronto, ela espera.
+- A retomada é uma mensagem automática no chat (visível); se o assistente não estiver pronto, ela espera. Ela só existe para capacidades que o chat usa (hoje nenhuma): ver o estado real acima.
 - A frase curta só reconhece verbos "conectar", "integrar" e "ligar"; outros jeitos de pedir dependem do modelo chamar a ferramenta.
 - Validado com servidores falsos; nenhuma conta real. Graphify não atualizado.

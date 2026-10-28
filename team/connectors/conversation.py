@@ -59,6 +59,14 @@ def connection_state(view):
     return ("existente", None) if view["last_test"]["ok"] else ("reconectar", "teste_falhou")
 
 
+# Capabilities the chat itself reads through a connection. Empty on purpose: the chat's email tools read only the personal
+# mailbox set up by the email skill, so a connection made from a card is tested and kept but not used by the chat (#117).
+# Add a capability here only when the chat really uses it; the resume sentence and the notices depend on it.
+CHAT_CAPABILITIES = frozenset()
+CHAT_NOTE = ("O chat ainda nao usa esta conexao para ler: ela e testada e guardada, mas o assistente le so o email pessoal, "
+             "configurado pela habilidade de email (peca para configurar a caixa de email).")
+
+
 def _safe_url(url):
     parts = urlsplit(url) if isinstance(url, str) else None
     return bool(parts and parts.hostname and not parts.username and
@@ -108,6 +116,17 @@ class IntegrationSession:
             raise NotFound()
         return entry, driver
 
+    @staticmethod
+    def _chat_uses(driver):
+        return driver.capability in CHAT_CAPABILITIES
+
+    def _done(self, entry, driver, message):
+        """A success result. The earlier request resumes only when the chat really uses this connection; otherwise the
+        message says so and nothing is resumed, so the person is not left waiting for a reading that will not happen."""
+        if self._chat_uses(driver):
+            return {"ok": True, "message": message, "original": entry["original"], "label": driver.descriptor["label"]}
+        return {"ok": True, "message": f"{message} {CHAT_NOTE}", "label": driver.descriptor["label"]}
+
     def _companies(self):
         return self.services.team.list_companies(self.services.operator)
 
@@ -139,7 +158,9 @@ class IntegrationSession:
         companies = sorted(self._companies(), key=lambda c: (c["name"].casefold(), c["id"]))  # a stable order between refreshes
         return {"request_id": request_id, "state": "pronto" if companies else "sem_empresa", "provider": driver.provider,
                 "label": d["label"], "mcp": d["protocol"] == "mcp", "auth": d["auth"]["type"],
-                "notice": "" if d["protocol"] == "mcp" else f"Este conector nao usa MCP: {d['non_mcp_justification']}",
+                "notice": " ".join(filter(None, [
+                    "" if d["protocol"] == "mcp" else f"Este conector nao usa MCP: {d['non_mcp_justification']}",
+                    "" if self._chat_uses(driver) else CHAT_NOTE])),
                 "rows": [self._row(c, driver) for c in companies]}
 
     def request(self, capability="", vendor="", original=None):
@@ -191,8 +212,7 @@ class IntegrationSession:
         row = self._row(company, driver)
         if row["state"] != "existente":
             return {"ok": False, "message": "Esta conexao " + (row["reason"] or "ainda nao existe") + ". Use Reconectar."}
-        return {"ok": True, "message": f"Usando a conexao existente: {row['connection']['label']}.", "original": entry["original"],
-                "label": driver.descriptor["label"]}
+        return self._done(entry, driver, f"Usando a conexao existente: {row['connection']['label']}.")
 
     def submit(self, request_id, company_id, label, values):
         """Create or update the connection from the form and test it for real. The secret is not kept, returned or logged."""
@@ -217,8 +237,7 @@ class IntegrationSession:
         if not outcome["ok"]:
             return {"ok": False, "connection_id": connection_id,
                     "message": outcome["mensagem"] or CODE_TEXT.get(outcome["erro"], "O teste falhou. Confira as configuracoes.")}
-        return {"ok": True, "connection_id": connection_id, "message": f"{driver.descriptor['label']} conectado e testado.",
-                "original": entry["original"], "label": driver.descriptor["label"]}
+        return {**self._done(entry, driver, f"{driver.descriptor['label']} conectado e testado."), "connection_id": connection_id}
 
     # -- browser sign-in -------------------------------------------------------------------------------------------------------
     def oauth_begin(self, request_id, company_id):
@@ -250,8 +269,7 @@ class IntegrationSession:
         outcome = self.services.connectors.test(ctx, flow["connection_id"])
         if not outcome["ok"]:
             return {"ok": False, "message": outcome["mensagem"] or CODE_TEXT.get(outcome["erro"], "O teste falhou.")}
-        return {"ok": True, "message": f"{driver.descriptor['label']} conectado e testado.", "original": entry["original"],
-                "label": driver.descriptor["label"]}
+        return self._done(entry, driver, f"{driver.descriptor['label']} conectado e testado.")
 
     def oauth_cancel(self, request_id):
         entry, driver = self._driver(request_id)

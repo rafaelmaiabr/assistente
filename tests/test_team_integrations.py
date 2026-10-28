@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from aiohttp import web, ClientSession
 
@@ -10,7 +11,7 @@ from team import persistence
 from team.access import NotFound
 from team.app import TeamApp
 from team.connectors import Capability
-from team.connectors.conversation import MAX_PENDING, TTL_SECONDS, IntegrationSession, connection_state
+from team.connectors.conversation import CHAT_NOTE, MAX_PENDING, TTL_SECONDS, IntegrationSession, connection_state
 from team.connectors.setup import SetupAdapter
 from team.vault import MemoryVault
 from tests.imap_case import build
@@ -126,7 +127,7 @@ class MatchingTests(IntegrationCase):
 class CardStateTests(IntegrationCase):
     def test_a_new_connector_is_offered_for_every_company_and_nothing_is_claimed(self):
         card = self.card()
-        self.assertEqual((card["state"], card["mcp"], card["auth"], card["notice"]), ("pronto", True, "secret", ""))
+        self.assertEqual((card["state"], card["mcp"], card["auth"], card["notice"]), ("pronto", True, "secret", CHAT_NOTE))  # the chat does not read this connection yet, and the card says so
         self.assertEqual({r["company_id"]: r["state"] for r in card["rows"]}, {self.a: "nova", self.b: "nova"})
         self.assertEqual([r["company"] for r in card["rows"]], ["Empresa A", "Empresa B"])  # a stable order between refreshes
         self.assertEqual(len(card["request_id"]), 16)
@@ -207,13 +208,33 @@ class ClickTests(IntegrationCase):
     def test_submit_connects_and_really_tests_and_the_secret_goes_nowhere(self):
         card = self.session.request("", "imap", original="liste meus emails")
         result = self.session.submit(card["request_id"], self.a, "Caixa da Ana", self.imap_values())
-        self.assertEqual((result["ok"], result["original"]), (True, "liste meus emails"))
+        self.assertTrue(result["ok"])
+        self.assertNotIn("original", result)  # nothing to resume: the chat does not read through this connection
         self.assertIn("conectado e testado", result["message"])
+        self.assertIn(CHAT_NOTE, result["message"])
         self.assertNotIn(PASSWORD, json.dumps(result))
         trail = (self.root / "team-data" / "connector-audit.jsonl")
         audit_text = trail.read_text(encoding="utf-8") if trail.exists() else ""
         for place in (json.dumps(self.session.pending, default=str), audit_text):
             self.assertNotIn(PASSWORD, place)
+
+    def test_the_request_resumes_only_for_a_capability_the_chat_really_uses(self):
+        with mock.patch("team.connectors.conversation.CHAT_CAPABILITIES", frozenset({"email-leitura"})):
+            card = self.session.request("", "imap", original="liste meus emails")
+            self.assertEqual(card["notice"], "")
+            result = self.session.submit(card["request_id"], self.a, "Caixa da Ana", self.imap_values())
+            self.assertEqual((result["ok"], result["original"]), (True, "liste meus emails"))
+            self.assertNotIn(CHAT_NOTE, result["message"])
+            used = self.session.use(card["request_id"], self.a)
+            self.assertEqual((used["ok"], used["original"]), (True, "liste meus emails"))
+
+    def test_using_an_existing_connection_does_not_promise_a_reading_either(self):
+        card, done = self.connect_imap()
+        self.assertTrue(done["ok"])
+        used = self.session.use(card["request_id"], self.a)
+        self.assertTrue(used["ok"])
+        self.assertNotIn("original", used)
+        self.assertIn(CHAT_NOTE, used["message"])
 
     def test_a_failed_test_keeps_the_connection_and_the_next_try_reconfigures_it(self):
         card, bad = self.connect_imap(senha="senha-errada")
@@ -393,7 +414,7 @@ class WebSocketTests(WebSocketBase):
         self.assertEqual(FakeAgent.calls, ["indisponivel"])
         await ws.close()
 
-    async def test_the_whole_flow_by_clicks_never_sends_the_secret_back_and_asks_to_resume(self):
+    async def test_the_whole_flow_by_clicks_never_sends_the_secret_back_and_does_not_resume_a_reading_the_chat_cannot_do(self):
         ws = await self.connect()
         await ws.send_json({"type": "message", "text": "consulte minha caixa imap"})
         card = (await self.until(ws, lambda e: e.get("type") == "integration_card"))["card"]
@@ -404,7 +425,8 @@ class WebSocketTests(WebSocketBase):
                             "values": self.values()})
         await self.until(ws, lambda e: e.get("type") == "integration_busy")
         result = await self.until(ws, lambda e: e.get("type") == "integration_result")
-        self.assertEqual((result["ok"], result["resume"]), (True, True))  # the request that led here can continue
+        self.assertEqual((result["ok"], result["resume"]), (True, False))  # the chat does not read through this connection
+        self.assertIn(CHAT_NOTE, result["message"])
         refreshed = (await self.until(ws, lambda e: e.get("type") == "integration_card"))["card"]  # the rows now tell the truth
         rows = {r["company_id"]: r["state"] for r in refreshed["rows"]}
         self.assertEqual((refreshed["request_id"], rows), (card["request_id"], {self.a: "existente", self.b: "nova"}))
