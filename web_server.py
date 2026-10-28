@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import uuid
+import honesty
 import mail_intent
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
@@ -13,6 +14,7 @@ from team.access import NotFound
 from team import web as team_web
 from team.app import TeamApp
 from team.connectors.conversation import IntegrationSession, disabled_card
+from team.connectors.http_routes import ROUTES_FILE, RouteStore
 from speech_service import SpeechService, decode_audio
 from personal_mail import PersonalMail
 from personal_outbox import PersonalOutbox
@@ -156,6 +158,7 @@ async def chat(request):
     sender = None
     count = 0
     answers = []
+    turn_facts = {'tools': 0, 'shown': False}  # what really happened in this turn: tools run, a card or form the server showed
     def mail_account():
         return PersonalMail(request.app[DATA_DIR], request.app[team_web.TEAM].vault())
 
@@ -197,6 +200,10 @@ async def chat(request):
             await ws.send_json(await queue.get())
 
     def emit(event):
+        if event.get('type') == 'tool' and event.get('state') == 'started':
+            turn_facts['tools'] += 1
+        elif event.get('type') in ('integration_card', 'setup', 'draft', 'drafts'):
+            turn_facts['shown'] = True
         if event.get('type') == 'message' and event.get('role') == 'assistant':
             answers.append(event['text'])
         if active['turn'] and event.get('type') in TURN_EVENTS:
@@ -212,6 +219,7 @@ async def chat(request):
 
     async def reply(text, audio=None, speak=False, profile=None):
         answers.clear()
+        turn_facts.update(tools=0, shown=False)
         try:
             if audio is not None:
                 emit({'type': 'status', 'state': 'transcribing', 'label': 'Transcrevendo sua fala…'})
@@ -224,6 +232,9 @@ async def chat(request):
             emit({"type": "message", "id": uuid.uuid4().hex, "role": "user", "text": text})
             emit({"type": "status", "state": "processing", "label": "Pensando…"})
             await asyncio.wait_for(agent.reply(text), timeout=TURN_TIMEOUT)
+            notice = honesty.turn_warning('\n'.join(answers), turn_facts['tools'], turn_facts['shown'])
+            if notice:  # the model's text promised something the server did not do: say so next to it
+                emit({'type': 'warning', 'message': notice})
             if speak and answers:
                 emit({'type': 'status', 'state': 'synthesizing', 'label': 'Preparando áudio…'})
                 try:
@@ -456,6 +467,14 @@ async def chat(request):
                         answer = ('Sua caixa de email ainda não está configurada. Abri o formulário seguro; a senha vai direto da tela '
                                   'para o cofre do Windows, sem passar pela conversa.')
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
+                refused = honesty.parse(text) if text else None
+                if refused is not None:
+                    # Known out-of-reach requests (move/delete mail, open an address, send unapproved): a fixed, true answer, no model.
+                    routes = await asyncio.to_thread(RouteStore(request.app[DATA_DIR] / ROUTES_FILE).enabled_routes)
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': honesty.answer(refused, routes)})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 intent = INTEGRATION_INTENT.search(text) if text and len(text) <= 120 else None

@@ -8,11 +8,12 @@ import asyncio
 import sys
 from livekit.agents import Agent, function_tool, mcp
 from livekit.plugins import openai
+from honesty import capabilities_text
 from personal_mail import PersonalMail
 from personal_outbox import PersonalOutbox
 from settings import DATA_ROOT, ROOT, load_config
 from team.connectors.http_get import SafeHttp
-from team.connectors.http_routes import KINDS, RouteStore, consult
+from team.connectors.http_routes import KINDS, ROUTES_FILE, RouteStore, consult
 
 BASE = ("Você é um assistente em português brasileiro. Responda brevemente, sem markdown. "
         "Use ferramentas quando solicitado e nunca invente o que elas não devolveram. "
@@ -33,8 +34,6 @@ READ_ONLY = "O envio de respostas não está configurado: se pedirem para respon
 REPLY = ("Para responder um email, leia a mensagem, escreva o texto e use preparar_resposta. Isso só cria um rascunho na tela: "
          "o usuário revisa e clica em Aprovar e enviar. Você não consegue enviar, nunca diga que enviou, e não escolhe o destinatário "
          "(a resposta vai só para quem escreveu). Depois de preparar, peça para o usuário revisar o rascunho. ")
-
-ROUTES_FILE = "http-routes.json"
 
 SKILL_OF = {"listar_emails": "email", "buscar_emails": "email", "ler_email": "email", "preparar_resposta": "email",
             "configurar_caixa_de_email": "email", "verificar_caixa_email": "email"}
@@ -141,7 +140,9 @@ def agent_parts(config=None, mail=None, outbox=None, on_draft=None, on_setup=Non
             command=sys.executable, args=[str(ROOT / "demo_mcp.py")], cwd=ROOT)))
     for index, server in enumerate(config["mcp_servers"]):
         tools.append(mcp.MCPToolset(id=f"external-{index}", mcp_server=mcp.MCPServerHTTP(server["url"])))
-    return instructions_for(mail) + (INTEGRATIONS if on_integration else "") + http_instructions(routes.enabled_routes()), tools
+    names = {getattr(getattr(tool, "info", None), "name", None) for tool in tools}  # what is really registered, not fixed text
+    return (instructions_for(mail) + (INTEGRATIONS if on_integration else "") + http_instructions(routes.enabled_routes())
+            + capabilities_text(names)), tools
 
 
 def make_agent(config=None, mail=None, on_draft=None, on_setup=None, outbox=None, on_integration=None):
