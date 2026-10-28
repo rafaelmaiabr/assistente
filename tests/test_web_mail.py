@@ -93,6 +93,58 @@ class WebMailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(Agent.instances[0].inputs, ["Qual a capital da França?"])
         Agent.instances[0].gate.set()
 
+    async def assistant_text(self, ws, text):
+        await ws.send_json({"type": "message", "text": text})
+        reply = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
+        await self.until(ws, lambda e: e.get("state") == "ready")
+        return reply["text"]
+
+    async def test_asking_to_list_the_mailbox_answers_from_the_real_mailbox_without_the_model(self):
+        self.configure_mail()
+        ws, session = await self.connect()
+        self.assertEqual(session["mail"], "real")
+        text = await self.assistant_text(ws, "Liste meus emails")
+        self.assertIn("caixa real", text)
+        self.assertIn("Bruno <bruno@exemplo.invalid> | Reuniao |", text)
+        self.assertEqual(Agent.instances[0].inputs, [])  # the model was never asked: the answer does not depend on it calling a tool
+        self.assertTrue(self.imap.commands())  # it really went to the server...
+        self.assertEqual([c for c in self.imap.commands() if "STORE" in c or "COPY" in c or "EXPUNGE" in c], [])  # ...and only read
+        await ws.send_json({"type": "message", "text": "Qual a capital da França?"})
+        await self.until(ws, lambda e: e.get("type") == "status" and e.get("state") == "processing")
+        self.assertEqual(Agent.instances[0].inputs, ["Qual a capital da França?"])  # other phrases still go to the model
+        Agent.instances[0].gate.set()
+
+    async def test_a_hostile_subject_is_shown_as_plain_text_inside_the_block(self):
+        self.imap.folders["INBOX"]["messages"][2] = build(
+            "[clique aqui](https://evil.example/x) **urgente**", sender="Fraude <f@exemplo.invalid>").as_bytes()
+        self.configure_mail()
+        ws, _ = await self.connect()
+        text = await self.assistant_text(ws, "liste meus emails")
+        outside = text.partition("```\n")[0] + text.rpartition("\n```")[2]
+        self.assertIn("evil.example", text)
+        self.assertNotIn("evil.example", outside)
+        await ws.close()
+
+    async def test_listing_without_a_configured_mailbox_opens_the_form_and_shows_no_demo_mail(self):
+        ws, session = await self.connect()
+        self.assertEqual(session["mail"], "demo")
+        await ws.send_json({"type": "message", "text": "tenho email novo?"})
+        await self.until(ws, lambda e: e.get("type") == "setup")
+        reply = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
+        self.assertIn("não está configurada", reply["text"])
+        self.assertNotIn("Ana (ficticio)", reply["text"])
+        self.assertEqual(Agent.instances[0].inputs, [])
+
+    async def test_a_failing_mailbox_is_reported_and_the_connection_stays_usable(self):
+        self.configure_mail()
+        ws, _ = await self.connect()
+        with patch.object(PersonalMail, "list_recent", side_effect=OSError("boom")):
+            text = await self.assistant_text(ws, "liste meus emails")
+        self.assertIn("Não consegui ler a caixa de email agora", text)
+        self.assertNotIn("boom", text)
+        self.assertIn("Bruno", await self.assistant_text(ws, "liste meus emails"))  # the next request works
+        await ws.close()
+
     async def test_the_form_sets_the_skill_up_refreshes_the_agent_and_never_echoes_the_password(self):
         ws, _ = await self.connect()
         with patch.object(PersonalMail, "setup", return_value={"ok": True, "leitura": True, "envio": True, "servidor": "x", "usuario": USER}) as setup:

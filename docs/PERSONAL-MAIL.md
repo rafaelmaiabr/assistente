@@ -14,7 +14,9 @@ Alternativa por terminal: `.venv\Scripts\python.exe scripts\mail_setup.py --host
 
 ## Ler
 
-Peça "liste meus últimos emails", "tem algum email do Bruno?" ou "leia o segundo". Somente leitura: o cliente usa `EXAMINE` e `BODY.PEEK`, então nada é marcado como lido, apagado ou movido. Tudo o que vem de um email é marcado como dado não confiável, com texto limitado a 6.000 caracteres e no máximo 10 mensagens por consulta.
+**Listar, sem modelo (#116).** Frases curtas e diretas são reconhecidas pelo servidor (`mail_intent.py`) e respondidas com a lista da caixa real, sem depender do modelo chamar a ferramenta: "liste meus emails", "mostre os 3 últimos emails", "leia o último email", "tenho email novo?", "qual o último email que recebi?". Também aceita erros comuns de transcrição de voz ("emeio", "imeio", "e mail"). A resposta traz só **remetente, assunto e data** (até 10, padrão 5; "último" mostra 1), dentro de um bloco de texto: um assunto com `[link](https://…)` ou `# título` aparece como texto, nunca como link. Sem caixa configurada, abre o formulário seguro e não mostra a caixa de demonstração. Se a leitura falhar, diz isso sem inventar mensagens. Qualquer frase que não seja um pedido simples de listar ("responda", "apague", "mova para SPAM", "emails do Bruno sobre a reunião") continua indo ao modelo.
+
+Pedidos mais livres: "tem algum email do Bruno?" ou "leia o segundo" dependem do modelo chamar a ferramenta. Somente leitura: o cliente usa `EXAMINE` e `BODY.PEEK`, então nada é marcado como lido, apagado ou movido. Tudo o que vem de um email é marcado como dado não confiável, com texto limitado a 6.000 caracteres e no máximo 10 mensagens por consulta.
 
 ## Responder com aprovação
 
@@ -41,6 +43,7 @@ Regras do rascunho:
 
 - **Nada disto foi testado com uma caixa real nem com o modelo local chamando as ferramentas** (Ollama/Qwen). Os testes usam servidores IMAP e SMTP falsos e um agente falso. O teste real é de quem é dono da conta e deve ser descrito no PR.
 - Modelos pequenos podem escolher mal a ferramenta ou obedecer a um texto malicioso dentro de um email. Por isso o pedido "configurar caixa de email" também é reconhecido pelo servidor sem depender do modelo, e o envio depende só do seu clique. O pior caso de uma injeção é um rascunho indesejado para o remetente do próprio email, que você vê antes de aprovar.
+- O atalho de listar **só lista** (remetente, assunto, data): não lê o corpo, não busca por remetente e não resume. Depois dele, o modelo não "vê" a lista que foi mostrada; um pedido como "leia o primeiro" faz o modelo listar de novo. O atalho não atende "mover", "apagar" ou "marcar como SPAM": a leitura é somente leitura por construção, e esses pedidos vão ao modelo, que pode responder mal (issue sobre o assistente não afirmar o que não consegue).
 - Provedores como Outlook de trabalho podem bloquear senha de aplicativo; o teste de conexão avisa e nada é guardado.
 - Uma conta por instalação, sem OAuth. Sem novo email, encaminhamento, cc ou anexos.
 - A "habilidade" aqui é do chat local. Ela não usa o registro de skills nem o gateway da equipe de agentes (`docs/TEAM-SKILLS.md`, `docs/TEAM-GATEWAY.md`).
