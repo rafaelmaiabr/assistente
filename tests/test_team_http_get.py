@@ -2,7 +2,13 @@ import ssl
 import unittest
 
 from team.connectors.http_get import MAX_BYTES, HttpFetchError, SafeHttp, parse_url, public_address
-from tests.https_fake import PUBLIC, FakeWeb
+try:
+    from tests.https_fake import FakeWeb
+except ImportError:  # the fake server needs ``cryptography``, which the minimal CI image does not install
+    FakeWeb = None
+
+
+PUBLIC = "93.184.216.34"  # a documentation-style public address; also what tests/https_fake.py resolves api.exemplo.test to
 
 
 class AddressTests(unittest.TestCase):
@@ -29,6 +35,7 @@ class AddressTests(unittest.TestCase):
                 parse_url(url)
 
 
+@unittest.skipUnless(FakeWeb, "cryptography is not installed here")
 class FetchTests(unittest.TestCase):
     def setUp(self):
         self.web = FakeWeb()

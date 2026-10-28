@@ -5,7 +5,10 @@ from pathlib import Path
 
 from team.connectors.http_get import HttpFetchError, Response
 from team.connectors.http_routes import BUILTIN, MAX_CUSTOM, RouteRejected, RouteStore, consult, validate_route
-from tests.https_fake import FakeWeb
+try:
+    from tests.https_fake import FakeWeb
+except ImportError:  # the fake server needs ``cryptography``, which the minimal CI image does not install
+    FakeWeb = None
 
 DOMAIN_ROUTE = BUILTIN["registro-dominio"]
 
@@ -155,6 +158,7 @@ class ConsultTests(unittest.TestCase):
         self.assertEqual(result, {"erro": "endereco_bloqueado", "mensagem": "bloqueado"})
 
 
+@unittest.skipUnless(FakeWeb, "cryptography is not installed here")
 class EndToEndTests(unittest.TestCase):
     def test_a_route_is_read_through_the_safe_client_against_a_local_https_server(self):
         web = FakeWeb()
