@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import uuid
+import mail_intent
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
 from team import conversation, persistence
@@ -438,6 +439,23 @@ async def chat(request):
                     emit({'type': 'setup', 'skill': 'email'})
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text':
                           'Abri o formulário seguro para configurar sua caixa de email. A senha vai direto da tela para o cofre do Windows, sem passar pela conversa.'})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
+                listing = mail_intent.parse(text) if text else None
+                if listing is not None:
+                    # "Liste meus emails": read only, answered here so it does not depend on a small model calling the tool.
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    if mail.configured():
+                        emit({'type': 'status', 'state': 'executing', 'label': 'Consultando seus e-mails…'})
+                        try:
+                            answer = mail_intent.render(await asyncio.to_thread(mail.list_recent, None, listing['limit'], None))
+                        except Exception:
+                            answer = 'Não consegui ler a caixa de email agora. Tente de novo em instantes.'
+                    else:
+                        emit({'type': 'setup', 'skill': 'email'})
+                        answer = ('Sua caixa de email ainda não está configurada. Abri o formulário seguro; a senha vai direto da tela '
+                                  'para o cofre do Windows, sem passar pela conversa.')
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 intent = INTEGRATION_INTENT.search(text) if text and len(text) <= 120 else None
