@@ -48,6 +48,8 @@ Aba **Conectores** da seção Equipe (`frontend/src/team/ConnectorsSection.jsx`)
 
 Pela conversa ("conectar ao <sistema>"): cartão com botões, formulário seguro e teste real; ver [TEAM-CONNECTORS-CHAT.md](TEAM-CONNECTORS-CHAT.md). O descritor aceita `label`, `aliases` (nomes pelos quais a pessoa chama o sistema) e `steps` (passo a passo mostrado antes da autorização no navegador).
 
+Consulta GET a rotas públicas liberadas pelo operador (ex.: registro de domínio da BrasilAPI), sem gateway ainda: [TEAM-CONNECTOR-HTTP.md](TEAM-CONNECTOR-HTTP.md).
+
 ## Como adicionar um conector
 
 1. Copie `team/connectors/example.py`; escreva o descritor (MCP primeiro; fora disso, justifique).
