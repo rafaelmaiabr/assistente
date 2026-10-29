@@ -3,6 +3,8 @@ import asyncio
 from livekit.agents import AgentSession, APIConnectOptions
 from livekit.agents.voice.agent_session import SessionConnectOptions
 from assistant_core import SKILL_OF, agent_parts, make_agent
+import persona
+from settings import DATA_ROOT
 from tool_guard import limit_summary
 
 
@@ -16,6 +18,8 @@ class BrowserAgent:
         self.agent = None
         self.on_integration = None  # set by the server when the team services exist; the tool is absent otherwise
         self.mail_source = None  # async callable -> (mail, outbox) when the chat reads a company mailbox (#117); None keeps the personal one
+        self.persona = persona.load(DATA_ROOT)  # read once per conversation: the tone does not change in the middle of it
+        self.style = persona.DEFAULT_STYLE
         self.answers = 0
         self.steps = []  # (tool, ok) of the turn in progress, for the summary when the step budget ends without an answer
         self.running = None
@@ -53,17 +57,26 @@ class BrowserAgent:
     async def start(self):
         mail, outbox = await self._mail()
         self.agent = make_agent(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
-                                on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
+                                on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration,
+                                persona=self.persona, style=self.style)
         await self.session.start(agent=self.agent)
 
     async def refresh(self):
         """After a skill was set up from the form: new instructions and tools for the running conversation (history is kept)."""
         mail, outbox = await self._mail()
         instructions, tools = agent_parts(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
-                                          on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
+                                          on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration,
+                                          persona=self.persona, style=self.style)
         await self.agent.update_tools(tools)
         if instructions != self.agent.instructions:  # the stable layer is a fixed prefix; nothing is rewritten when the text did not change
             await self.agent.update_instructions(instructions)
+
+    async def set_style(self, name):
+        """The person's choice of answer style for this conversation. Only the last (volatile) part of the prompt changes."""
+        if name not in persona.STYLES:
+            raise ValueError("Estilo desconhecido.")
+        self.style = name
+        await self.refresh()
 
     async def reply(self, text):
         self.failed = False

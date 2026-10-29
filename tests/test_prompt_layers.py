@@ -9,7 +9,7 @@ from team.connectors.http_routes import RouteStore
 LIVEKIT = importlib.util.find_spec("livekit") is not None
 CONFIG = {"mcp_servers": [], "model": "x", "ollama_url": "http://x"}
 # Size of the whole prompt in characters before #135 (1707, 2112 and 3053); the ceilings keep it from growing back.
-CEILING = {"demo": 1550, "real": 1600, "full": 2300}
+CEILING = {"demo": 1650, "real": 1700, "full": 2400}  # the built-in persona (#136) added about 85 characters; all still below the old sizes
 
 
 @unittest.skipUnless(LIVEKIT, "livekit is not installed here")

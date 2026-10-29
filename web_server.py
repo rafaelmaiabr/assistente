@@ -465,7 +465,7 @@ async def chat(request):
         await asyncio.wait_for(agent.start(), timeout=30)
         mail = await active_mail()
         emit({"type": "session", "model": request.app[CONFIG]["model"], "mail": "real" if mail.configured() else "demo",
-              "reply": mail.configured() and mail.smtp_config() is not None})
+              "reply": mail.configured() and mail.smtp_config() is not None, "style": getattr(agent, 'style', 'padrao')})
         pending = await asyncio.to_thread(outbox.pending)
         if pending:  # drafts still waiting after a reload; the approval is the person's, so they come back to the screen
             emit({"type": "drafts", "drafts": pending})
@@ -519,6 +519,15 @@ async def chat(request):
                         announce(conversation.local_binding(), 'vinculo_removido')
                 except NotFound:
                     emit({'type': 'rejected', 'message': 'Demanda nao encontrada.'})
+                except ValueError as error:
+                    emit({'type': 'rejected', 'message': str(error)})
+            elif isinstance(data, dict) and data.get('type') == 'style':
+                # The answer style of this conversation (#136): shorter answers only, never the honesty block or the permissions.
+                try:
+                    if not hasattr(agent, 'set_style'):
+                        raise ValueError('Estilo indisponivel.')
+                    await agent.set_style(data.get('style'))
+                    emit({'type': 'style', 'style': agent.style})
                 except ValueError as error:
                     emit({'type': 'rejected', 'message': str(error)})
             elif count >= 100:

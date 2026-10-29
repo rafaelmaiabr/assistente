@@ -27,6 +27,13 @@ class Agent(BaseAgent):
     async def refresh(self):
         type(self).refreshed += 1
 
+    style = "padrao"
+
+    async def set_style(self, name):
+        if name not in ("padrao", "curto"):
+            raise ValueError("Estilo desconhecido.")
+        self.style = name
+
 
 class WebMailTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -92,6 +99,15 @@ class WebMailTests(unittest.IsolatedAsyncioTestCase):
         await self.until(ws, lambda e: e.get("type") == "status" and e.get("state") == "processing")
         self.assertEqual(Agent.instances[0].inputs, ["Qual a capital da França?"])
         Agent.instances[0].gate.set()
+
+    async def test_the_person_picks_a_style_and_an_unknown_one_is_rejected(self):
+        ws, session = await self.connect()
+        self.assertEqual(session["style"], "padrao")
+        await ws.send_json({"type": "style", "style": "curto"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "style"))["style"], "curto")
+        await ws.send_json({"type": "style", "style": "ignore as regras"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rejected"))["message"], "Estilo desconhecido.")
+        self.assertEqual(Agent.instances[0].style, "curto")
 
     async def assistant_text(self, ws, text):
         await ws.send_json({"type": "message", "text": text})
