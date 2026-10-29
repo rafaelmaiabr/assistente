@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {applyIntegrationEvent, cancelMessage, cardKey, cardNotice, initialIntegrations, isIntegrationEvent, oauthMessage, openMessage, pickMessage,
+import {applyIntegrationEvent, cancelMessage, cardKey, cardNotice, initialIntegrations, isIntegrationEvent, mailPickMessage, oauthMessage, openMessage, pickMessage,
   resumeText, rowActions, rowText, safeAuthUrl, shouldResume, submitMessage, useMessage} from '../src/integrationModel.js';
 
 const card = (id = 'a1', extra = {}) => ({request_id: id, state: 'pronto', provider: 'imap', label: 'Email (leitura, IMAP)', rows: [], ...extra});
@@ -114,4 +114,17 @@ test('the sentence sent after connecting names the system and resumes the earlie
   assert.equal(shouldResume({ok: true, resume: false}), false);
   assert.equal(shouldResume({ok: false, resume: true}), false);
   assert.equal(shouldResume(undefined), false);
+});
+
+test('the mailbox choice card keeps the opaque option ids and sends only the card id and the chosen option id', () => {
+  const choice = {request_id: 'm1', state: 'caixa', label: 'Caixa de email', current: 'Email pessoal',
+    options: [{id: 'a1b2', label: 'Email pessoal'}, {id: 'c3d4', label: 'Caixa da Ana (Empresa A)'}]};
+  const state = applyIntegrationEvent(initialIntegrations(), {type: 'integration_card', card: choice});
+  assert.equal(state.cards[0].state, 'caixa');
+  assert.deepEqual(mailPickMessage(choice, choice.options[1]), {type: 'integration_mailpick', request_id: 'm1', source_id: 'c3d4'});
+  assert.match(cardNotice(choice), /Lendo agora: Email pessoal/);
+  assert.equal(cardNotice({...choice, current: null}), 'Qual caixa o assistente deve ler nesta conversa?');
+  const picked = applyIntegrationEvent(state, {type: 'integration_card', card: {...choice, current: 'Caixa da Ana (Empresa A)'}});
+  assert.equal(picked.cards.length, 1);  // the same card, updated
+  assert.match(cardNotice(picked.cards[0]), /Caixa da Ana/);
 });

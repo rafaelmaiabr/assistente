@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {blankValues, editValues, validateForm} from './team/connectorsModel.js';
-import {cancelMessage, cardKey, cardNotice, oauthMessage, openMessage, pickMessage, rowActions, rowText, safeAuthUrl, submitMessage, useMessage} from './integrationModel.js';
+import {cancelMessage, cardKey, cardNotice, mailPickMessage, oauthMessage, openMessage, pickMessage, rowActions, rowText, safeAuthUrl, submitMessage, useMessage} from './integrationModel.js';
 
 /** The secure form of one driver, built from its declared fields. Secrets are password inputs, sent once and cleared. */
 function IntegrationForm({form, status, send}) {
@@ -52,8 +52,10 @@ function IntegrationCard({card, form, status, send}) {
     else if (id === 'reconfigure' || id === 'connect' || id === 'reconnect') send(openMessage(card, row));
   };
   return <section className="mail-card" aria-label={card.label ? `Integração: ${card.label}` : 'Integração'}>
-    <strong>{card.label ? `Conectar ${card.label}` : 'Integração'}</strong>
+    <strong>{card.state === 'caixa' ? 'Escolher a caixa de email' : card.label ? `Conectar ${card.label}` : 'Integração'}</strong>
     {notice && <p>{notice}</p>}
+    {card.state === 'caixa' && <div className="mail-actions">{card.options.map(option => <button key={option.id} disabled={Boolean(status?.busy)}
+      className={option.label === card.current ? 'primary' : ''} aria-pressed={option.label === card.current} onClick={() => send(mailPickMessage(card, option))}>{option.label}</button>)}</div>}
     {card.state === 'escolher' && <div className="mail-actions">{card.options.map(option => <button key={option.provider} onClick={() => send(pickMessage(card, option.provider))}>{option.label}</button>)}</div>}
     {card.notice && <p className="connector-note" role="note">{card.notice}</p>}
     {card.state === 'pronto' && !form && <ul className="team-list compact">{card.rows.map(row => <li key={row.company_id} className="stack">

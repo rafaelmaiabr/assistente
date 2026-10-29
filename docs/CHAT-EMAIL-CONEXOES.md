@@ -4,15 +4,22 @@ Issue [#117](https://github.com/rafaelmaiabr/assistente/issues/117), acompanhame
 
 ## Estado da entrega
 
-**Parte 1 (esta entrega)**, em `team/chat_mail.py`, `web_server.py` e `browser_agent.py`:
+**Parte 1**, em `team/chat_mail.py`, `web_server.py` e `browser_agent.py`:
 
 - O chat lê uma caixa de empresa pelo gateway: um agente de sistema por conexão (`Chat local <id da conexão>`, no departamento `Chat local (sistema)`), com uma habilidade somente leitura **gerada do contrato da capacidade** `email-leitura` para o driver da conexão e concedida só àquela conexão, e uma execução curta por leitura, que termina como `concluida`. Auditoria, isolamento por empresa e resultado como dado não confiável vêm do gateway.
-- **Fonte:** o email pessoal, quando configurado, **sempre vence** (nada que funciona muda). Sem ele, uma única caixa de empresa utilizável (configurada, credencial ativa, ativa e **testada com sucesso**) é a que o chat lê. Com várias caixas de empresa e sem email pessoal, **nenhuma é escolhida**: as ferramentas de leitura dizem isso e nada é lido. **A escolha pela tela (cartão) é a parte 2 e ainda não existe.**
+- **Fonte:** o email pessoal, quando configurado, **sempre vence** (nada que funciona muda). Sem ele, uma única caixa de empresa utilizável (configurada, credencial ativa, ativa e **testada com sucesso**) é a que o chat lê. Com várias caixas de empresa e sem email pessoal, **nenhuma é escolhida**: as ferramentas de leitura dizem isso e nada é lido.
 - Somente leitura: com uma caixa de empresa, `preparar_resposta` responde que não prepara nada e o prompt diz que a caixa é da empresa e só de leitura.
 - Depois de conectar pelo cartão, o chat em andamento recebe a nova fonte (as ferramentas e o prompt são refeitos) e o pedido original é retomado, **somente** quando o chat de fato lê essa conexão; caso contrário o cartão e o resultado dizem por quê.
 - A habilidade do chat não nomeia IMAP: um segundo driver de `email-leitura` é lido pelo mesmo código (testado com um driver falso).
 
-**Fora desta entrega:** cartão de escolha entre várias fontes; unificar o email pessoal com as conexões; envio por conexão da empresa; qualquer escrita. Não foi feito teste com um servidor IMAP real nem com o aplicativo desktop; os testes usam um IMAP falso.
+**Parte 2: o cartão de escolha.** Quando há duas ou mais caixas (o email pessoal conta como uma), a pessoa escolhe em um cartão na tela:
+
+- O cartão aparece quando uma leitura encontra várias caixas de empresa sem escolha, ou quando a pessoa diz "escolher a caixa", "qual caixa você está lendo", "usar a caixa da empresa" ou "usar o email pessoal" (respondido pelo servidor, sem modelo). "Trocar a caixa de email" continua abrindo o formulário do email pessoal, como antes.
+- Os ids das opções são opacos e criados pelo servidor para aquele cartão; a tela nunca recebe empresa nem conexão, e a mensagem do clique (`integration_mailpick`) só vale com um cartão e uma opção que o próprio servidor ofereceu. Id inexistente, de outro cartão ou de outra conversa responde "este cartão expirou" e não muda nada.
+- A escolha vale para **a conversa**, refaz as ferramentas e o prompt do chat em andamento e mostra "Lendo agora: <caixa>". Se a caixa escolhida deixar de ser utilizável (teste que falhou, credencial revogada), a escolha é ignorada e valem as regras da parte 1.
+- Sem escolha, o email pessoal configurado continua sendo o padrão.
+
+**Fora desta entrega:** unificar o email pessoal com as conexões; envio por conexão da empresa; qualquer escrita. Não foi feito teste com um servidor IMAP real nem com o aplicativo desktop; os testes usam um IMAP falso.
 
 ## O desenho aprovado
 

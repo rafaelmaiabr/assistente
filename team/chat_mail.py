@@ -26,8 +26,8 @@ PROFILE = dict(goals=["Ler a caixa de email para o chat local, somente leitura"]
                scope="Sistema: leitura de email para o chat local. Nao editar.", out_of_scope="Tudo o mais",
                model_policy_ref="local-primeiro")
 MAX_ITEMS, MAX_TEXT = 10, 6000
-MANY_NOTE = ("Ha mais de uma caixa de email de empresa conectada e nenhuma foi escolhida; a escolha pela tela ainda nao existe. "
-             "Nada foi lido. Configure o email pessoal ou deixe apenas uma caixa de empresa conectada.")
+MANY_NOTE = ("Ha mais de uma caixa de email de empresa conectada e nenhuma foi escolhida. Mostrei a escolha na tela; "
+             "nada foi lido. Depois que a pessoa escolher, peca de novo.")
 READ_ONLY_NOTE = ("Esta caixa e da empresa e o chat so le: para responder, use o email pessoal ou a equipe. Nada foi preparado nem enviado.")
 
 
@@ -199,10 +199,13 @@ class CompanyMail:
 
 
 class BlockedMail:
-    """More than one company mailbox and none chosen: every read says so, nothing is guessed (the choice on screen is #117 part 2)."""
+    """More than one company mailbox and none chosen: every read shows the choice card (``on_choose``) and says so; nothing is guessed."""
     label = None
-    prompt_note = ("Ha mais de uma caixa de email de empresa e nenhuma foi escolhida: as ferramentas de leitura vao avisar isso; "
-                   "nao invente emails nem escolha uma caixa. ")
+    prompt_note = ("Ha mais de uma caixa de email de empresa e nenhuma foi escolhida: as ferramentas de leitura mostram a escolha na "
+                   "tela e avisam; nao invente emails nem escolha uma caixa. ")
+
+    def __init__(self, on_choose=None):
+        self.on_choose = on_choose
 
     def configured(self):
         return True
@@ -211,6 +214,11 @@ class BlockedMail:
         return None
 
     def _blocked(self, *args, **kwargs):
+        if self.on_choose:
+            try:
+                self.on_choose()
+            except Exception:
+                pass
         return {"erro": MANY_NOTE}
 
     list_recent = search = read = _blocked
@@ -226,14 +234,25 @@ class ReadOnlyOutbox:
         return []
 
 
-def resolve(personal, sources, company_sources, loop):
+def source_key(source):
+    return (source["company_id"], source["connection_id"])
+
+
+def resolve(personal, sources, company_sources, loop, chosen=None, on_choose=None):
     """``(mail, outbox)`` the chat uses, or ``(None, None)`` for the personal mailbox exactly as before.
 
-    The personal mailbox wins whenever it is configured, so nothing that works today changes. Without it, one company mailbox is
-    read; several are not guessed (``BlockedMail``); none leaves the demo mailbox as it was.
+    ``chosen`` is what the person picked on the card in this conversation: ``"pessoal"`` or a ``(company, connection)`` key; it
+    counts only while it is still usable. Without a choice the personal mailbox wins whenever it is configured, so nothing that
+    works today changes; without it, one company mailbox is read; several are not guessed (``BlockedMail`` shows the card);
+    none leaves the demo mailbox as it was.
     """
+    if chosen == "pessoal" and personal.configured():
+        return None, None
+    picked = next((s for s in company_sources if source_key(s) == chosen), None)
+    if picked is not None:
+        return CompanyMail(sources, picked, loop), ReadOnlyOutbox()
     if personal.configured() or not company_sources:
         return None, None
     if len(company_sources) == 1:
         return CompanyMail(sources, company_sources[0], loop), ReadOnlyOutbox()
-    return BlockedMail(), ReadOnlyOutbox()
+    return BlockedMail(on_choose), ReadOnlyOutbox()

@@ -72,6 +72,7 @@ export function cardNotice(card) {
     return `Não há um conector instalado para “${card.wanted || 'esse sistema'}”.${available ? ` Disponíveis agora: ${available}.` : ''}`;
   }
   if (card.state === 'escolher') return 'Qual destes você quer conectar?';
+  if (card.state === 'caixa') return card.current ? `Lendo agora: ${card.current}. Qual caixa o assistente deve ler nesta conversa?` : 'Qual caixa o assistente deve ler nesta conversa?';
   if (card.state === 'sem_empresa') return 'Crie uma empresa na seção Equipe antes de conectar um sistema.';
   if (card.state === 'persistencia_desligada') return 'Ative o atendimento persistente na seção Equipe para conectar sistemas.';
   return '';
@@ -81,6 +82,8 @@ export function cardNotice(card) {
 export const openMessage = (card, row) => ({type: 'integration_open', request_id: card.request_id, company_id: row.company_id});
 export const useMessage = (card, row) => ({type: 'integration_use', request_id: card.request_id, company_id: row.company_id});
 export const pickMessage = (card, provider) => ({type: 'integration_pick', request_id: card.request_id, provider});
+/** The person's choice of mailbox: the option id is opaque and only the server knows what it means. */
+export const mailPickMessage = (card, option) => ({type: 'integration_mailpick', request_id: card.request_id, source_id: option.id});
 export const oauthMessage = form => ({type: 'integration_oauth', request_id: form.request_id, company_id: form.company_id});
 export const cancelMessage = requestId => ({type: 'integration_cancel', request_id: requestId});
 export const submitMessage = (form, label, values) => ({type: 'integration_submit', request_id: form.request_id, company_id: form.company_id,
