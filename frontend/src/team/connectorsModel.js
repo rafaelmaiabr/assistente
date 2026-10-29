@@ -43,9 +43,15 @@ const CODES = {
 };
 export const codeLabel = code => CODES[code] || (code ? 'O teste falhou. Confira as configurações.' : '');
 
-/** The badge for a connection: only what was really tested is claimed; otherwise it says it was not tested. */
-export function connectionState(connection) {
+/** The badge for a connection: only what was really tested is claimed; otherwise it says it was not tested. A driver that
+ * needs no credential (`auth: 'none'`) is never "without credential". */
+export function connectionState(connection, auth = 'secret') {
   if (!connection.configured) return {text: 'Não configurada', tone: 'off'};
+  if (auth === 'none') {
+    if (connection.status !== 'ativo') return {text: 'Desativada', tone: 'off'};
+    if (!connection.last_test) return {text: 'Não testada', tone: 'warn'};
+    return connection.last_test.ok ? {text: 'Testada: funcionou', tone: 'ok'} : {text: 'Teste falhou', tone: 'off'};
+  }
   if (!connection.credential) return {text: 'Sem credencial', tone: 'off'};
   if (connection.credential.state !== 'ativa') return {text: 'Credencial revogada', tone: 'off'};
   if (connection.status !== 'ativo') return {text: 'Desativada', tone: 'off'};
