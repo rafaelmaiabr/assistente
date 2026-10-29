@@ -17,6 +17,7 @@ from .http_get import HttpFetchError, parse_url
 MAX_CUSTOM = 20
 _NAME = re.compile(r"^[a-z0-9][a-z0-9-]{1,39}$")
 _DOMAIN = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$")
+ROUTES_FILE = "http-routes.json"  # in the data root, next to the other local files
 KINDS = {
     "dominio": ("um dominio, por exemplo exemplo.com.br", lambda v: v.strip().lower().rstrip("."), lambda v: bool(_DOMAIN.match(v))),
     "cnpj": ("um CNPJ com 14 digitos", lambda v: re.sub(r"[.\-/\s]", "", v), lambda v: bool(re.fullmatch(r"\d{14}", v))),
