@@ -1,6 +1,9 @@
-import asyncio
+import importlib.util
 import json
 import unittest
+
+if importlib.util.find_spec("livekit") is None:
+    raise unittest.SkipTest("livekit is not installed here")
 
 from livekit.agents import llm
 
