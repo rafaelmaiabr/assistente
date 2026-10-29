@@ -82,6 +82,8 @@ class ConnectorRegistry:
     def register_capability(self, capability: Capability):
         if capability.name in self._capabilities:
             raise DescriptorRejected("Capacidade ja registrada.")
+        if self.by_catalog_key(capability.name) is not None:
+            raise DescriptorRejected("O nome da capacidade ja e a chave de catalogo de um driver.")  # skills may name either (#105)
         for tool, operation in capability.required.items():
             if operation not in OPERATIONS:
                 raise DescriptorRejected(f"Operacao invalida para {tool} na capacidade {capability.name}.")
@@ -94,6 +96,8 @@ class ConnectorRegistry:
             raise DescriptorRejected("Capacidade desconhecida: registre a capacidade antes do driver.")
         if clean["provider"] in self._drivers or self.by_catalog_key(clean["catalog_key"]) is not None:
             raise DescriptorRejected("Ja existe um driver para este provider ou catalogo.")
+        if clean["catalog_key"] in self._capabilities:
+            raise DescriptorRejected("A chave de catalogo nao pode ter o nome de uma capacidade: as skills usam esse nome para qualquer driver.")
         for tool, operation in capability.required.items():
             if clean["tools"].get(tool, {}).get("operation") != operation:
                 raise DescriptorRejected(f"A capacidade {capability.name} exige a ferramenta {tool} classificada como {operation}.")
@@ -132,6 +136,11 @@ class ConnectorRegistry:
 
     def by_catalog_key(self, key):
         return next((d for d in self._drivers.values() if d.catalog_key == key), None) if isinstance(key, str) else None
+
+    def capability_of(self, catalog_key):
+        """The capability served by the driver behind a catalog key, or None (a hand-approved MCP server has none)."""
+        driver = self.by_catalog_key(catalog_key)
+        return driver.capability if driver is not None else None
 
     def supports(self, provider, tool):
         driver = self.get(provider)

@@ -186,7 +186,7 @@ class Gateway:
                 for tool, operations in (skill.get("tool_operations") or {}).items():
                     server, _, name = tool.partition(".")
                     spec = (entry.get("tool_specs") or {}).get(name)
-                    if server != entry["catalog_key"] or name not in entry["tools"] or spec is None:
+                    if not self.skills.serves(entry, server) or name not in entry["tools"] or spec is None:
                         continue  # unknown or unclassified: not exposed
                     operation = spec["operation"]
                     if operation not in grant["operations"] or operation not in operations:
