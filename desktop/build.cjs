@@ -1,5 +1,5 @@
 const fs=require('node:fs/promises'),path=require('node:path'),{spawnSync}=require('node:child_process');
-const BACKEND_FILES=['agent.py','assistant_core.py','personal_mail.py','personal_outbox.py','browser_agent.py','web_server.py','speech_service.py','voice_profiles.py','voice_engine.py','local_audio.py','settings.py','demo_mcp.py','config.example.json','requirements.txt'];
+const BACKEND_FILES=['agent.py','assistant_core.py','honesty.py','mail_intent.py','chat_context.py','tool_guard.py','persona.py','personal_mail.py','personal_outbox.py','browser_agent.py','web_server.py','speech_service.py','voice_profiles.py','voice_engine.py','local_audio.py','settings.py','demo_mcp.py','config.example.json','requirements.txt'];
 const BACKEND_DIRS=['team'];
 // The domain package is an allowlist by extension: anything else found inside it stops the build instead of shipping silently.
 const ALLOWED_EXTENSIONS=new Set(['.py','.sql','.json','.md']);

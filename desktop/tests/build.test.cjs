@@ -61,3 +61,14 @@ test('the backend files in the package import nothing that the package leaves ou
   }
   assert.ok(packaged.has('team')&&packaged.has('web_server')&&packaged.has('settings'));
 });
+test('every root module that a packaged file imports is packaged too',()=>{
+  const roots=new Set(fs.readdirSync(root).filter(name=>name.endsWith('.py')).map(name=>name.replace(/\.py$/,'')));
+  const packaged=new Set(BACKEND_FILES.map(file=>file.replace(/\.py$/,'')));
+  const sources=BACKEND_FILES.filter(name=>name.endsWith('.py')).map(file=>[file,path.join(root,file)])
+    .concat(fs.readdirSync(path.join(root,'team')).filter(name=>name.endsWith('.py')).map(file=>['team/'+file,path.join(root,'team',file)]));
+  for(const [name,full] of sources){
+    for(const match of fs.readFileSync(full,'utf8').matchAll(/^(?:from|import)\s+([A-Za-z_]\w*)/gm)){
+      if(roots.has(match[1])&&!packaged.has(match[1]))assert.fail(name+' importa '+match[1]+', que o pacote deixa de fora');
+    }
+  }
+});
