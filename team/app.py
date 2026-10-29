@@ -25,6 +25,8 @@ from .service import TeamService
 from .connectors import ConnectorRegistry
 from .connectors.catalog import ConnectorCatalog
 from .connectors.erp import ERP
+from .connectors.consulta_http import register_http_driver
+from .connectors.http_routes import ROUTES_FILE, RouteStore
 from .connectors.mail import ImapSetup, SmtpSetup, register_email_drivers
 from .connectors.setup import ConnectorAudit
 from .imap_mcp import ImapAccountRegistry, ImapAccounts, ImapTransport
@@ -82,6 +84,7 @@ class TeamApp:
             registry.register_capability(ERP)  # no ERP driver yet (Bling is issue #104): the panel says so
             register_email_drivers(registry, ImapTransport(imap_registry), ImapSetup(ImapAccounts(connections, imap_registry)),
                                    SmtpSetup(SmtpAccounts(connections, smtp_registry)))
+            register_http_driver(registry, RouteStore(self.root / ROUTES_FILE))  # the same routes file the chat reads (#120)
             registry.attach(connections)
             cases = CaseService(repo, access)
             handoffs = HandoffService(repo, access, cases)

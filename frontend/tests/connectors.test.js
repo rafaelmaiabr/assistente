@@ -43,6 +43,10 @@ test('a connection never claims more than what was really done', () => {
   assert.deepEqual(connectionState(base), {text: 'Não testada', tone: 'warn'});  // configured is not the same as working
   assert.equal(connectionState({...base, last_test: {ok: true}}).text, 'Testada: funcionou');
   assert.equal(connectionState({...base, last_test: {ok: false}}).text, 'Teste falhou');
+  // a driver with no credential at all is judged on its test, never as "without credential"
+  assert.equal(connectionState({...base, credential: null}, 'none').text, 'Não testada');
+  assert.equal(connectionState({...base, credential: null, last_test: {ok: true}}, 'none').text, 'Testada: funcionou');
+  assert.equal(connectionState({...base, credential: null, configured: false}, 'none').text, 'Não configurada');
 });
 
 test('test lines and codes are words, with a safe default for unknown codes', () => {
