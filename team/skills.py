@@ -169,8 +169,20 @@ def _pairs(tools):
 
 
 class SkillService:
-    def __init__(self, repository, access, agents=None):
+    def __init__(self, repository, access, agents=None, capability_of=None):
         self.repository, self.access, self.agents = repository, access, agents
+        self.capability_of = capability_of  # catalog key -> capability name; without it a skill names a catalog key only
+
+    def serves(self, entry, server):
+        """Whether the ``server`` part of a skill tool names this approved catalog entry (#105).
+
+        A skill may name the entry's own key (``imap-somente-leitura.listar-mensagens``) or the capability its driver
+        serves (``email-leitura.listar-mensagens``). The second form lets a connection swap drivers without a new skill;
+        the connection, never the model, decides which driver answers."""
+        if server == entry["catalog_key"]:
+            return True
+        capability = self.capability_of(entry["catalog_key"]) if self.capability_of else None
+        return capability is not None and server == capability
 
     def _operator_only(self, operator):
         if not isinstance(operator, OperatorContext) or operator.principal_id != self.access.operator_id:
@@ -265,7 +277,7 @@ class SkillService:
             raise SkillRejected("A conexao nao aponta para um servidor MCP aprovado e ativo.")
         for tool in needs:
             server, _, name = tool.partition(".")
-            if server != entry["catalog_key"] or name not in entry["tools"]:
+            if not self.serves(entry, server) or name not in entry["tools"]:
                 raise SkillRejected(f"O servidor aprovado nao oferece a ferramenta requerida: {tool}.")
 
     def grant_skill(self, ctx, *, agent_id, skill_id, operations, connection_id=None, resource=None,
