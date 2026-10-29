@@ -17,6 +17,14 @@ Um modelo local pequeno perde qualidade quando o histórico enche de listagens d
 - Um resultado de ferramenta de email ou de rota com mais de **6.000 caracteres** vai ao modelo cortado, como `{"aviso": ..., "dados_nao_confiaveis": true, "parcial": "..."}`. O aviso diz para pedir um recorte menor.
 - Resultado que não pode ser serializado vira um erro simples.
 
+## Erros de ferramenta e parada com resumo (#134)
+
+- `tool_guard.py`: todo erro das ferramentas de email, de rota e de integração volta ao modelo no mesmo formato: `erro`, `pode_tentar_de_novo` e `diga_a_pessoa`. O texto é limpo antes: endereços viram `[endereco]`, caminhos locais `[caminho]` e sequências longas parecidas com chave `[omitido]`. Uma exceção vira "falhou por um motivo interno", sem detalhes.
+- Chamada **idêntica** (mesma ferramenta e mesmos argumentos) que falhou 2 vezes nos últimos 120 segundos não é executada de novo: volta um erro dizendo que não adianta repetir. Outros argumentos, um sucesso ou o passar dos 120 s liberam a chamada.
+- Argumento inválido: o LiveKit já não executa a ferramenta e devolve `Error parsing arguments ...` ao modelo; isso **não** foi padronizado neste PR (o texto vem do LiveKit e pode repetir o valor que o modelo mandou).
+- Limite de passos (`max_tool_steps`, padrão 3 do LiveKit): o LiveKit força uma última resposta sem ferramentas. Se o modelo ainda assim não diz nada depois de usar ferramentas, o `BrowserAgent` envia um resumo fixo do que foi consultado e do que falhou, em vez de silêncio (antes era só o erro genérico "o modelo não retornou uma resposta"). Sem nenhuma ferramenta usada, esse erro continua.
+- Limites: o resumo é montado dos nomes das ferramentas, não pelo modelo; as ferramentas MCP externas não passam pelo `Guard`; nada disso foi testado com um modelo real, só com modelo e sessão falsos.
+
 ## Limites
 
 - Os números (2 mensagens, 200 e 6.000 caracteres) são constantes em `chat_context.py`, **sem configuração na tela**; não foram calibrados contra um modelo real. O ganho de qualidade não foi medido: o PR só garante o comportamento por testes com contexto sintético.
