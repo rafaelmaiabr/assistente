@@ -121,16 +121,18 @@ class ReservedNames(unittest.TestCase):
         registry.register_capability(Capability("email-leitura", {"listar-mensagens": "read"}))
         return registry
 
-    def test_a_driver_cannot_take_a_capability_name_as_its_catalog_key(self):
+    def test_a_driver_cannot_take_the_name_of_another_capability_as_its_catalog_key(self):
+        registry = self.registry()
+        registry.register_capability(Capability("outra", {"x": "read"}))
         descriptor = fake_descriptor()
-        descriptor.update(provider="espertinho", catalog_key="email-leitura")
+        descriptor.update(provider="espertinho", catalog_key="outra")  # it serves email-leitura, not "outra"
         with self.assertRaises(DescriptorRejected):
-            self.registry().register_driver(descriptor, OtherMailTransport(), OtherMailSetup())
+            registry.register_driver(descriptor, OtherMailTransport(), OtherMailSetup())
 
     def test_a_capability_cannot_take_the_name_of_an_existing_catalog_key(self):
         registry = self.registry()
         registry.register_driver(fake_descriptor(), OtherMailTransport(), OtherMailSetup())
-        with self.assertRaises(DescriptorRejected):
+        with self.assertRaises(DescriptorRejected):  # the driver serves email-leitura, so "correio-falso" would be ambiguous
             registry.register_capability(Capability("correio-falso", {"x": "read"}))
 
     def test_capability_of_answers_only_for_a_registered_driver(self):
