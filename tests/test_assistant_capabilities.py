@@ -23,7 +23,7 @@ class PromptCapabilitiesTests(unittest.TestCase):
 
     def mail(self, configured):
         mail = mock.Mock()
-        mail.configured.return_value, mail.smtp_config.return_value = configured, None
+        mail.configured.return_value, mail.smtp_config.return_value, mail.prompt_note = configured, None, ""
         return mail
 
     def parts(self, configured=False, on_integration=None):
@@ -66,6 +66,17 @@ class PromptCapabilitiesTests(unittest.TestCase):
         self.assertIn("consultar_rota", self.names(tools))
         self.assertIn("rotas de internet", self.tail(instructions))
 
+    def test_a_company_mailbox_is_named_in_the_prompt_as_read_only_and_never_offers_a_reply(self):
+        from team.chat_mail import BlockedMail, CompanyMail, ReadOnlyOutbox
+        source = {"company": "Empresa A", "label": "Caixa da Ana", "folder": "INBOX", "company_id": "c", "connection_id": "k"}
+        mail = CompanyMail(mock.Mock(), source, mock.Mock())
+        instructions, tools = self.core.agent_parts(CONFIG, mail, ReadOnlyOutbox(), routes=self.store)
+        self.assertIn("a da empresa Empresa A: Caixa da Ana", instructions)
+        self.assertIn("somente leitura", instructions)
+        self.assertNotIn("preparar_resposta. Isso so cria", instructions)
+        self.assertIn(self.core.READ_ONLY, instructions)  # sending is not configured: the model is told to say it only reads
+        blocked, _ = self.core.agent_parts(CONFIG, BlockedMail(), ReadOnlyOutbox(), routes=self.store)
+        self.assertIn("nenhuma foi escolhida", blocked)
 
 if __name__ == "__main__":
     unittest.main()

@@ -319,7 +319,12 @@ class OAuthTests(IntegrationCase):
 class FakeAgent(BaseAgent):
     """Like the chat agent: ``on_integration`` is what the real tool calls (in a worker thread)."""
     on_integration = None
+    mail_source = None  # set by the server (#117): which mailbox the chat reads
     calls = []
+    refreshed = 0
+
+    async def refresh(self):
+        type(self).refreshed += 1
 
     async def reply(self, text):
         self.inputs.append(text)
@@ -336,7 +341,7 @@ class WebSocketBase(unittest.IsolatedAsyncioTestCase):
     persistence_on = True
 
     async def asyncSetUp(self):
-        FakeAgent.instances, FakeAgent.calls = [], []
+        FakeAgent.instances, FakeAgent.calls, FakeAgent.refreshed = [], [], 0
         self.tmp = tempfile.TemporaryDirectory()
         self.root, self.vault = Path(self.tmp.name), MemoryVault()
         if self.persistence_on:
@@ -414,7 +419,7 @@ class WebSocketTests(WebSocketBase):
         self.assertEqual(FakeAgent.calls, ["indisponivel"])
         await ws.close()
 
-    async def test_the_whole_flow_by_clicks_never_sends_the_secret_back_and_does_not_resume_a_reading_the_chat_cannot_do(self):
+    async def test_the_whole_flow_by_clicks_never_sends_the_secret_back_and_resumes_because_the_chat_now_reads_this_mailbox(self):
         ws = await self.connect()
         await ws.send_json({"type": "message", "text": "consulte minha caixa imap"})
         card = (await self.until(ws, lambda e: e.get("type") == "integration_card"))["card"]
@@ -425,8 +430,9 @@ class WebSocketTests(WebSocketBase):
                             "values": self.values()})
         await self.until(ws, lambda e: e.get("type") == "integration_busy")
         result = await self.until(ws, lambda e: e.get("type") == "integration_result")
-        self.assertEqual((result["ok"], result["resume"]), (True, False))  # the chat does not read through this connection
-        self.assertIn(CHAT_NOTE, result["message"])
+        self.assertEqual((result["ok"], result["resume"]), (True, True))  # no personal mailbox: the lone company one is what the chat reads
+        self.assertNotIn(CHAT_NOTE, result["message"])
+        self.assertEqual(FakeAgent.refreshed, 1)  # the running conversation got the new source
         refreshed = (await self.until(ws, lambda e: e.get("type") == "integration_card"))["card"]  # the rows now tell the truth
         rows = {r["company_id"]: r["state"] for r in refreshed["rows"]}
         self.assertEqual((refreshed["request_id"], rows), (card["request_id"], {self.a: "existente", self.b: "nova"}))

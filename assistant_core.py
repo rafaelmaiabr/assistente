@@ -41,7 +41,7 @@ SKILL_OF = {"listar_emails": "email", "buscar_emails": "email", "ler_email": "em
 
 def instructions_for(mail):
     real = mail.configured()
-    return BASE + CATALOG + (REAL + (REPLY if mail.smtp_config() is not None else READ_ONLY) if real else DEMO)
+    return BASE + CATALOG + (REAL + getattr(mail, "prompt_note", "") + (REPLY if mail.smtp_config() is not None else READ_ONLY) if real else DEMO)
 
 
 def email_tools(mail, outbox, on_draft=None, on_setup=None):
