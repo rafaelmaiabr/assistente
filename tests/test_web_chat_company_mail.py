@@ -10,8 +10,8 @@ from tests.imap_fake import FakeImap
 USER, PASSWORD = base.USER, base.PASSWORD
 
 
-class CompanyMailWeb(base.WebSocketBase):
-    """Which mailbox the chat reads (#117): the personal one wins, a lone company one is read, several are never guessed."""
+class CompanyMailBase(base.WebSocketBase):
+    """Helpers for the tests of which mailbox the chat reads (#117); it holds no test itself."""
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -19,10 +19,10 @@ class CompanyMailWeb(base.WebSocketBase):
         self.imap = FakeImap({"INBOX": {"validity": 11, "messages": {1: build("Fatura da empresa").as_bytes()}}}, user=USER, password=PASSWORD)
         self.services = self.app.services()
 
-    def connect_company(self, company_id, label="Caixa da empresa"):
+    def connect_company(self, company_id, label="Caixa da empresa", port=None):
         s = self.services
         ctx = s.access.tenant_context(s.operator, company_id)
-        view = s.connectors.connect(s.operator, ctx, "imap", label, self.values())
+        view = s.connectors.connect(s.operator, ctx, "imap", label, self.values(porta=port or self.imap.port))
         self.assertTrue(s.connectors.test(ctx, view["id"])["ok"])
         return view
 
@@ -37,6 +37,10 @@ class CompanyMailWeb(base.WebSocketBase):
         reply = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
         await self.until(ws, lambda e: e.get("state") == "ready")
         return reply["text"]
+
+
+class CompanyMailWeb(CompanyMailBase):
+    """The personal one wins, a lone company one is read, several are never guessed."""
 
     async def test_without_any_company_mailbox_the_chat_is_exactly_as_before(self):
         ws = await self.connect()
@@ -72,7 +76,7 @@ class CompanyMailWeb(base.WebSocketBase):
         answer = await self.say(ws, "liste meus emails")
         self.assertIn("Ha mais de uma caixa", answer)
         self.assertNotIn("Fatura da empresa", answer)
-        self.assertEqual(MANY_NOTE.split(";")[0], "Ha mais de uma caixa de email de empresa conectada e nenhuma foi escolhida")
+        self.assertTrue(MANY_NOTE.startswith("Ha mais de uma caixa de email de empresa conectada e nenhuma foi escolhida"))
         await ws.close()
 
     async def test_connecting_from_the_card_makes_the_running_chat_read_it_and_says_so_with_the_skill_event(self):
@@ -107,4 +111,82 @@ class CompanyMailWeb(base.WebSocketBase):
         ws = await self.connect()
         _, outbox = await self.source_of(base.FakeAgent.instances[0])
         self.assertIn("erro", outbox.prepare(1, 11, "texto"))
+        await ws.close()
+
+
+
+class MailboxChoice(CompanyMailBase):
+    """The choice card (#117, part 2): several mailboxes are never guessed, and only a click on the card changes the source."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.other = FakeImap({"INBOX": {"validity": 11, "messages": {1: build("Contrato da empresa B").as_bytes()}}}, user=USER, password=PASSWORD)
+        self.addCleanup(self.other.stop)
+
+    def two_company_mailboxes(self):
+        self.connect_company(self.a, "Caixa A")
+        self.connect_company(self.b, "Caixa B", port=self.other.port)
+
+    async def card_after(self, ws, text):
+        await ws.send_json({"type": "message", "text": text})
+        return (await self.until(ws, lambda e: e.get("type") == "integration_card" and e["card"].get("state") == "caixa"))["card"]
+
+    async def pick(self, ws, card, label):
+        option = next(o for o in card["options"] if o["label"].startswith(label))
+        await ws.send_json({"type": "integration_mailpick", "request_id": card["request_id"], "source_id": option["id"]})
+        return await self.until(ws, lambda e: e.get("type") == "integration_result")
+
+    async def test_a_read_with_several_mailboxes_shows_the_card_and_reads_nothing_until_the_person_picks(self):
+        self.two_company_mailboxes()
+        ws = await self.connect()
+        card = await self.card_after(ws, "liste meus emails")
+        self.assertEqual(card["current"], None)
+        self.assertEqual(sorted(o["label"] for o in card["options"]), ["Caixa A (Empresa A)", "Caixa B (Empresa B)"])
+        raw = json.dumps(card)
+        for secret in (self.a, self.b):  # the screen never gets a company or a connection id
+            self.assertNotIn(secret, raw)
+        self.assertNotIn("Contrato da empresa B", "".join(self.seen))
+        result = await self.pick(ws, card, "Caixa B")
+        self.assertEqual((result["ok"], result["message"]), (True, "Lendo agora: Caixa B (Empresa B)."))
+        self.assertEqual(base.FakeAgent.refreshed, 1)
+        answer = await self.say(ws, "liste meus emails")
+        self.assertIn("Contrato da empresa B", answer)
+        self.assertNotIn("Fatura da empresa", answer)
+        await ws.close()
+
+    async def test_the_phrase_offers_personal_and_company_and_the_person_can_go_back_to_the_personal_one(self):
+        self.configure_personal()
+        self.connect_company(self.a, "Caixa A", port=self.other.port)
+        ws = await self.connect()
+        card = await self.card_after(ws, "escolher a caixa")
+        self.assertEqual((card["current"], sorted(o["label"] for o in card["options"])), ("Email pessoal", ["Caixa A (Empresa A)", "Email pessoal"]))
+        self.assertEqual((await self.pick(ws, card, "Caixa A"))["ok"], True)
+        mail, _ = await self.source_of(base.FakeAgent.instances[0])
+        self.assertIsInstance(mail, CompanyMail)
+        again = await self.card_after(ws, "escolher a caixa")
+        self.assertEqual(again["current"], "Caixa A (Empresa A)")
+        await self.pick(ws, again, "Email pessoal")
+        self.assertEqual(await self.source_of(base.FakeAgent.instances[0]), (None, None))
+        await ws.close()
+
+    async def test_an_option_id_the_card_did_not_offer_changes_nothing(self):
+        self.two_company_mailboxes()
+        ws = await self.connect()
+        card = await self.card_after(ws, "liste meus emails")
+        for message in ({"request_id": card["request_id"], "source_id": "ffffffff"}, {"request_id": "x", "source_id": card["options"][0]["id"]},
+                        {"request_id": card["request_id"], "source_id": 7}, {"request_id": card["request_id"]}):
+            await ws.send_json({"type": "integration_mailpick", **message})
+            error = await self.until(ws, lambda e: e.get("type") == "integration_error")
+            self.assertIn("expirou", error["message"])
+        mail, _ = await self.source_of(base.FakeAgent.instances[0])
+        self.assertIsInstance(mail, BlockedMail)  # still nothing chosen
+        await ws.close()
+
+    async def test_with_one_mailbox_there_is_nothing_to_choose_and_changing_the_personal_setup_still_opens_its_form(self):
+        self.connect_company(self.a)
+        ws = await self.connect()
+        self.assertIn("Só há uma caixa", await self.say(ws, "escolher a caixa"))
+        await ws.send_json({"type": "message", "text": "trocar a caixa de email"})
+        await self.until(ws, lambda e: e.get("type") == "setup")  # the existing wording keeps its meaning
+        self.assertFalse(any('"state": "caixa"' in raw for raw in self.seen))
         await ws.close()
