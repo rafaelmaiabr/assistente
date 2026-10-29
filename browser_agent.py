@@ -62,7 +62,8 @@ class BrowserAgent:
         instructions, tools = agent_parts(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
                                           on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
         await self.agent.update_tools(tools)
-        await self.agent.update_instructions(instructions)
+        if instructions != self.agent.instructions:  # the stable layer is a fixed prefix; nothing is rewritten when the text did not change
+            await self.agent.update_instructions(instructions)
 
     async def reply(self, text):
         self.failed = False
