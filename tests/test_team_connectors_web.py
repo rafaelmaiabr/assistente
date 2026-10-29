@@ -39,7 +39,7 @@ class ConnectorsApiTests(TeamWebCase):
         status, data = await self.call('GET', self.c())
         self.assertEqual(status, 200, data)
         by_name = {c['capability']: c for c in data}
-        self.assertEqual(sorted(by_name), ['email-envio', 'email-leitura', 'erp'])
+        self.assertEqual(sorted(by_name), ['consulta-http', 'email-envio', 'email-leitura', 'erp'])
         self.assertEqual(by_name['erp']['drivers'], [])  # no ERP driver exists yet: the panel says nothing is installed
         imap = by_name['email-leitura']['drivers'][0]
         self.assertEqual((imap['provider'], imap['mcp'], imap['configurable'], imap['connections']), ('imap', True, True, []))

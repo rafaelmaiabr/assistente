@@ -45,7 +45,7 @@ function ConnectorForm({driver, connection, base, onDone, onCancel}) {
 
 function ConnectionRow({driver, connection, base, onChanged, onEdit, remote}) {
   const [message, setMessage] = useState({}), [busy, setBusy] = useState(false);
-  const state = connectionState(connection);
+  const state = connectionState(connection, driver.auth);
   const test = async () => {
     setBusy(true); setMessage({});
     try {
@@ -59,7 +59,7 @@ function ConnectionRow({driver, connection, base, onChanged, onEdit, remote}) {
     {connection.values && <p>{Object.entries(connection.values).map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>}
     <p>{lastTestLine(connection)}</p>
     <div className="team-actions">
-      {driver.configurable && !remote && <button disabled={busy || !connection.configured || !connection.credential} onClick={test}>Testar conexão</button>}
+      {driver.configurable && !remote && <button disabled={busy || !connection.configured || (driver.auth !== 'none' && !connection.credential)} onClick={test}>Testar conexão</button>}
       {driver.configurable && !remote && <button disabled={busy} onClick={() => onEdit(connection)}>Configurar</button>}</div>
     <Notice error={message.error} ok={message.ok}/>
   </li>;
