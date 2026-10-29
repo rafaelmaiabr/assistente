@@ -13,7 +13,9 @@ from team import conversation, persistence
 from team.access import NotFound
 from team import web as team_web
 from team.app import TeamApp
+from team.chat_mail import ChatMailSources, resolve as resolve_mail
 from team.connectors.conversation import IntegrationSession, disabled_card
+from team.connectors.mail import READ_CAPABILITY
 from team.connectors.http_routes import ROUTES_FILE, RouteStore
 from speech_service import SpeechService, decode_audio
 from personal_mail import PersonalMail
@@ -167,12 +169,49 @@ async def chat(request):
     integration = {"session": None, "last_text": None}  # the cards of this conversation; the text that led to the last one
     loop = asyncio.get_running_loop()
 
+    chat_mail = {"owner": None, "sources": None}  # the company mailboxes the chat can read (#117), per team-services instance
+
+    def mail_sources(services):
+        if chat_mail["owner"] is not services:
+            chat_mail.update(owner=services, sources=ChatMailSources(services))
+        return chat_mail["sources"]
+
+    def chat_reads(driver):
+        """Would the chat read a connection of this driver right now? Only a lone company mailbox, and only without a personal one."""
+        services = request.app[team_web.TEAM].services()
+        if services is None or driver.capability != READ_CAPABILITY or mail_account().configured():
+            return False
+        return len(mail_sources(services).sources()) == 1
+
+    async def mail_source():
+        """``(mail, outbox)`` the chat reads, or ``(None, None)`` for the personal mailbox exactly as before (#117)."""
+        services = request.app[team_web.TEAM].services()
+        personal = mail_account()
+        if services is None or personal.configured():
+            return None, None
+        sources = mail_sources(services)
+        try:
+            found = await asyncio.to_thread(sources.sources)
+        except Exception:
+            found = []
+        return resolve_mail(personal, sources, found, loop)
+
+    async def active_mail():
+        mail, _ = await mail_source()
+        return mail or mail_account()
+
+    async def refresh_agent():
+        refresh = getattr(agent, 'refresh', None)
+        if refresh is not None:
+            with contextlib.suppress(Exception):
+                await refresh()
+
     def integrations():
         services = request.app[team_web.TEAM].services()
         if services is None:
             return None
         if integration["session"] is None or integration["session"].services is not services:
-            integration["session"] = IntegrationSession(services)
+            integration["session"] = IntegrationSession(services, chat_reads=chat_reads)
         return integration["session"]
 
     def card_for(vendor, capability):
@@ -296,6 +335,8 @@ async def chat(request):
                                                     'detail': 'Erro inesperado. Confira a pasta Enviados antes de tentar de novo.'}})
 
     def integration_result(request_id, result):
+        if result.get('ok') and 'original' in result:  # the chat really reads this connection now
+            emit({'type': 'skill', 'id': 'email', 'state': 'ativa'})
         emit({'type': 'integration_result', 'request_id': request_id, 'ok': bool(result.get('ok')), 'message': result.get('message', ''),
               'next': result.get('next'), 'resume': bool(result.get('original')), 'label': result.get('label')})
 
@@ -307,6 +348,7 @@ async def chat(request):
     async def wait_oauth(request_id):
         try:
             integration_result(request_id, await asyncio.to_thread(integrations().oauth_wait, request_id))
+            await refresh_agent()
             await refresh_card(request_id)
         except Exception:
             integration_result(request_id, {'ok': False, 'message': 'A autorização não foi concluída.'})
@@ -330,6 +372,7 @@ async def chat(request):
                     raise ValueError('formulario')
                 emit({'type': 'integration_busy', 'request_id': request_id, 'text': 'Salvando e testando a conexão…'})
                 integration_result(request_id, await asyncio.to_thread(session.submit, request_id, company, label, values))
+                await refresh_agent()  # the tools and the prompt follow the mailbox the chat now reads
                 await refresh_card(request_id)
             elif kind == 'integration_oauth':
                 begun = await asyncio.to_thread(session.oauth_begin, request_id, company)
@@ -366,8 +409,10 @@ async def chat(request):
         agent = request.app[FACTORY](request.app[CONFIG], emit)
         if hasattr(agent, 'on_integration'):
             agent.on_integration = card_for  # the tool exists only where the team services can answer it
+        if hasattr(agent, 'mail_source'):
+            agent.mail_source = mail_source
         await asyncio.wait_for(agent.start(), timeout=30)
-        mail = mail_account()
+        mail = await active_mail()
         emit({"type": "session", "model": request.app[CONFIG]["model"], "mail": "real" if mail.configured() else "demo",
               "reply": mail.configured() and mail.smtp_config() is not None})
         pending = await asyncio.to_thread(outbox.pending)
@@ -456,6 +501,7 @@ async def chat(request):
                 if listing is not None:
                     # "Liste meus emails": read only, answered here so it does not depend on a small model calling the tool.
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    mail = await active_mail()  # the mailbox the chat reads now, which a connection made since the session began can change
                     if mail.configured():
                         emit({'type': 'status', 'state': 'executing', 'label': 'Consultando seus e-mails…'})
                         try:

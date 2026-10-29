@@ -14,6 +14,7 @@ class BrowserAgent:
         self.failed = False
         self.agent = None
         self.on_integration = None  # set by the server when the team services exist; the tool is absent otherwise
+        self.mail_source = None  # async callable -> (mail, outbox) when the chat reads a company mailbox (#117); None keeps the personal one
         self.answers = 0
         self.session.on("conversation_item_added", self.on_message)
         self.session.on("tool_execution_updated", self.on_tool)
@@ -41,14 +42,19 @@ class BrowserAgent:
         if not getattr(event.error, "recoverable", False):
             self.failed = True
 
+    async def _mail(self):
+        return await self.mail_source() if self.mail_source else (None, None)
+
     async def start(self):
-        self.agent = make_agent(self.config, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
+        mail, outbox = await self._mail()
+        self.agent = make_agent(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
                                 on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
         await self.session.start(agent=self.agent)
 
     async def refresh(self):
         """After a skill was set up from the form: new instructions and tools for the running conversation (history is kept)."""
-        instructions, tools = agent_parts(self.config, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
+        mail, outbox = await self._mail()
+        instructions, tools = agent_parts(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
                                           on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration)
         await self.agent.update_tools(tools)
         await self.agent.update_instructions(instructions)

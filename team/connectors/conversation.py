@@ -59,12 +59,12 @@ def connection_state(view):
     return ("existente", None) if view["last_test"]["ok"] else ("reconectar", "teste_falhou")
 
 
-# Capabilities the chat itself reads through a connection. Empty on purpose: the chat's email tools read only the personal
-# mailbox set up by the email skill, so a connection made from a card is tested and kept but not used by the chat (#117).
-# Add a capability here only when the chat really uses it; the resume sentence and the notices depend on it.
+# Capabilities the chat reads through a connection **by default** (no server decision): none. The server passes ``chat_reads`` to
+# ``IntegrationSession`` to say, for a driver, whether the chat would really read it right now (#117: only when the person
+# has no personal mailbox and this is the only company mailbox). The resume sentence and the notices depend on that answer.
 CHAT_CAPABILITIES = frozenset()
-CHAT_NOTE = ("O chat ainda nao usa esta conexao para ler: ela e testada e guardada, mas o assistente le so o email pessoal, "
-             "configurado pela habilidade de email (peca para configurar a caixa de email).")
+CHAT_NOTE = ("O chat nao le por esta conexao no momento: ela e testada e guardada, mas o assistente le o email pessoal quando ele "
+             "esta configurado, e so le uma caixa da empresa quando ela e a unica caixa disponivel.")
 
 
 def _safe_url(url):
@@ -76,8 +76,8 @@ def _safe_url(url):
 class IntegrationSession:
     """One per conversation. ``services`` is what ``TeamApp.services()`` returns (registry, connectors, team, access, operator)."""
 
-    def __init__(self, services, clock=time.monotonic):
-        self.services, self.clock = services, clock
+    def __init__(self, services, clock=time.monotonic, chat_reads=None):
+        self.services, self.clock, self.chat_reads = services, clock, chat_reads
         self.pending = OrderedDict()  # request_id -> {"provider", "created", "original", "flow"}
 
     # -- cards ----------------------------------------------------------------------------------------------------------
@@ -116,9 +116,8 @@ class IntegrationSession:
             raise NotFound()
         return entry, driver
 
-    @staticmethod
-    def _chat_uses(driver):
-        return driver.capability in CHAT_CAPABILITIES
+    def _chat_uses(self, driver):
+        return driver.capability in CHAT_CAPABILITIES if self.chat_reads is None else bool(self.chat_reads(driver))
 
     def _done(self, entry, driver, message):
         """A success result. The earlier request resumes only when the chat really uses this connection; otherwise the
