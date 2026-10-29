@@ -4,7 +4,9 @@ import contextlib
 import json
 import logging
 import re
+import secrets
 import uuid
+from collections import OrderedDict
 import honesty
 import mail_intent
 from aiohttp import web, WSMsgType
@@ -13,7 +15,7 @@ from team import conversation, persistence
 from team.access import NotFound
 from team import web as team_web
 from team.app import TeamApp
-from team.chat_mail import ChatMailSources, resolve as resolve_mail
+from team.chat_mail import ChatMailSources, resolve as resolve_mail, source_key
 from team.connectors.conversation import IntegrationSession, disabled_card
 from team.connectors.mail import READ_CAPABILITY
 from team.connectors.http_routes import ROUTES_FILE, RouteStore
@@ -35,6 +37,8 @@ TURN_TIMEOUT = 120
 SETUP_INTENT = re.compile(r'(?i)\b(configur\w*|conect\w*|ativ\w*|troc\w*)\b.*\b(e-?mail|caixa)\b')
 INTEGRATION_INTENT = re.compile(
     r'(?i)^\s*(?:(?:quero|preciso|pode|vamos|gostaria de)\s+)?(?:conectar|integrar|ligar)\s+(?:(?:o|a|os|as|ao|à|no|na|com)\s+)*(?P<alvo>[^\n?!.]{2,60})[?!.]?\s*$')
+CHOOSE_MAIL = re.compile(r'(?i)^\s*(?:(?:quero|pode|vamos)\s+)?(?:(?:escolher|selecionar)\s+(?:a\s+|qual\s+)?caixa'
+                         r'|qual\s+caixa\s+(?:voce|você|vc)\s+est[aá]\s+lendo|(?:ler|usar)\s+(?:a\s+caixa\s+d[aeo]\s+empresa|o\s+e-?mail\s+pessoal))[^\n]{0,30}$')
 SETUP_LOCK = asyncio.Lock()
 
 
@@ -183,18 +187,62 @@ async def chat(request):
             return False
         return len(mail_sources(services).sources()) == 1
 
+    mail_pick = {"chosen": None, "cards": OrderedDict()}  # the person's choice of mailbox in this conversation (#117, part 2)
+
+    def mail_choice():
+        """Worker thread. ``{"count", "only", "card"}``: the mailboxes the chat could read and, with two or more, a card for the person.
+        The ids in the card are opaque and mean something only here: the model and the screen never see a company or a connection."""
+        services = request.app[team_web.TEAM].services()
+        found = []
+        if mail_account().configured():
+            found.append(("pessoal", "Email pessoal"))
+        if services is not None:
+            found += [(source_key(s), f"{s['label']} ({s['company']})") for s in mail_sources(services).sources()]
+        if len(found) < 2:
+            return {"count": len(found), "only": found[0][1] if found else None, "card": None}
+        keys = [key for key, _ in found]
+        current = mail_pick["chosen"] if mail_pick["chosen"] in keys else ("pessoal" if keys[0] == "pessoal" else None)
+        options = {secrets.token_hex(4): {"key": key, "label": label} for key, label in found}
+        request_id = secrets.token_hex(8)
+        card = {"request_id": request_id, "state": "caixa", "label": "Caixa de email",
+                "current": next((label for key, label in found if key == current), None),
+                "options": [{"id": option_id, "label": option["label"]} for option_id, option in options.items()]}
+        mail_pick["cards"][request_id] = {"options": options, "card": card}
+        while len(mail_pick["cards"]) > 5:
+            mail_pick["cards"].popitem(last=False)
+        return {"count": len(found), "only": None, "card": card}
+
+    def choose_from_tool():
+        """Called from a worker thread when a read finds several mailboxes and none chosen: put the card on the screen."""
+        card = mail_choice()["card"]
+        if card is not None:
+            loop.call_soon_threadsafe(emit, {"type": "integration_card", "card": card})
+
     async def mail_source():
         """``(mail, outbox)`` the chat reads, or ``(None, None)`` for the personal mailbox exactly as before (#117)."""
         services = request.app[team_web.TEAM].services()
         personal = mail_account()
-        if services is None or personal.configured():
+        if services is None or (personal.configured() and mail_pick["chosen"] in (None, "pessoal")):
             return None, None
         sources = mail_sources(services)
         try:
             found = await asyncio.to_thread(sources.sources)
         except Exception:
             found = []
-        return resolve_mail(personal, sources, found, loop)
+        return resolve_mail(personal, sources, found, loop, mail_pick["chosen"], choose_from_tool)
+
+    async def pick_mailbox(request_id, source_id):
+        """The person's click on the choice card. Only an option that card really offered counts."""
+        entry = mail_pick["cards"].get(request_id) if isinstance(request_id, str) else None
+        option = entry["options"].get(source_id) if entry and isinstance(source_id, str) else None
+        if option is None:
+            raise NotFound()
+        mail_pick["chosen"] = option["key"]
+        await refresh_agent()  # the tools and the prompt follow the mailbox now chosen
+        entry["card"] = {**entry["card"], "current": option["label"]}
+        emit({'type': 'integration_card', 'card': entry["card"]})
+        emit({'type': 'integration_result', 'request_id': request_id, 'ok': True, 'message': f"Lendo agora: {option['label']}.",
+              'next': None, 'resume': False, 'label': None})
 
     async def active_mail():
         mail, _ = await mail_source()
@@ -358,6 +406,9 @@ async def chat(request):
         kind, request_id, company = data.get('type'), data.get('request_id'), data.get('company_id')
         session = integrations()
         try:
+            if kind == 'integration_mailpick':
+                await pick_mailbox(request_id, data.get('source_id'))
+                return
             if session is None or not isinstance(request_id, str):
                 raise NotFound()
             if kind == 'integration_pick':
@@ -488,6 +539,20 @@ async def chat(request):
                         raise ValueError('Mensagem inválida.')
                 except ValueError as error:
                     emit({'type': 'rejected', 'message': str(error)})
+                    continue
+                if text and len(text) <= 120 and CHOOSE_MAIL.search(text):
+                    # "Escolher a caixa": the card needs no model, and "trocar de caixa" keeps meaning the personal setup form.
+                    choice = await asyncio.to_thread(mail_choice)
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    if choice['card'] is not None:
+                        emit({'type': 'integration_card', 'card': choice['card']})
+                        answer = 'Mostrei na tela as caixas de email que posso ler. Escolha uma; a escolha vale para esta conversa.'
+                    elif choice['count'] == 1:
+                        answer = f"Só há uma caixa de email disponível: {choice['only']}. Não há o que escolher."
+                    else:
+                        answer = 'Nenhuma caixa de email está conectada. Peça para configurar a caixa de email ou para conectar ao imap.'
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 if text and len(text) <= 120 and SETUP_INTENT.search(text):
                     # "Configurar caixa de email": no model needed to open the secure form (a small model may not call the tool).
