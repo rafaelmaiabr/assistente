@@ -8,6 +8,7 @@ import asyncio
 import sys
 from livekit.agents import Agent, function_tool, mcp
 from livekit.plugins import openai
+from chat_context import fit, prune
 from honesty import capabilities_text
 from personal_mail import PersonalMail
 from personal_outbox import PersonalOutbox
@@ -52,7 +53,7 @@ def email_tools(mail, outbox, on_draft=None, on_setup=None):
                 if on_setup:
                     on_setup()
                 return {"erro": "A habilidade de email não está configurada. O formulário seguro foi aberto na tela; peça ao usuário para preenchê-lo."}
-            return await asyncio.to_thread(call, *args)
+            return fit(await asyncio.to_thread(call, *args))  # a big result is cut, not poured into a small model's context
         return run
 
     @function_tool(description="Abre na tela o formulário seguro para configurar a caixa de email. Use quando o usuário pedir para configurar, conectar ou trocar a caixa.")
@@ -123,7 +124,7 @@ def http_tools(store, client=None):
     @function_tool(description=f"Consulta uma rota liberada pelo operador (somente leitura, GET público). Informe o nome da rota ({names}) e o valor "
                                "pedido (por exemplo um domínio). Devolve o resultado da rota; você não envia endereços.")
     async def consultar_rota(rota: str, valor: str) -> dict:
-        return await asyncio.to_thread(consult, store, client or SafeHttp(), rota, valor)  # the file is read again: a route turned off since stays off
+        return fit(await asyncio.to_thread(consult, store, client or SafeHttp(), rota, valor))  # the file is read again: a route turned off since stays off
 
     return [consultar_rota]
 
@@ -145,8 +146,18 @@ def agent_parts(config=None, mail=None, outbox=None, on_draft=None, on_setup=Non
             + capabilities_text(names)), tools
 
 
+class ChatAgent(Agent):
+    """The chat agent, which clears old tool results before each answer (#133): the history stays, the long old texts go."""
+
+    async def on_user_turn_completed(self, turn_ctx, new_message):
+        pruned, count = prune(turn_ctx)
+        if count:
+            turn_ctx.items[:] = pruned.items  # what the model reads this turn
+            await self.update_chat_ctx(prune(self.chat_ctx)[0], exclude_invalid_function_calls=False)  # and what stays in the history
+
+
 def make_agent(config=None, mail=None, on_draft=None, on_setup=None, outbox=None, on_integration=None):
     config = config or load_config()
     instructions, tools = agent_parts(config, mail, outbox, on_draft, on_setup, on_integration)
-    return Agent(instructions=instructions, tools=tools,
+    return ChatAgent(instructions=instructions, tools=tools,
                  llm=openai.LLM(model=config["model"], base_url=config["ollama_url"], api_key="ollama", temperature=0.3))
