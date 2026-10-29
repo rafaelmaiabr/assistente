@@ -13,6 +13,7 @@ from honesty import capabilities_text
 from personal_mail import PersonalMail
 from personal_outbox import PersonalOutbox
 from settings import DATA_ROOT, ROOT, load_config
+from tool_guard import Guard, std_error
 from team.connectors.http_get import SafeHttp
 from team.connectors.http_routes import KINDS, ROUTES_FILE, RouteStore, consult
 
@@ -47,13 +48,15 @@ def instructions_for(mail):
 
 def email_tools(mail, outbox, on_draft=None, on_setup=None):
     """Always registered; when the skill is not set up each one opens the secure form and says so, instead of failing silently."""
-    def gated(call):
+    guard = Guard()
+
+    def gated(name, call):
         async def run(*args):
             if not mail.configured():
                 if on_setup:
                     on_setup()
                 return {"erro": "A habilidade de email não está configurada. O formulário seguro foi aberto na tela; peça ao usuário para preenchê-lo."}
-            return fit(await asyncio.to_thread(call, *args))  # a big result is cut, not poured into a small model's context
+            return fit(await guard.call(name, args, lambda: asyncio.to_thread(call, *args)))  # a big result is cut, not poured into a small model's context
         return run
 
     @function_tool(description="Abre na tela o formulário seguro para configurar a caixa de email. Use quando o usuário pedir para configurar, conectar ou trocar a caixa.")
@@ -64,19 +67,19 @@ def email_tools(mail, outbox, on_draft=None, on_setup=None):
 
     @function_tool(description="Lista os emails mais recentes da caixa real do usuário (somente leitura).")
     async def listar_emails(limite: int = 5, desde: str = "") -> dict:
-        return await gated(lambda a, b: mail.list_recent(None, a, b or None))(limite, desde)
+        return await gated("listar_emails", lambda a, b: mail.list_recent(None, a, b or None))(limite, desde)
 
     @function_tool(description="Busca emails da caixa real por remetente, assunto ou texto (somente leitura). desde no formato AAAA-MM-DD.")
     async def buscar_emails(remetente: str = "", assunto: str = "", texto: str = "", desde: str = "", limite: int = 5) -> dict:
-        return await gated(lambda *a: mail.search(None, a[2] or None, a[0] or None, a[1] or None, a[3] or None, a[4]))(remetente, assunto, texto, desde, limite)
+        return await gated("buscar_emails", lambda *a: mail.search(None, a[2] or None, a[0] or None, a[1] or None, a[3] or None, a[4]))(remetente, assunto, texto, desde, limite)
 
     @function_tool(description="Lê um email da caixa real, usando o uid e o uidvalidity devolvidos pela listagem ou busca.")
     async def ler_email(uid: int, uidvalidity: int) -> dict:
-        return await gated(lambda a, b: mail.read(a, b))(uid, uidvalidity)
+        return await gated("ler_email", lambda a, b: mail.read(a, b))(uid, uidvalidity)
 
     @function_tool(description="Prepara um rascunho de resposta a um email lido (uid e uidvalidity da listagem). Não envia: o usuário precisa aprovar na tela.")
     async def preparar_resposta(uid: int, uidvalidity: int, texto: str) -> dict:
-        draft = await gated(lambda a, b, c: outbox.prepare(a, b, c))(uid, uidvalidity, texto)
+        draft = await gated("preparar_resposta", lambda a, b, c: outbox.prepare(a, b, c))(uid, uidvalidity, texto)
         if "erro" in draft:
             return draft
         if on_draft:
@@ -94,7 +97,10 @@ def integration_tools(on_integration=None):
     async def solicitar_integracao(fornecedor: str = "", capacidade: str = "") -> dict:
         if on_integration is None:
             return {"erro": "As integrações não estão disponíveis nesta sessão."}
-        card = await asyncio.to_thread(on_integration, str(fornecedor)[:80], str(capacidade)[:80])
+        try:
+            card = await asyncio.to_thread(on_integration, str(fornecedor)[:80], str(capacidade)[:80])
+        except Exception:
+            return std_error("Não foi possível mostrar o cartão de integração agora.", retry=True)
         estado = card.get("state")
         aviso = {"indisponivel": "Nao ha conector instalado para isso; o cartao diz isso ao usuario. Nao prometa que vai conectar.",
                  "escolher": "Ha mais de um conector possivel; o usuario escolhe no cartao.",
@@ -120,11 +126,12 @@ def http_tools(store, client=None):
     if not routes:
         return []
     names = ", ".join(r.name for r in routes)
+    guard = Guard()
 
     @function_tool(description=f"Consulta uma rota liberada pelo operador (somente leitura, GET público). Informe o nome da rota ({names}) e o valor "
                                "pedido (por exemplo um domínio). Devolve o resultado da rota; você não envia endereços.")
     async def consultar_rota(rota: str, valor: str) -> dict:
-        return fit(await asyncio.to_thread(consult, store, client or SafeHttp(), rota, valor))  # the file is read again: a route turned off since stays off
+        return fit(await guard.call("consultar_rota", (rota, valor), lambda: asyncio.to_thread(consult, store, client or SafeHttp(), rota, valor)))  # the file is read again: a route turned off since stays off
 
     return [consultar_rota]
 

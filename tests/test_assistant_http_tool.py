@@ -84,7 +84,9 @@ class RouteToolTests(unittest.TestCase):
         self.store.add("ruim", "Rota ruim", "https://bloqueado.exemplo.com/{valor}", "dominio")
         self.store.enable("ruim")
         tool = next(t for t in self.parts()[1] if getattr(getattr(t, "info", None), "name", "") == "consultar_rota")
-        self.assertEqual(asyncio.run(tool(rota="ruim", valor="a.com")), {"erro": "endereco_bloqueado", "mensagem": "bloqueado"})
+        result = asyncio.run(tool(rota="ruim", valor="a.com"))
+        self.assertEqual((result["erro"], result["mensagem"]), ("endereco_bloqueado", "bloqueado"))
+        self.assertIn("diga_a_pessoa", result)  # the standard error shape (#134), with the original fields kept
 
 
 if __name__ == "__main__":
