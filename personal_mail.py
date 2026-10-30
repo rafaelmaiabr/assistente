@@ -12,6 +12,7 @@ import ssl
 from pathlib import Path
 
 from team.connections import ConnectionRejected
+from mail_mover import ImapMover
 from team.imap_client import ImapConfig, ImapError, ReadOnlyImap
 from team.smtp_transport import SmtpConfig
 from team.vault import SecretVault, VaultError, WindowsVault
@@ -152,6 +153,15 @@ class PersonalMail:
                               tls=raw.get("tls", True))
         except (OSError, ValueError, KeyError, TypeError):
             return None
+
+    def open_mover(self):
+        """The write side, for moving approved messages to Trash or Spam (#140). A mailbox set up as read-only never moves anything."""
+        config, password = self._config(), self.secret()
+        if config is None or not password:
+            raise ImapError("sem_caixa", "Nenhuma caixa de email configurada.")
+        if self.smtp_config() is None:
+            raise ImapError("somente_leitura", "Esta caixa foi configurada como somente leitura; ela não move mensagens.")
+        return ImapMover(config, password, self.ssl_context)
 
     def _open(self):
         config = self._config()

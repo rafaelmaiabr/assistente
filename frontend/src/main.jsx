@@ -17,6 +17,8 @@ import {MemoryPanel, MemoryProposals} from './MemoryPanel.jsx';
 import {applyMemoryEvent, initialMemory} from './memoryModel.js';
 import {RuleProposals, RulesPanel} from './RulesPanel.jsx';
 import {applyRulesEvent, initialRules} from './rulesModel.js';
+import {MoveCards} from './MoveCards.jsx';
+import {applyMoveEvent, initialMoves} from './moveModel.js';
 import {applyIntegrationEvent, initialIntegrations, isIntegrationEvent, resumeText, safeAuthUrl, shouldResume} from './integrationModel.js';
 import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
@@ -54,6 +56,7 @@ function App() {
   const [style, setStyle] = useState(DEFAULT_STYLE);
   const [memory, setMemory] = useState(initialMemory);
   const [rules, setRules] = useState(initialRules);
+  const [moves, setMoves] = useState(initialMoves);
   const speakRef = useRef(true);
   const voiceRef = useRef(null);
   const socket = useRef(null);
@@ -98,6 +101,7 @@ function App() {
       setStyle(current => applyStyleEvent(current, data));
       setMemory(current => applyMemoryEvent(current, data));
       setRules(current => applyRulesEvent(current, data));
+      setMoves(current => applyMoveEvent(current, data));
       if (data.type === 'session') {
         setModel(data.model);
         const again = reattachMessage(convRef.current);  // a reconnection forgot the attachment; asking again never touches the microphone
@@ -220,6 +224,7 @@ function App() {
           <IntegrationCards integrations={integrations} send={sendRaw}/>
           <MemoryProposals memory={memory} send={sendControl}/>
           <RuleProposals rules={rules} send={sendControl}/>
+          <MoveCards moves={moves} send={sendControl}/>
           {mail.drafts.map(draft => <DraftCard key={draft.id} draft={draft} onApprove={item => decide(item, 'approve')} onDiscard={item => decide(item, 'discard')}/>)}
         </div>
         <div ref={bottom}/>

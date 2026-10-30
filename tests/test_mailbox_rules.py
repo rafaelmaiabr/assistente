@@ -153,11 +153,12 @@ class ConflictAndReplacement(Folder):
         self.assertEqual(self.propose(action="prioridade", replaces=first["id"])["motivo"], "substituida")  # cannot replace what is replaced
         self.assertEqual(self.store.set_status(first["id"], True)["motivo"], "substituida")
 
-    def test_a_move_rule_is_stored_but_inert_and_a_clash_with_preserve_keeps_the_message(self):
+    def test_a_move_rule_only_suggests_and_a_clash_with_preserve_keeps_the_message(self):
         move = self.create(scope=("dominio", "empresa.com"), action="mover_lixeira")["regra"]
-        self.assertEqual(move["inerte_ate"], "#140")
-        self.assertTrue([r for r in self.store.state()["rules"] if r["id"] == move["id"]][0]["inerte"])
-        self.assertEqual(self.store.active_for("pessoal"), [])  # not in force until the move feature exists
+        self.assertEqual([r["id"] for r in self.store.active_for("pessoal")], [move["id"]])
+        row = mail_triage.analyse(msg(sender="x@empresa.com"), rules=self.store.active_for("pessoal"))
+        self.assertTrue(row["sugere_mover"])
+        self.assertEqual(row["classe"], "normal")  # it suggests; it never moves, and it does not change the class
         keep = self.create(scope=("endereco", "ana@empresa.com"), action="preservar")["regra"]
         actions, ids, clash = applied([move, keep], msg())
         self.assertTrue(clash and set(ids) == {move["id"], keep["id"]})

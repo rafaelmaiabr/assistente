@@ -28,5 +28,5 @@ A listagem e a leitura usam o cliente IMAP somente leitura (`BODY.PEEK`). O test
 
 - Regras por palavras e padrões, em português; **podem errar nos dois sentidos** (golpe bem escrito passa; mensagem legítima com palavras de risco pode ser sinalizada). É apoio à decisão, não veredito. Sem verificação de SPF/DKIM/DMARC (o cliente não lê `Authentication-Results`).
 - Testado com mensagens sintéticas e servidor IMAP falso; **nenhum IMAP real e nenhum modelo real** foram usados nesta entrega.
-- Mover para Lixeira/Spam é a issue [#140](https://github.com/rafaelmaiabr/assistente/issues/140), com aprovação exata; nada disso é feito aqui.
+- Mover para Lixeira/Spam é a [#140](https://github.com/rafaelmaiabr/assistente/issues/140), com aprovação exata ([CHAT-MOVER-EMAIL.md](CHAT-MOVER-EMAIL.md)); a triagem em si continua sem escrever nada.
 - Limitação conhecida fora desta entrega: a listagem simples (`mail_intent.render`) também mostra campos do email em bloco de código sem remover crases.

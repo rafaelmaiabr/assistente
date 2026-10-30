@@ -24,7 +24,7 @@ function RuleRow({rule, send}) {
   const replaced = rule.status === 'substituida';
   const save = () => {send(editMessage(rule.id, {valor: value, excecoes: extra, acao: action})); setEditing(false);};
   return <li>
-    <span><strong>{STATUS_LABEL[rule.status] || rule.status}</strong> · v{rule.version} · {rule.descricao}{rule.inerte ? ' (inativa até existir a função de mover)' : ''}</span>
+    <span><strong>{STATUS_LABEL[rule.status] || rule.status}</strong> · v{rule.version} · {rule.descricao}</span>
     {!replaced && !editing && <>
       <button onClick={() => send(toggleMessage(rule.id, rule.status !== 'ativa'))}>{rule.status === 'ativa' ? 'Desativar' : 'Ativar'}</button>
       <button onClick={() => setEditing(true)}>Editar</button></>}

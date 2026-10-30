@@ -91,7 +91,8 @@ class RefreshTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(assistant_core, "RouteStore", return_value=self.routes), mock.patch.object(assistant_core, "DATA_ROOT", Path(".")):
             browser.agent.instructions = assistant_core.agent_parts(CONFIG, mails[0][0], mails[0][1], routes=self.routes,
                                                                  memory=browser.memory, on_memory=browser.on_memory,
-                                                                 rules=browser.rules, on_rule=browser.on_rule)[0]
+                                                                 rules=browser.rules, on_rule=browser.on_rule,
+                                                                 mover=browser.mover, on_move=browser.on_move)[0]
             mails_after = mails[1:]
             state = iter(mails_after)
             browser.mail_source = lambda: _async(next(state))
