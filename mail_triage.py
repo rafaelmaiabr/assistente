@@ -201,7 +201,7 @@ def analyse(message, known_senders=(), rules=()):
                                                   "porque": EVIDENCE[item][2]} for item in found],
         "acao_pedida": ask, "prazo": limit, "aguarda_resposta": ask in ("confirmar", "enviar algo", "responder", "ligar") and not bulk,
         "preservar": commercial or known or real_conversation,
-        "regras_aplicadas": rule_ids, "conflito_de_regras": clash,
+        "regras_aplicadas": rule_ids, "conflito_de_regras": clash, "sugere_mover": "mover_lixeira" in actions and not clash,
         "re_sem_cabecalhos": bool(re.match(r"(?i)\s*(re|enc|fwd?)\s*:", str(message.get("subject") or ""))) and not _ids(message),
     }
 
@@ -283,6 +283,8 @@ def render(report):
                 extra.append(f"prazo no texto: {row['prazo']}")
             if row["acao_pedida"]:
                 extra.append(f"pede: {row['acao_pedida']}" + (" (aguarda resposta)" if row["aguarda_resposta"] else ""))
+            if row.get("sugere_mover"):
+                extra.append("uma regra sua sugere mover para a Lixeira (nada foi movido; peça para propor e aprove na tela)")
             lines.append(f"uid {row['uid']} | {row['de'] or '(sem remetente)'} | {row['assunto'] or '(sem assunto)'}\n    " + "\n    ".join(extra))
         sections.append(f"{CLASS_LABEL[kind]} ({len(group)}):\n```\n" + "\n".join(lines) + "\n```")
     return head + "\n\n" + "\n\n".join(sections) + "\n\nIsto é uma análise por regras e pode errar; nada foi feito com as mensagens."

@@ -5,7 +5,7 @@ export const initialRules = {rules: [], pending: [], message: ''};
 export const ACTIONS = [
   {id: 'prioridade', label: 'Tratar como prioridade'},
   {id: 'preservar', label: 'Preservar (conferir você)'},
-  {id: 'mover_lixeira', label: 'Mover para a Lixeira (ainda inativa)'},
+  {id: 'mover_lixeira', label: 'Sugerir mover para a Lixeira (você aprova)'},
 ];
 const DECIDED = {
   criada: 'Regra criada. Ela vale a partir de agora e nas próximas conversas.',

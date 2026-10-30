@@ -23,11 +23,10 @@ MAX_EXCEPTIONS = 5
 MAX_RULES = 100
 MAX_PENDING = 10
 PENDING_KEEP = timedelta(days=7)
-INERT_UNTIL = "#140"
 
 ACTIONS = {"prioridade": "tratar como prioridade", "preservar": "preservar (nunca tratar como suspeita; conferir você)",
-           "mover_lixeira": "mover para a Lixeira (só vale quando a função de mover existir)"}
-ACTIVE_ACTIONS = ("prioridade", "preservar")  # a move rule is stored but inert until the move feature exists (#140)
+           "mover_lixeira": "sugerir mover para a Lixeira (nada é movido sem a sua aprovação de cada lote)"}
+ACTIVE_ACTIONS = ("prioridade", "preservar", "mover_lixeira")  # a move rule only *suggests* in the triage: a move still needs the exact approval (#140)
 CONDITIONS = {"qualquer": "qualquer mensagem", "assunto_contem": "o assunto contém “{}”", "texto_contem": "o texto contém “{}”",
               "lista": "é uma lista ou newsletter (tem cancelamento de inscrição)"}
 NEEDS_VALUE = ("assunto_contem", "texto_contem")
@@ -175,7 +174,7 @@ class MailboxRules:
 
     @staticmethod
     def _view(rule):
-        return {**rule, "descricao": describe(rule), "inerte": rule["acao"] not in ACTIVE_ACTIONS}
+        return {**rule, "descricao": describe(rule)}
 
     def state(self):
         with _LOCK:
@@ -263,8 +262,7 @@ class MailboxRules:
                 return self._refuse(rules, pending, why)
             now = self.clock().isoformat()
             rule = {"id": "r-" + uuid.uuid4().hex[:8], "version": 1, "status": "ativa", **built, "substituida_por": None, "criada_em": now,
-                    "atualizada_em": now, "aprovacao": {"em": now, "por": "pessoa", "via": "cartao"},
-                    "inerte_ate": INERT_UNTIL if built["acao"] not in ACTIVE_ACTIONS else None}
+                    "atualizada_em": now, "aprovacao": {"em": now, "por": "pessoa", "via": "cartao"}}
             if built["substitui"]:
                 for old in rules:
                     if old["id"] == built["substitui"]:
@@ -309,7 +307,6 @@ class MailboxRules:
                 return self._refuse(rules, pending, why)
             now = self.clock().isoformat()
             rule.update(condicao=built["condicao"], excecoes=built["excecoes"], acao=built["acao"], version=rule["version"] + 1, atualizada_em=now,
-                        inerte_ate=INERT_UNTIL if built["acao"] not in ACTIVE_ACTIONS else None,
                         aprovacao={"em": now, "por": "pessoa", "via": "painel"})
             self._save(rules, pending)
             return self._state(rules, pending, regra=self._view(rule))

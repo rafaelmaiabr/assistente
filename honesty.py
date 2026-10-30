@@ -20,10 +20,11 @@ _CAN = [
     ({"consultar_rota"}, "consultar as rotas de internet que o operador liberou, e só elas"),
     ({"triar_emails"}, "examinar a caixa de entrada e apontar mensagens prioritárias ou suspeitas, com as evidências, só lendo (nada é movido, apagado nem marcado)"),
     ({"propor_regra_de_caixa"}, "propor uma regra de triagem da caixa (endereço completo ou domínio exato); ela só é criada se a pessoa escolher criar no cartão"),
+    ({"propor_mover_emails"}, "propor mover mensagens para a Lixeira ou o Spam; só se movem depois de a pessoa aprovar na tela a lista exata, e nunca se apaga de vez"),
     ({"propor_memoria"}, "propor uma anotação para a memória sobre a pessoa; ela só é gravada se a pessoa aprovar na tela e só vale na próxima conversa"),
 ]
 _CANNOT = ("acessar a internet em geral ou abrir endereços que o usuário digitar (fora das rotas liberadas, se houver); "
-           "mover, apagar, arquivar ou marcar emails como lidos ou spam; enviar email sem a aprovação do usuário na tela; "
+           "{move_limit}; enviar email sem a aprovação do usuário na tela; "
            "criar botões, cartões ou links por conta própria, pois só as ferramentas os mostram")
 
 
@@ -31,8 +32,10 @@ def capabilities_text(names):
     """The prompt paragraph for the tools that are really registered in this session (``names``), so it cannot drift from the code."""
     names = set(names)
     can = [label for tools, label in _CAN if names & tools]
+    move_limit = ("apagar de vez, esvaziar a Lixeira ou o Spam, arquivar ou marcar emails como lidos, e mover para qualquer outra pasta"
+                  if "propor_mover_emails" in names else "mover, apagar, arquivar ou marcar emails como lidos ou spam")
     return ("Capacidades reais nesta sessão: " + ("; ".join(can) if can else "apenas conversar, sem nenhuma ferramenta") + ". "
-            "Você NÃO consegue: " + _CANNOT + ". Quando pedirem algo fora disso, diga com clareza que não consegue; "
+            "Você NÃO consegue: " + _CANNOT.replace("{move_limit}", move_limit) + ". Quando pedirem algo fora disso, diga com clareza que não consegue; "
             "nunca diga que está fazendo algo sem chamar a ferramenta, e nunca descreva botões ou cartões que a ferramenta não mostrou. ")
 
 
@@ -69,8 +72,12 @@ def _routes(routes):
     return "Rotas liberadas pelo operador: " + ", ".join(f"{r.name} ({r.label})" for r in routes) + "."
 
 
-def answer(key, routes=()):
+def answer(key, routes=(), can_move=False):
     """The assistant's text for a key from :func:`parse`. Nothing was done, and the text says what is possible instead."""
+    if key == "emails" and can_move:
+        return ("Não apago emails de vez, não arquivo nem marco como lidos, e nada foi alterado. Posso propor mover mensagens para a Lixeira ou o Spam: "
+                "peça, por exemplo, \"mova os emails 12 e 15 para o spam\" ou, depois da triagem, \"mova os suspeitos para o spam\". "
+                "Você vê a lista exata na tela e só se move o que você aprovar.")
     if key == "emails":
         return ("Não consigo mover, apagar, arquivar nem marcar emails: minha leitura da caixa é somente leitura, e nada foi alterado. "
                 "Posso listar, buscar e ler mensagens, e preparar o rascunho de uma resposta para você aprovar. "

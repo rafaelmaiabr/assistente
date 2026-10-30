@@ -8,9 +8,11 @@ import secrets
 import uuid
 from collections import OrderedDict
 import honesty
+from mail_mover import MoveService
 from mailbox_rules import MailboxRules
 from person_memory import PersonMemory
 import mail_intent
+import mail_mover
 import mail_triage
 import mailbox_rules
 import memory_intent
@@ -516,6 +518,34 @@ async def chat(request):
         except Exception:
             emit({'type': 'rejected', 'message': 'Não foi possível concluir. Tente novamente.'})
 
+    async def move_action(data):
+        """The person's click on a move card. The model cannot send this: it is the only way a message is ever moved."""
+        kind = data.get('type')
+        try:
+            if kind != 'move_decision' or not isinstance(data.get('id'), str) or data.get('decision') not in ('approve', 'discard'):
+                raise ValueError('Decisão inválida.')
+            if data['decision'] == 'discard':
+                result = await asyncio.to_thread(mover_store.discard, data['id'])
+                emit({'type': 'move_result', 'id': data['id'], 'ok': True, 'estado': 'descartada'})
+                return
+            if not isinstance(data.get('hash'), str):
+                raise ValueError('Decisão inválida.')
+            emit({'type': 'move_result', 'id': data['id'], 'ok': True, 'estado': 'movendo'})
+            mail = await active_mail()
+            result = await asyncio.to_thread(mover_store.approve, mail, data['id'], data['hash'])
+            emit({'type': 'move_result', 'id': data['id'], **result})
+            emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': mail_mover.render(result)})
+            emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+        except ValueError as error:
+            emit({'type': 'rejected', 'message': str(error)})
+        except Exception:
+            emit({'type': 'move_result', 'id': data.get('id'), 'ok': False, 'estado': 'desconhecida',
+                  'erro': 'Erro inesperado. Confira a Lixeira e o Spam antes de pedir de novo; nada foi repetido.'})
+
+    def movable(mail):
+        """Whether this mailbox has a write side that is allowed (a read-only setup or a company mailbox does not)."""
+        return getattr(mail, 'open_mover', None) is not None and mail.smtp_config() is not None
+
     async def queue_drained():
         # Give the sole sender a chance to flush terminal events before closing.
         for _ in range(20):
@@ -535,6 +565,10 @@ async def chat(request):
         memory = PersonMemory(request.app[DATA_DIR])  # one folder for the screen and for the agent's prompt
         if hasattr(agent, 'memory'):
             agent.memory = memory
+        mover_store = MoveService(request.app[DATA_DIR])
+        last_triage = {'suspeitos': []}  # the UIDs the last triage called suspect: "mova os suspeitos" means exactly these
+        if hasattr(agent, 'mover'):
+            agent.mover = mover_store
         rules_store = MailboxRules(request.app[DATA_DIR])
         if hasattr(agent, 'rules'):
             agent.rules = rules_store
@@ -544,6 +578,7 @@ async def chat(request):
               "reply": mail.configured() and mail.smtp_config() is not None, "style": getattr(agent, 'style', 'padrao')})
         emit({'type': 'memory', **await asyncio.to_thread(memory.state)})
         emit({'type': 'rules', **await asyncio.to_thread(rules_store.state)})
+        emit({'type': 'move_proposals', 'proposals': await asyncio.to_thread(mover_store.pending)})
         pending = await asyncio.to_thread(outbox.pending)
         if pending:  # drafts still waiting after a reload; the approval is the person's, so they come back to the screen
             emit({"type": "drafts", "drafts": pending})
@@ -576,6 +611,10 @@ async def chat(request):
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and str(data.get('type', '')).startswith('rule_') and data.get('type') != 'rule_proposal':
                 task = asyncio.create_task(rule_action(data))
+                decisions.add(task)
+                task.add_done_callback(decisions.discard)
+            elif isinstance(data, dict) and str(data.get('type', '')).startswith('move_') and data.get('type') != 'move_proposal':
+                task = asyncio.create_task(move_action(data))
                 decisions.add(task)
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and str(data.get('type', '')).startswith('memory_'):
@@ -671,6 +710,29 @@ async def chat(request):
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
+                asked_move = mail_mover.parse_request(text) if text else None
+                if asked_move is not None:
+                    # "Mova os suspeitos para o spam": the server proposes the exact list; only the click on the card moves anything.
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    mail = await active_mail()
+                    if not mail.configured():
+                        emit({'type': 'setup', 'skill': 'email'})
+                        answer = 'Sua caixa de email ainda não está configurada, então não há o que mover. Abri o formulário seguro.'
+                    else:
+                        wanted = last_triage['suspeitos'] if asked_move['suspeitos'] else asked_move['uids']
+                        if asked_move['suspeitos'] and not wanted:
+                            answer = 'A última triagem não apontou nenhuma mensagem suspeita (ou ainda não houve triagem). Nada foi movido; peça a triagem primeiro.'
+                        else:
+                            result = await asyncio.to_thread(mover_store.propose, mail, wanted, asked_move['destino'])
+                            if not result['ok']:
+                                answer = f"Não preparei a movimentação: {result['erro']} Nada foi movido."
+                            else:
+                                emit({'type': 'move_proposal', 'proposal': result['proposal']})
+                                answer = ('Preparei a lista exata das mensagens a mover. Confira no cartão e aprove ou cancele: nada foi movido ainda, '
+                                          'e eu nunca apago de vez.')
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
                 asked = mailbox_rules.parse_request(text) if text else None
                 if asked is not None:
                     # "Sempre trate os emails de ana@x.com como prioridade": the server proposes; only the person's choice on the card saves.
@@ -701,7 +763,9 @@ async def chat(request):
                         try:
                             key, label = mailbox_rules.account_of(mail)
                             in_force = await asyncio.to_thread(rules_store.active_for, key)
-                            answer = mail_triage.render(await asyncio.to_thread(mail_triage.triage, mail, mail_triage.DEFAULT_LIMIT, None, (), label, in_force))
+                            report = await asyncio.to_thread(mail_triage.triage, mail, mail_triage.DEFAULT_LIMIT, None, (), label, in_force)
+                            last_triage['suspeitos'] = [row['uid'] for row in report.get('mensagens', []) if row.get('classe') == 'suspeito' and isinstance(row.get('uid'), int)]
+                            answer = mail_triage.render(report)
                         except Exception:
                             answer = 'Não consegui examinar a caixa de email agora. Nada foi alterado.'
                     else:
@@ -734,7 +798,7 @@ async def chat(request):
                     # Known out-of-reach requests (move/delete mail, open an address, send unapproved): a fixed, true answer, no model.
                     routes = await asyncio.to_thread(RouteStore(request.app[DATA_DIR] / ROUTES_FILE).enabled_routes)
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
-                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': honesty.answer(refused, routes)})
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': honesty.answer(refused, routes, can_move=movable(await active_mail()))})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 intent = INTEGRATION_INTENT.search(text) if text and len(text) <= 120 else None
