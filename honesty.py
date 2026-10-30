@@ -19,6 +19,7 @@ _CAN = [
     ({"solicitar_integracao"}, "mostrar o cartão para o usuário conectar um sistema (o usuário decide nos botões do cartão)"),
     ({"consultar_rota"}, "consultar as rotas de internet que o operador liberou, e só elas"),
     ({"triar_emails"}, "examinar a caixa de entrada e apontar mensagens prioritárias ou suspeitas, com as evidências, só lendo (nada é movido, apagado nem marcado)"),
+    ({"propor_regra_de_caixa"}, "propor uma regra de triagem da caixa (endereço completo ou domínio exato); ela só é criada se a pessoa escolher criar no cartão"),
     ({"propor_memoria"}, "propor uma anotação para a memória sobre a pessoa; ela só é gravada se a pessoa aprovar na tela e só vale na próxima conversa"),
 ]
 _CANNOT = ("acessar a internet em geral ou abrir endereços que o usuário digitar (fora das rotas liberadas, se houver); "

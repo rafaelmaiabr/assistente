@@ -4,6 +4,7 @@ from livekit.agents import AgentSession, APIConnectOptions
 from livekit.agents.voice.agent_session import SessionConnectOptions
 from assistant_core import SKILL_OF, agent_parts, make_agent
 import persona
+from mailbox_rules import MailboxRules
 from person_memory import PersonMemory
 from settings import DATA_ROOT
 from tool_guard import limit_summary
@@ -22,6 +23,7 @@ class BrowserAgent:
         self.persona = persona.load(DATA_ROOT)  # read once per conversation: the tone does not change in the middle of it
         self.style = persona.DEFAULT_STYLE
         self.memory = PersonMemory(DATA_ROOT)  # the server may point it at its own data folder before start()
+        self.rules = MailboxRules(DATA_ROOT)  # the server may point it at its own data folder before start()
         self.memory_text = ""  # read once in start(): what the person approved after that waits for the next conversation
         self.answers = 0
         self.steps = []  # (tool, ok) of the turn in progress, for the summary when the step budget ends without an answer
@@ -41,7 +43,7 @@ class BrowserAgent:
         if update.type == "tool_call_started":
             name = update.function_call.name
             self.running = name
-            self.emit({"type": "status", "state": "executing", "label": "Mostrando o cartão de integração…" if name == "solicitar_integracao" else "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Examinando a caixa (somente leitura)…" if name == "triar_emails" else "Consultando a rota liberada…" if name == "consultar_rota" else "Preparando o rascunho…" if name == "preparar_resposta" else "Preparando a proposta de memória…" if name == "propor_memoria" else "Executando ferramenta…"})
+            self.emit({"type": "status", "state": "executing", "label": "Mostrando o cartão de integração…" if name == "solicitar_integracao" else "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Examinando a caixa (somente leitura)…" if name == "triar_emails" else "Consultando a rota liberada…" if name == "consultar_rota" else "Preparando o rascunho…" if name == "preparar_resposta" else "Preparando a proposta de memória…" if name == "propor_memoria" else "Preparando a proposta de regra…" if name == "propor_regra_de_caixa" else "Executando ferramenta…"})
             self.emit({"type": "tool", "name": name, "state": "started"})
             if name in SKILL_OF:
                 self.emit({"type": "skill", "id": SKILL_OF[name], "state": "usando"})
@@ -57,6 +59,9 @@ class BrowserAgent:
     async def _mail(self):
         return await self.mail_source() if self.mail_source else (None, None)
 
+    def on_rule(self, proposal):
+        self.emit({"type": "rule_proposal", "proposal": proposal})
+
     def on_memory(self, proposal):
         self.emit({"type": "memory_proposal", "proposal": proposal})
 
@@ -65,7 +70,8 @@ class BrowserAgent:
         self.memory_text = await asyncio.to_thread(self.memory.prompt_text)
         self.agent = make_agent(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
                                 on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration,
-                                persona=self.persona, style=self.style, memory=self.memory, on_memory=self.on_memory, memory_text=self.memory_text)
+                                persona=self.persona, style=self.style, memory=self.memory, on_memory=self.on_memory, memory_text=self.memory_text,
+                                rules=self.rules, on_rule=self.on_rule)
         await self.session.start(agent=self.agent)
 
     async def refresh(self):
@@ -74,7 +80,7 @@ class BrowserAgent:
         instructions, tools = agent_parts(self.config, mail=mail, outbox=outbox, on_draft=lambda draft: self.emit({"type": "draft", "draft": draft}),
                                           on_setup=lambda: self.emit({"type": "setup", "skill": "email"}), on_integration=self.on_integration,
                                           persona=self.persona, style=self.style, memory=self.memory, on_memory=self.on_memory,
-                                          memory_text=self.memory_text)
+                                          memory_text=self.memory_text, rules=self.rules, on_rule=self.on_rule)
         await self.agent.update_tools(tools)
         if instructions != self.agent.instructions:  # the stable layer is a fixed prefix; nothing is rewritten when the text did not change
             await self.agent.update_instructions(instructions)
