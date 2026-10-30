@@ -10,6 +10,7 @@ from collections import OrderedDict
 import honesty
 from person_memory import PersonMemory
 import mail_intent
+import memory_intent
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
 from team import conversation, persistence
@@ -600,6 +601,20 @@ async def chat(request):
                     emit({'type': 'setup', 'skill': 'email'})
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text':
                           'Abri o formulário seguro para configurar sua caixa de email. A senha vai direto da tela para o cofre do Windows, sem passar pela conversa.'})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
+                note = memory_intent.parse(text) if text else None
+                if note is not None:
+                    # "Lembre que eu moro em Recife": the model may answer "Claro!" without a tool call. The server proposes; the click is the person's.
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    result = await asyncio.to_thread(memory.propose, 'adicionar', note, None)
+                    if 'erro' in result:
+                        answer = f"Não guardei essa anotação: {result['erro']} Nada foi anotado."
+                    else:
+                        emit({'type': 'memory_proposal', 'proposal': result['proposal']})
+                        answer = (f"Preparei a anotação “{result['proposal']['text']}”. Aprove ou recuse o cartão na tela: nada foi guardado ainda "
+                                  "e, se você aprovar, ela vale a partir da próxima conversa.")
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
                 listing = mail_intent.parse(text) if text else None

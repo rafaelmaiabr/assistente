@@ -13,6 +13,10 @@ O chat pode lembrar poucas coisas sobre a pessoa entre conversas (nome, forma de
 - **Só um clique da pessoa grava.** `Aprovar` aplica a proposta (conferida de novo contra o que a memória é agora); `Recusar` a descarta. Esses botões enviam mensagens (`memory_decision`) que o modelo não consegue produzir.
 - A pessoa também **vê, adiciona, edita e apaga** as anotações no painel **Memória** (mensagens `memory_add`, `memory_edit`, `memory_delete`). Vale a mesma verificação.
 
+## Pedidos naturais de anotar (#150)
+
+Na validação com o modelo real (`qwen2.5:7b`), "Lembre que eu moro em Recife" recebeu um "Claro!" **sem** chamar a ferramenta, e nada foi proposto. Por isso o servidor reconhece pedidos curtos e claros (`memory_intent.py`: "lembre que…", "anote que…", "anote na sua memória que…", "guarde que…", "não esqueça que…", "memorize que…") e cria a **proposta** sem o modelo, como já faz para "configurar caixa de email". O cartão continua exigindo o clique, o texto passa pela mesma verificação (se for recusado, a resposta diz o motivo e não há proposta) e a resposta avisa que nada foi guardado ainda e que só vale na próxima conversa. Perguntas ("você lembra que…?"), pedidos sem "que" ("anote o telefone dele") e mensagens com mais de 260 caracteres vão ao modelo. Só `adicionar`: esquecer ou ajustar continua pelo painel ou pela ferramenta. A anotação fica nas palavras da pessoa ("eu moro em Recife"), sem reescrita.
+
 ## Verificação do conteúdo (proposta ou digitado)
 
 Recusa, com o motivo mostrado: texto vazio ou com mais de 200 caracteres; caracteres invisíveis ou de controle (zero-width, bidirecionais); padrão de **injeção** (a mesma heurística da triagem) ou instrução ao assistente; fala de **permissão ou aprovação** ("sem pedir aprovação", "nunca precisa de confirmação"); **segredos** (senha, token, chave, cofre, sequência longa parecida com chave, prefixos como `sk-`/`AKIA`/`eyJ`, número de cartão, endereço `http`); **duplicata exata** (sem diferenciar maiúsculas, acentos e espaços); e o que estouraria o limite, caso em que a resposta traz as anotações atuais para consolidar.
