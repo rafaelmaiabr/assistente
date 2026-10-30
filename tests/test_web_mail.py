@@ -109,6 +109,33 @@ class WebMailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rejected"))["message"], "Estilo desconhecido.")
         self.assertEqual(Agent.instances[0].style, "curto")
 
+    async def test_the_person_sees_adds_edits_and_deletes_memory_and_decides_proposals(self):
+        from person_memory import PersonMemory
+        ws, _ = await self.connect()
+        state = self.backlog("memory")[0]
+        self.assertEqual((state["entries"], state["pending"], state["limit"]), ([], [], 1400))
+        await ws.send_json({"type": "memory_add", "text": "Prefere ser chamado de Rafael"})
+        added = await self.until(ws, lambda e: e.get("type") == "memory" and e["entries"])
+        entry = added["entries"][0]
+        await ws.send_json({"type": "memory_add", "text": "Minha senha é 123"})  # refused, nothing written
+        refused = await self.until(ws, lambda e: e.get("type") == "memory" and e.get("ok") is False)
+        self.assertEqual((refused["motivo"], len(refused["entries"])), ("segredo", 1))
+        await ws.send_json({"type": "memory_edit", "id": entry["id"], "text": "Prefere ser chamado de Rafa"})
+        edited = await self.until(ws, lambda e: e.get("type") == "memory" and e["entries"] and e["entries"][0]["text"].endswith("Rafa"))
+        proposal = PersonMemory(self.root).propose("adicionar", "Gosta de café")["proposal"]  # what the model's tool does
+        await ws.send_json({"type": "memory_decision", "id": proposal["id"], "decision": "discard"})
+        discarded = await self.until(ws, lambda e: e.get("type") == "memory" and e.get("decidida") == "descartada")
+        self.assertEqual([x["text"] for x in discarded["entries"]], ["Prefere ser chamado de Rafa"])
+        proposal = PersonMemory(self.root).propose("adicionar", "Gosta de café")["proposal"]
+        await ws.send_json({"type": "memory_decision", "id": proposal["id"], "decision": "approve"})
+        approved = await self.until(ws, lambda e: e.get("type") == "memory" and e.get("decidida") == "aprovada")
+        self.assertEqual(len(approved["entries"]), 2)
+        await ws.send_json({"type": "memory_delete", "id": entry["id"]})
+        deleted = await self.until(ws, lambda e: e.get("type") == "memory" and e["entries"] and len(e["entries"]) == 1 and e.get("ok"))
+        self.assertEqual(deleted["entries"][0]["text"], "Gosta de café")
+        await ws.send_json({"type": "memory_decision", "id": "x", "decision": "talvez"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rejected"))["message"], "Decisão inválida.")
+
     async def assistant_text(self, ws, text):
         await ws.send_json({"type": "message", "text": text})
         reply = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")

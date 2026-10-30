@@ -18,6 +18,7 @@ _CAN = [
     ({"configurar_caixa_de_email"}, "abrir o formulário seguro de configuração da caixa de email"),
     ({"solicitar_integracao"}, "mostrar o cartão para o usuário conectar um sistema (o usuário decide nos botões do cartão)"),
     ({"consultar_rota"}, "consultar as rotas de internet que o operador liberou, e só elas"),
+    ({"propor_memoria"}, "propor uma anotação para a memória sobre a pessoa; ela só é gravada se a pessoa aprovar na tela e só vale na próxima conversa"),
 ]
 _CANNOT = ("acessar a internet em geral ou abrir endereços que o usuário digitar (fora das rotas liberadas, se houver); "
            "mover, apagar, arquivar ou marcar emails como lidos ou spam; enviar email sem a aprovação do usuário na tela; "

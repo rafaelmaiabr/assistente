@@ -1,9 +1,9 @@
 const fs=require('node:fs/promises'),path=require('node:path'),{spawnSync}=require('node:child_process');
-const BACKEND_FILES=['agent.py','assistant_core.py','honesty.py','mail_intent.py','chat_context.py','tool_guard.py','persona.py','personal_mail.py','personal_outbox.py','browser_agent.py','web_server.py','speech_service.py','voice_profiles.py','voice_engine.py','local_audio.py','settings.py','demo_mcp.py','config.example.json','requirements.txt'];
+const BACKEND_FILES=['agent.py','assistant_core.py','honesty.py','mail_intent.py','chat_context.py','tool_guard.py','persona.py','person_memory.py','personal_mail.py','personal_outbox.py','browser_agent.py','web_server.py','speech_service.py','voice_profiles.py','voice_engine.py','local_audio.py','settings.py','demo_mcp.py','config.example.json','requirements.txt'];
 const BACKEND_DIRS=['team'];
 // The domain package is an allowlist by extension: anything else found inside it stops the build instead of shipping silently.
 const ALLOWED_EXTENSIONS=new Set(['.py','.sql','.json','.md']);
-const PRIVATE_NAMES=/^(config\.json|voice-settings\.json|validacao\.json|operator\.json|persistence\.json|retention\.json|launchers\.json|\.env.*)$|\.(sqlite3?|db|bak|log|wav|mp3|gguf|bin|pem|key)$/i;
+const PRIVATE_NAMES=/^(config\.json|persona\.txt|memoria-pessoal\.json|voice-settings\.json|validacao\.json|operator\.json|persistence\.json|retention\.json|launchers\.json|\.env.*)$|\.(sqlite3?|db|bak|log|wav|mp3|gguf|bin|pem|key)$/i;
 async function backendInventory(root){
   const found=[];
   async function walk(dir){

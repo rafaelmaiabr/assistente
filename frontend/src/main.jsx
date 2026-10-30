@@ -13,6 +13,8 @@ import {DraftCard, SetupCard, SkillChip} from './MailCards.jsx';
 import {applyMailEvent, closeSetup, decisionMessage, initialMail, setupMessage, startSetup} from './mailModel.js';
 import {IntegrationCards} from './IntegrationCards.jsx';
 import {DEFAULT_STYLE, STYLES, applyStyleEvent, styleMessage} from './styleModel.js';
+import {MemoryPanel, MemoryProposals} from './MemoryPanel.jsx';
+import {applyMemoryEvent, initialMemory} from './memoryModel.js';
 import {applyIntegrationEvent, initialIntegrations, isIntegrationEvent, resumeText, safeAuthUrl, shouldResume} from './integrationModel.js';
 import {applyEvent, avatarStatus, initialConversation, isCaseRef, reattachMessage, reconnected, select, startTurn} from './conversationModel.js';
 
@@ -48,6 +50,7 @@ function App() {
   const [focus, setFocus] = useState(null);
   const [speak, setSpeak] = useState(true);
   const [style, setStyle] = useState(DEFAULT_STYLE);
+  const [memory, setMemory] = useState(initialMemory);
   const speakRef = useRef(true);
   const voiceRef = useRef(null);
   const socket = useRef(null);
@@ -90,6 +93,7 @@ function App() {
       commit(verdict.state);
       if (!verdict.accept) return;  // late, cancelled or from another case: it does not enter this conversation
       setStyle(current => applyStyleEvent(current, data));
+      setMemory(current => applyMemoryEvent(current, data));
       if (data.type === 'session') {
         setModel(data.model);
         const again = reattachMessage(convRef.current);  // a reconnection forgot the attachment; asking again never touches the microphone
@@ -210,6 +214,7 @@ function App() {
         <div className="mail-stack">
           <SetupCard setup={mail.setup} onSubmit={submitSetup} onClose={() => setMail(closeSetup)}/>
           <IntegrationCards integrations={integrations} send={sendRaw}/>
+          <MemoryProposals memory={memory} send={sendControl}/>
           {mail.drafts.map(draft => <DraftCard key={draft.id} draft={draft} onApprove={item => decide(item, 'approve')} onDiscard={item => decide(item, 'discard')}/>)}
         </div>
         <div ref={bottom}/>
@@ -225,6 +230,7 @@ function App() {
           <button className={`mic-button ${voice.enabled ? 'listening' : ''}`} disabled={state === 'offline' || state === 'connecting'} aria-pressed={voice.enabled} onClick={() => {setError(''); voice.toggle();}}><Icon name="mic"/>{voice.starting ? 'Cancelar ativação' : voice.enabled ? 'Silenciar microfone' : 'Ligar microfone'}</button>
           <label>Resposta<select aria-label="Formato da resposta" value={speak ? 'audio' : 'text'} onChange={e => {const value = e.target.value === 'audio'; setSpeak(value); speakRef.current = value; if (!value) voice.stopPlayback();}}><option value="audio">Texto e áudio</option><option value="text">Somente texto</option></select></label>
           <label>Estilo<select aria-label="Estilo das respostas" value={style} disabled={!canSend} onChange={e => {const message = styleMessage(e.target.value); if (message) sendControl(message);}}>{STYLES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+          <MemoryPanel memory={memory} send={sendControl}/>
           <PersistenceSettings/>
           <details><summary>Dispositivos de áudio</summary><div className="device-options">
             <label>Microfone<select aria-label="Microfone" value={voice.inputId} onChange={e => voice.chooseInput(e.target.value)}><option value="">Automático (preferir físico)</option>{voice.devices.filter(d => d.kind === 'audioinput').map((d,i) => <option key={d.deviceId || i} value={d.deviceId}>{d.label || `Microfone ${i+1}`}</option>)}</select></label>

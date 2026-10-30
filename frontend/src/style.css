@@ -839,3 +839,6 @@ code{background:#14161c;padding:1px 5px;border-radius:4px}
 .skill-chip.ativa,.skill-chip.usando{border-color:#4f6b46;color:#c6ddb9;cursor:default}
 .skill-chip.usando{animation:pulse 1.5s infinite}
 @media (max-width:700px){.mail-stack{margin-left:0}}
+.memory-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.memory-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.memory-list li span{flex:1 1 160px;word-break:break-word}
