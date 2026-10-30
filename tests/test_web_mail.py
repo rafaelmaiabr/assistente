@@ -206,6 +206,74 @@ class WebMailTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ainda não está configurada", answer["text"])
         self.assertEqual(Agent.instances[0].inputs, [])
 
+    async def test_a_plain_request_proposes_a_rule_and_only_the_choice_saves_it_for_the_next_conversation(self):
+        self.configure_mail()
+        ws, _ = await self.connect()
+        self.assertEqual(self.backlog("rules")[0]["rules"], [])
+        await ws.send_json({"type": "message", "text": "Sempre trate os emails de bruno@exemplo.invalid como prioridade"})
+        proposal = (await self.until(ws, lambda e: e.get("type") == "rule_proposal"))["proposal"]
+        self.assertIn("ou aplicar só desta vez?", proposal["pergunta"])
+        self.assertEqual((proposal["escopo"]["tipo"], proposal["escopo"]["valor"], proposal["conta"]), ("endereco", "bruno@exemplo.invalid", "pessoal"))
+        answer = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
+        self.assertIn("Nada foi salvo ainda", answer["text"])
+        await self.until(ws, lambda e: e.get("state") == "ready")
+        self.assertEqual(Agent.instances[0].inputs, [])  # the model was not asked
+        await ws.send_json({"type": "rule_list"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rules"))["rules"], [])  # no rule without the choice
+        await ws.send_json({"type": "rule_decision", "id": proposal["id"], "decision": "criar"})
+        created = await self.until(ws, lambda e: e.get("type") == "rules" and e.get("decidida") == "criada")
+        self.assertEqual(created["rules"][0]["acao"], "prioridade")
+        await ws.close()
+        again, _ = await self.connect()  # a new conversation sees the rule that was saved
+        self.assertEqual([r["escopo"]["valor"] for r in self.backlog("rules")[-1]["rules"]], ["bruno@exemplo.invalid"])
+        text = await self.assistant_text(again, "Faça a triagem da minha caixa")
+        self.assertIn("Prioridade (1)", text)
+        self.assertIn("Uma regra que você aprovou marca como prioridade", text)
+        await again.close()
+
+    async def test_only_this_time_applies_the_rule_to_the_triage_and_saves_nothing(self):
+        self.configure_mail()
+        ws, _ = await self.connect()
+        await ws.send_json({"type": "message", "text": "Trate os emails de bruno@exemplo.invalid como prioridade"})
+        proposal = (await self.until(ws, lambda e: e.get("type") == "rule_proposal"))["proposal"]
+        await self.until(ws, lambda e: e.get("state") == "ready")
+        await ws.send_json({"type": "rule_decision", "id": proposal["id"], "decision": "uma_vez"})
+        answer = await self.until(ws, lambda e: e.get("type") == "message" and "só desta vez" in e.get("text", ""))
+        self.assertIn("Prioridade (1)", answer["text"])
+        self.assertIn("nada foi salvo", answer["text"])
+        await ws.send_json({"type": "rule_list"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rules" and "decidida" not in e))["rules"], [])
+        self.assertEqual(self.imap.seen, set())
+        await ws.close()
+
+    async def test_the_person_turns_a_rule_off_edits_it_and_a_conflict_is_asked_not_decided(self):
+        self.configure_mail()
+        ws, _ = await self.connect()
+        await ws.send_json({"type": "message", "text": "Trate os emails do domínio exemplo.invalid como prioridade"})
+        proposal = (await self.until(ws, lambda e: e.get("type") == "rule_proposal"))["proposal"]
+        await self.until(ws, lambda e: e.get("state") == "ready")
+        await ws.send_json({"type": "rule_decision", "id": proposal["id"], "decision": "criar"})
+        rule = (await self.until(ws, lambda e: e.get("type") == "rules" and e.get("decidida") == "criada"))["regra"]
+        await ws.send_json({"type": "message", "text": "marque os emails de exemplo.invalid como confiáveis"})  # same scope and condition, other action
+        refusal = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant" and "Não criei" in e.get("text", ""))
+        self.assertIn("mesmo escopo e condição", refusal["text"])
+        await ws.send_json({"type": "rule_edit", "id": rule["id"], "excecoes": ["rascunho"], "acao": "preservar"})
+        edited = await self.until(ws, lambda e: e.get("type") == "rules" and e.get("regra", {}).get("version") == 2)
+        self.assertEqual((edited["regra"]["acao"], edited["regra"]["excecoes"]), ("preservar", ["rascunho"]))
+        await ws.send_json({"type": "rule_toggle", "id": rule["id"], "active": False})
+        off = await self.until(ws, lambda e: e.get("type") == "rules" and e["rules"] and e["rules"][0]["status"] == "desativada")
+        self.assertEqual(off["rules"][0]["id"], rule["id"])
+        await ws.send_json({"type": "rule_toggle", "id": rule["id"], "active": "sim"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rejected"))["message"], "Mensagem inválida.")
+        await ws.close()
+
+    async def test_a_rule_request_without_a_configured_mailbox_opens_the_form_and_saves_nothing(self):
+        ws, _ = await self.connect()
+        await ws.send_json({"type": "message", "text": "Trate os emails de ana@empresa.com como prioridade"})
+        await self.until(ws, lambda e: e.get("type") == "setup")
+        self.assertEqual(self.backlog("rule_proposal"), [])
+        self.assertEqual(Agent.instances[0].inputs, [])
+
     async def test_a_hostile_subject_is_shown_as_plain_text_inside_the_block(self):
         self.imap.folders["INBOX"]["messages"][2] = build(
             "[clique aqui](https://evil.example/x) **urgente**", sender="Fraude <f@exemplo.invalid>").as_bytes()

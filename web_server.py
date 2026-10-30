@@ -8,9 +8,11 @@ import secrets
 import uuid
 from collections import OrderedDict
 import honesty
+from mailbox_rules import MailboxRules
 from person_memory import PersonMemory
 import mail_intent
 import mail_triage
+import mailbox_rules
 import memory_intent
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
@@ -471,6 +473,49 @@ async def chat(request):
         except ValueError as error:
             emit({'type': 'rejected', 'message': str(error)})
 
+    async def rule_action(data):
+        """The person's choices on mailbox rules (see, choose on a card, turn on or off, edit). The model cannot send these."""
+        kind = data.get('type')
+        try:
+            if kind == 'rule_list':
+                result = await asyncio.to_thread(rules_store.state)
+            elif kind == 'rule_decision':
+                if data.get('decision') not in ('criar', 'uma_vez', 'recusar'):
+                    raise ValueError('Decisão inválida.')
+                result = await asyncio.to_thread(rules_store.decide, data.get('id'), data.get('decision'))
+                temporary = result.pop('regra_temporaria', None)
+                if temporary is not None:
+                    emit({'type': 'rules', **result})
+                    mail = await active_mail()
+                    key, label = mailbox_rules.account_of(mail)
+                    if not mail.configured() or key != temporary['conta']:
+                        answer = 'Essa regra é de outra caixa; não apliquei nada e nada foi salvo.'
+                    else:
+                        emit({'type': 'status', 'state': 'executing', 'label': 'Examinando a caixa (somente leitura)…'})
+                        in_force = await asyncio.to_thread(rules_store.active_for, key)
+                        report = await asyncio.to_thread(mail_triage.triage, mail, mail_triage.DEFAULT_LIMIT, None, (), label, in_force + [temporary])
+                        answer = 'Apliquei a regra só desta vez; nada foi salvo.\n\n' + mail_triage.render(report)
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    return
+            elif kind == 'rule_toggle':
+                if not isinstance(data.get('id'), str) or not isinstance(data.get('active'), bool):
+                    raise ValueError('Mensagem inválida.')
+                result = await asyncio.to_thread(rules_store.set_status, data['id'], data['active'])
+            elif kind == 'rule_edit':
+                extra = data.get('excecoes')
+                texts = all(isinstance(data.get(k), (str, type(None))) for k in ('valor', 'acao'))
+                if not isinstance(data.get('id'), str) or not (extra is None or isinstance(extra, list)) or not texts:
+                    raise ValueError('Mensagem inválida.')
+                result = await asyncio.to_thread(rules_store.edit, data['id'], data.get('valor'), extra, data.get('acao'))
+            else:
+                raise ValueError('Mensagem inválida.')
+            emit({'type': 'rules', **result})
+        except ValueError as error:
+            emit({'type': 'rejected', 'message': str(error)})
+        except Exception:
+            emit({'type': 'rejected', 'message': 'Não foi possível concluir. Tente novamente.'})
+
     async def queue_drained():
         # Give the sole sender a chance to flush terminal events before closing.
         for _ in range(20):
@@ -490,11 +535,15 @@ async def chat(request):
         memory = PersonMemory(request.app[DATA_DIR])  # one folder for the screen and for the agent's prompt
         if hasattr(agent, 'memory'):
             agent.memory = memory
+        rules_store = MailboxRules(request.app[DATA_DIR])
+        if hasattr(agent, 'rules'):
+            agent.rules = rules_store
         await asyncio.wait_for(agent.start(), timeout=30)
         mail = await active_mail()
         emit({"type": "session", "model": request.app[CONFIG]["model"], "mail": "real" if mail.configured() else "demo",
               "reply": mail.configured() and mail.smtp_config() is not None, "style": getattr(agent, 'style', 'padrao')})
         emit({'type': 'memory', **await asyncio.to_thread(memory.state)})
+        emit({'type': 'rules', **await asyncio.to_thread(rules_store.state)})
         pending = await asyncio.to_thread(outbox.pending)
         if pending:  # drafts still waiting after a reload; the approval is the person's, so they come back to the screen
             emit({"type": "drafts", "drafts": pending})
@@ -523,6 +572,10 @@ async def chat(request):
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and str(data.get('type', '')).startswith('integration_'):
                 task = asyncio.create_task(integrate(data))
+                decisions.add(task)
+                task.add_done_callback(decisions.discard)
+            elif isinstance(data, dict) and str(data.get('type', '')).startswith('rule_') and data.get('type') != 'rule_proposal':
+                task = asyncio.create_task(rule_action(data))
                 decisions.add(task)
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and str(data.get('type', '')).startswith('memory_'):
@@ -618,6 +671,27 @@ async def chat(request):
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue
+                asked = mailbox_rules.parse_request(text) if text else None
+                if asked is not None:
+                    # "Sempre trate os emails de ana@x.com como prioridade": the server proposes; only the person's choice on the card saves.
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    mail = await active_mail()
+                    if not mail.configured():
+                        emit({'type': 'setup', 'skill': 'email'})
+                        answer = 'Sua caixa de email ainda não está configurada, então não há onde aplicar uma regra. Abri o formulário seguro.'
+                    else:
+                        key, label = mailbox_rules.account_of(mail)
+                        result = await asyncio.to_thread(rules_store.propose, key, label, asked['escopo'][0], asked['escopo'][1],
+                                                         asked['condicao'][0], asked['condicao'][1], asked['acao'])
+                        if 'erro' in result:
+                            answer = f"Não criei a regra: {result['erro']} Nada foi salvo."
+                        else:
+                            emit({'type': 'rule_proposal', 'proposal': result['proposal']})
+                            answer = ('Preparei uma regra para esta caixa. Escolha no cartão: criar a regra, aplicar só desta vez ou recusar. '
+                                      'Nada foi salvo ainda.')
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
                 if text and mail_triage.parse_request(text):
                     # "Faça a triagem da minha caixa": read-only, answered here with the real coverage, not left to a small model.
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
@@ -625,8 +699,9 @@ async def chat(request):
                     if mail.configured():
                         emit({'type': 'status', 'state': 'executing', 'label': 'Examinando a caixa (somente leitura)…'})
                         try:
-                            label = (getattr(mail, 'source', None) or {}).get('label') or 'pessoal'
-                            answer = mail_triage.render(await asyncio.to_thread(mail_triage.triage, mail, mail_triage.DEFAULT_LIMIT, None, (), label))
+                            key, label = mailbox_rules.account_of(mail)
+                            in_force = await asyncio.to_thread(rules_store.active_for, key)
+                            answer = mail_triage.render(await asyncio.to_thread(mail_triage.triage, mail, mail_triage.DEFAULT_LIMIT, None, (), label, in_force))
                         except Exception:
                             answer = 'Não consegui examinar a caixa de email agora. Nada foi alterado.'
                     else:

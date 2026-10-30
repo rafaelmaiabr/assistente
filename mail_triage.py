@@ -9,6 +9,7 @@ message is *data*, it cannot change a rule, and nothing is moved, deleted or mar
 import re
 from urllib.parse import urlparse
 
+import mailbox_rules
 from mail_intent import _clean, _plain
 
 DEFAULT_LIMIT = 10
@@ -38,6 +39,7 @@ PRIORITY = {
     "incidente": "fala de incidente ou serviço fora do ar",
     "cliente_conhecido": "vem de um remetente que você marcou como conhecido",
     "prazo_explicito": "traz um prazo escrito no texto",
+    "regra_prioridade": "uma regra que você aprovou marca como prioridade",
 }
 CLASS_LABEL = {"prioridade": "Prioridade", "suspeito": "Suspeita", "revisao": "Para você revisar", "normal": "Sem alerta"}
 
@@ -151,13 +153,16 @@ def asked(message):
     return None
 
 
-def analyse(message, known_senders=()):
-    """The report line for one parsed message. ``known_senders``: addresses or domains the person marked as known."""
+def analyse(message, known_senders=(), rules=()):
+    """The report line for one parsed message. ``known_senders``: addresses or domains the person marked as known. ``rules``: the
+    active mailbox rules of this account (#139); they only move a message toward priority or preservation, never toward a verdict of fraud."""
     found = evidences(message)
     sender = str(message.get("sender") or "").lower()
     plain = _plain(f"{message.get('subject') or ''} {message.get('text') or ''}")
     bulk = _is_bulk(message)
     known = bool(sender) and (sender in known_senders or _domain_of(sender) in known_senders)
+    actions, rule_ids, clash = mailbox_rules.applied(rules, message)
+    known = known or "preservar" in actions
     real_conversation = _ids(message) and not bulk
     commercial = bool(_COMMERCIAL.search(plain)) or bool((message.get("auto") or {}).get("list_unsubscribe"))
     limit = deadline(message)
@@ -170,9 +175,13 @@ def analyse(message, known_senders=()):
         reasons.append("incidente")
     if limit:
         reasons.append("prazo_explicito")
+    if "prioridade" in actions:
+        reasons.append("regra_prioridade")
     suspect = is_suspect(found)
     conflict = real_conversation or known
-    if suspect and conflict:
+    if clash:
+        kind, why = "revisao", "Regras suas em conflito para esta mensagem: foi preservada; decida qual vale."
+    elif suspect and conflict:
         kind, why = "revisao", "Há indícios de golpe, mas é uma conversa real ou um remetente conhecido: foi preservada; confira você."
     elif suspect and reasons:
         kind, why = "prioridade", "Parece importante, mas tem indícios de golpe: não confie nos links nem nos pedidos antes de conferir."
@@ -192,6 +201,7 @@ def analyse(message, known_senders=()):
                                                   "porque": EVIDENCE[item][2]} for item in found],
         "acao_pedida": ask, "prazo": limit, "aguarda_resposta": ask in ("confirmar", "enviar algo", "responder", "ligar") and not bulk,
         "preservar": commercial or known or real_conversation,
+        "regras_aplicadas": rule_ids, "conflito_de_regras": clash,
         "re_sem_cabecalhos": bool(re.match(r"(?i)\s*(re|enc|fwd?)\s*:", str(message.get("subject") or ""))) and not _ids(message),
     }
 
@@ -212,7 +222,7 @@ def coverage(requested, listed, examined, failed, more, folder):
             "completa": complete, "texto": text}
 
 
-def triage(mail, limit=DEFAULT_LIMIT, since=None, known_senders=(), account="pessoal"):
+def triage(mail, limit=DEFAULT_LIMIT, since=None, known_senders=(), account="pessoal", rules=()):
     """Lists the latest messages and reads each one without marking it, then reports. Writes nothing to the mailbox."""
     page = mail.list_recent(None, limit, since)
     if not isinstance(page, dict) or "erro" in page:
@@ -223,7 +233,7 @@ def triage(mail, limit=DEFAULT_LIMIT, since=None, known_senders=(), account="pes
         if not isinstance(message, dict) or "erro" in message:
             failed += 1
             continue
-        row = analyse(message, known_senders)
+        row = analyse(message, known_senders, rules)
         row["conta"] = account
         results.append(row)
     folder = _text(page.get("pasta") or "INBOX", 60)
