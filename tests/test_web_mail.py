@@ -136,6 +136,31 @@ class WebMailTests(unittest.IsolatedAsyncioTestCase):
         await ws.send_json({"type": "memory_decision", "id": "x", "decision": "talvez"})
         self.assertEqual((await self.until(ws, lambda e: e.get("type") == "rejected"))["message"], "Decisão inválida.")
 
+    async def test_a_plain_request_to_write_something_down_becomes_a_proposal_without_the_model(self):
+        ws, _ = await self.connect()
+        await ws.send_json({"type": "message", "text": "Lembre que eu moro em Recife."})
+        proposal = (await self.until(ws, lambda e: e.get("type") == "memory_proposal"))["proposal"]
+        self.assertEqual((proposal["action"], proposal["text"]), ("adicionar", "eu moro em Recife"))
+        answer = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
+        self.assertIn("nada foi guardado ainda", answer["text"])
+        await self.until(ws, lambda e: e.get("state") == "ready")
+        self.assertEqual(Agent.instances[0].inputs, [])  # the model was not asked
+        await ws.send_json({"type": "memory_list"})
+        self.assertEqual((await self.until(ws, lambda e: e.get("type") == "memory"))["entries"], [])  # only the click writes
+        await ws.send_json({"type": "memory_decision", "id": proposal["id"], "decision": "approve"})
+        approved = await self.until(ws, lambda e: e.get("type") == "memory" and e.get("decidida") == "aprovada")
+        self.assertEqual([e["text"] for e in approved["entries"]], ["eu moro em Recife"])
+
+    async def test_a_request_with_a_secret_is_refused_with_the_reason_and_proposes_nothing(self):
+        ws, _ = await self.connect()
+        await ws.send_json({"type": "message", "text": "Anote que minha senha do banco é 1234"})
+        answer = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
+        self.assertIn("Não guardei", answer["text"])
+        self.assertIn("Nada foi anotado", answer["text"])
+        await self.until(ws, lambda e: e.get("state") == "ready")
+        self.assertEqual([e for e in self.backlog("memory_proposal")], [])
+        self.assertEqual(Agent.instances[0].inputs, [])
+
     async def assistant_text(self, ws, text):
         await ws.send_json({"type": "message", "text": text})
         reply = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
