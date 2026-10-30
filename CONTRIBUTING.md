@@ -7,3 +7,5 @@
 5. Fazer push e abrir PR. Manter a issue aberta enquanto houver critérios pendentes.
 
 Não versionar segredos, modelos, logs de voz, históricos de conversa ou configuração local. Novos recursos devem funcionar sem serviços pagos por padrão. O microfone precisa de controle explícito e estado visível.
+
+O CI (`.github/workflows/checks.yml`) roda uma vez por mudança e divide a suíte Python em 3 jobs paralelos; veja `docs/CI.md`. Localmente, `python -m unittest discover -s tests` continua rodando tudo.
