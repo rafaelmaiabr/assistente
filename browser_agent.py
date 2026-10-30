@@ -41,7 +41,7 @@ class BrowserAgent:
         if update.type == "tool_call_started":
             name = update.function_call.name
             self.running = name
-            self.emit({"type": "status", "state": "executing", "label": "Mostrando o cartão de integração…" if name == "solicitar_integracao" else "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Consultando a rota liberada…" if name == "consultar_rota" else "Preparando o rascunho…" if name == "preparar_resposta" else "Preparando a proposta de memória…" if name == "propor_memoria" else "Executando ferramenta…"})
+            self.emit({"type": "status", "state": "executing", "label": "Mostrando o cartão de integração…" if name == "solicitar_integracao" else "Consultando e-mails de demonstração…" if name == "verificar_caixa_email" else "Consultando seus e-mails…" if name in ("listar_emails", "buscar_emails", "ler_email") else "Examinando a caixa (somente leitura)…" if name == "triar_emails" else "Consultando a rota liberada…" if name == "consultar_rota" else "Preparando o rascunho…" if name == "preparar_resposta" else "Preparando a proposta de memória…" if name == "propor_memoria" else "Executando ferramenta…"})
             self.emit({"type": "tool", "name": name, "state": "started"})
             if name in SKILL_OF:
                 self.emit({"type": "skill", "id": SKILL_OF[name], "state": "usando"})
