@@ -8,6 +8,7 @@ import secrets
 import uuid
 from collections import OrderedDict
 import honesty
+from person_memory import PersonMemory
 import mail_intent
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
@@ -446,6 +447,28 @@ async def chat(request):
             emit({'type': 'integration_error', 'request_id': request_id if isinstance(request_id, str) else None,
                   'message': 'Não foi possível concluir. Tente novamente.'})
 
+    async def memory_action(data):
+        """The person's own memory messages (see, add, edit, delete, approve or discard a proposal). The model cannot send these."""
+        kind = data.get('type')
+        try:
+            if kind == 'memory_list':
+                result = await asyncio.to_thread(memory.state)
+            elif kind == 'memory_decision':
+                if data.get('decision') not in ('approve', 'discard'):
+                    raise ValueError('Decisão inválida.')
+                result = await asyncio.to_thread(memory.decide, data.get('id'), data.get('decision') == 'approve')
+            elif kind in ('memory_add', 'memory_edit', 'memory_delete'):
+                action = {'memory_add': 'adicionar', 'memory_edit': 'ajustar', 'memory_delete': 'remover'}[kind]
+                text, entry = data.get('text', ''), data.get('id')
+                if not isinstance(text, str) or not (entry is None or isinstance(entry, str)):
+                    raise ValueError('Mensagem inválida.')
+                result = await asyncio.to_thread(memory.change, action, text, entry)
+            else:
+                raise ValueError('Mensagem inválida.')
+            emit({'type': 'memory', **result})
+        except ValueError as error:
+            emit({'type': 'rejected', 'message': str(error)})
+
     async def queue_drained():
         # Give the sole sender a chance to flush terminal events before closing.
         for _ in range(20):
@@ -462,10 +485,14 @@ async def chat(request):
             agent.on_integration = card_for  # the tool exists only where the team services can answer it
         if hasattr(agent, 'mail_source'):
             agent.mail_source = mail_source
+        memory = PersonMemory(request.app[DATA_DIR])  # one folder for the screen and for the agent's prompt
+        if hasattr(agent, 'memory'):
+            agent.memory = memory
         await asyncio.wait_for(agent.start(), timeout=30)
         mail = await active_mail()
         emit({"type": "session", "model": request.app[CONFIG]["model"], "mail": "real" if mail.configured() else "demo",
               "reply": mail.configured() and mail.smtp_config() is not None, "style": getattr(agent, 'style', 'padrao')})
+        emit({'type': 'memory', **await asyncio.to_thread(memory.state)})
         pending = await asyncio.to_thread(outbox.pending)
         if pending:  # drafts still waiting after a reload; the approval is the person's, so they come back to the screen
             emit({"type": "drafts", "drafts": pending})
@@ -494,6 +521,10 @@ async def chat(request):
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and str(data.get('type', '')).startswith('integration_'):
                 task = asyncio.create_task(integrate(data))
+                decisions.add(task)
+                task.add_done_callback(decisions.discard)
+            elif isinstance(data, dict) and str(data.get('type', '')).startswith('memory_'):
+                task = asyncio.create_task(memory_action(data))
                 decisions.add(task)
                 task.add_done_callback(decisions.discard)
             elif isinstance(data, dict) and data.get('type') == 'draft_decision':

@@ -14,6 +14,7 @@ from personal_mail import PersonalMail
 from persona import DEFAULT as DEFAULT_PERSONA, style_text
 from personal_outbox import PersonalOutbox
 from settings import DATA_ROOT, ROOT, load_config
+from person_memory import ACTIONS as MEMORY_ACTIONS, reason_text
 from tool_guard import Guard, std_error
 from team.connectors.http_get import SafeHttp
 from team.connectors.http_routes import KINDS, ROUTES_FILE, RouteStore, consult
@@ -108,6 +109,30 @@ def integration_tools(on_integration=None):
     return [solicitar_integracao]
 
 
+def memory_tools(memory, on_proposal=None):
+    """One tool that can only *propose*: nothing is written until the person approves on screen (#137). It reads nothing: the text is in the prompt."""
+    if memory is None or on_proposal is None:
+        return []
+
+    @function_tool(description="Propõe uma anotação curta sobre a pessoa para a memória (preferência, nome, forma de tratamento). acao: adicionar, ajustar ou remover; "
+                               "texto: o fato em uma frase; id: o identificador entre colchetes da anotação a ajustar ou remover. Nada é gravado agora: a pessoa "
+                               "aprova ou recusa na tela e a anotação só vale na próxima conversa. Nunca proponha senhas, chaves, ordens ao assistente nem "
+                               "permissões. Proponha só o que a pessoa pediu para lembrar.")
+    async def propor_memoria(acao: str, texto: str = "", id: str = "") -> dict:
+        action = str(acao).strip().lower()
+        if action not in MEMORY_ACTIONS:
+            return std_error("Ação desconhecida; use adicionar, ajustar ou remover.", retry=True)
+        result = await asyncio.to_thread(memory.propose, action, str(texto), str(id) or None)
+        if "erro" in result:
+            return std_error(result["erro"], retry=result.get("motivo") in ("grande_demais", "vazio", "limite"),
+                             say=reason_text(result.get("motivo")))
+        on_proposal(result["proposal"])
+        return {"proposta_criada": True, "aguardando_aprovacao_da_pessoa": True,
+                "instrucao": "A proposta está na tela. Peça para a pessoa aprovar ou recusar. Nada foi gravado ainda e só valerá na próxima conversa."}
+
+    return [propor_memoria]
+
+
 def http_instructions(routes):
     """Only the routes the operator really turned on, so the assistant claims nothing else."""
     if not routes:
@@ -135,14 +160,14 @@ def http_tools(store, client=None):
 
 
 def agent_parts(config=None, mail=None, outbox=None, on_draft=None, on_setup=None, on_integration=None, routes=None, http=None,
-                persona=None, style="padrao"):
+                persona=None, style="padrao", memory=None, on_memory=None, memory_text=""):
     """``(instructions, tools)`` for the current state of the skills; also used to refresh a running agent after a setup.
     ``persona`` is the tone text already checked by ``persona.load`` (the built-in one when absent); ``style`` is the conversation's preset."""
     config = config or load_config()
     mail = mail or PersonalMail(DATA_ROOT)
     outbox = outbox or PersonalOutbox(DATA_ROOT, mail)
     routes = routes or RouteStore(DATA_ROOT / ROUTES_FILE)
-    tools = email_tools(mail, outbox, on_draft, on_setup) + (integration_tools(on_integration) if on_integration else []) + http_tools(routes, http)
+    tools = email_tools(mail, outbox, on_draft, on_setup) + (integration_tools(on_integration) if on_integration else []) + http_tools(routes, http) + memory_tools(memory, on_memory)
     if not mail.configured():
         tools.append(mcp.MCPToolset(id="email-demo", mcp_server=mcp.MCPServerStdio(
             command=sys.executable, args=[str(ROOT / "demo_mcp.py")], cwd=ROOT)))
@@ -150,7 +175,7 @@ def agent_parts(config=None, mail=None, outbox=None, on_draft=None, on_setup=Non
         tools.append(mcp.MCPToolset(id=f"external-{index}", mcp_server=mcp.MCPServerHTTP(server["url"])))
     names = {getattr(getattr(tool, "info", None), "name", None) for tool in tools}  # what is really registered, not fixed text
     # fixed order (#135): stable identity and honesty rules, the index of what is registered, then what changes with the state
-    return (BASE + (persona or DEFAULT_PERSONA) + capabilities_text(names) + instructions_for(mail) + (INTEGRATIONS if on_integration else "")
+    return (BASE + (persona or DEFAULT_PERSONA) + memory_text + capabilities_text(names) + instructions_for(mail) + (INTEGRATIONS if on_integration else "")
             + http_instructions(routes.enabled_routes()) + style_text(style)), tools
 
 
@@ -164,8 +189,10 @@ class ChatAgent(Agent):
             await self.update_chat_ctx(prune(self.chat_ctx)[0], exclude_invalid_function_calls=False)  # and what stays in the history
 
 
-def make_agent(config=None, mail=None, on_draft=None, on_setup=None, outbox=None, on_integration=None, persona=None, style="padrao"):
+def make_agent(config=None, mail=None, on_draft=None, on_setup=None, outbox=None, on_integration=None, persona=None, style="padrao",
+               memory=None, on_memory=None, memory_text=""):
     config = config or load_config()
-    instructions, tools = agent_parts(config, mail, outbox, on_draft, on_setup, on_integration, persona=persona, style=style)
+    instructions, tools = agent_parts(config, mail, outbox, on_draft, on_setup, on_integration, persona=persona, style=style,
+                                    memory=memory, on_memory=on_memory, memory_text=memory_text)
     return ChatAgent(instructions=instructions, tools=tools,
                  llm=openai.LLM(model=config["model"], base_url=config["ollama_url"], api_key="ollama", temperature=0.3))
