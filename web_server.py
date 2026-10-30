@@ -10,6 +10,7 @@ from collections import OrderedDict
 import honesty
 from person_memory import PersonMemory
 import mail_intent
+import mail_triage
 import memory_intent
 from aiohttp import web, WSMsgType
 from settings import DATA_ROOT, ROOT, load_config
@@ -614,6 +615,24 @@ async def chat(request):
                         emit({'type': 'memory_proposal', 'proposal': result['proposal']})
                         answer = (f"Preparei a anotação “{result['proposal']['text']}”. Aprove ou recuse o cartão na tela: nada foi guardado ainda "
                                   "e, se você aprovar, ela vale a partir da próxima conversa.")
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
+                    emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
+                    continue
+                if text and mail_triage.parse_request(text):
+                    # "Faça a triagem da minha caixa": read-only, answered here with the real coverage, not left to a small model.
+                    emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'user', 'text': text})
+                    mail = await active_mail()
+                    if mail.configured():
+                        emit({'type': 'status', 'state': 'executing', 'label': 'Examinando a caixa (somente leitura)…'})
+                        try:
+                            label = (getattr(mail, 'source', None) or {}).get('label') or 'pessoal'
+                            answer = mail_triage.render(await asyncio.to_thread(mail_triage.triage, mail, mail_triage.DEFAULT_LIMIT, None, (), label))
+                        except Exception:
+                            answer = 'Não consegui examinar a caixa de email agora. Nada foi alterado.'
+                    else:
+                        emit({'type': 'setup', 'skill': 'email'})
+                        answer = ('Sua caixa de email ainda não está configurada. Abri o formulário seguro; a senha vai direto da tela '
+                                  'para o cofre do Windows, sem passar pela conversa.')
                     emit({'type': 'message', 'id': uuid.uuid4().hex, 'role': 'assistant', 'text': answer})
                     emit({'type': 'status', 'state': 'ready', 'label': 'Pronto para conversar'})
                     continue

@@ -188,6 +188,10 @@ class CompanyMail:
         data = self._call("buscar-mensagens", arguments)
         return data if "erro" in data else self._summary(data, limit)
 
+    def original(self, uid, uidvalidity, folder=None):
+        """The parsed message (headers, ids, text, attachments) for the read-only triage (#138); the model never sees it as is."""
+        return self._call("ler-mensagem", {"pasta": self.source["folder"], "uid": int(uid), "uidvalidity": int(uidvalidity)})
+
     def read(self, uid, uidvalidity, folder=None):
         data = self._call("ler-mensagem", {"pasta": self.source["folder"], "uid": int(uid), "uidvalidity": int(uidvalidity)})
         if "erro" in data:

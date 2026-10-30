@@ -182,6 +182,30 @@ class WebMailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(Agent.instances[0].inputs, ["Qual a capital da França?"])  # other phrases still go to the model
         Agent.instances[0].gate.set()
 
+    async def test_asking_for_the_triage_answers_from_the_real_mailbox_read_only_with_its_coverage_and_without_the_model(self):
+        self.imap.folders["INBOX"]["messages"][2] = build(
+            "Sua conta", sender="Suporte <suporte@banco.com.br>",
+            body="Sua conta será bloqueada. Confirme sua senha agora em https://acesso-seguro.biz/login").as_bytes()
+        self.configure_mail()
+        ws, _ = await self.connect()
+        text = await self.assistant_text(ws, "Faça a triagem da minha caixa")
+        self.assertIn("nada foi movido, apagado nem marcado como lido", text)
+        self.assertIn("Examinei todas as 2 mensagens", text)
+        self.assertIn("Suspeita (1)", text)
+        self.assertIn("Sua conta", text)
+        self.assertEqual(Agent.instances[0].inputs, [])  # the model was never asked
+        self.assertEqual(self.imap.seen, set())  # nothing was marked as read
+        self.assertEqual([c for c in self.imap.commands() if "STORE" in c or "COPY" in c or "EXPUNGE" in c or "MOVE" in c], [])
+        await ws.close()
+
+    async def test_the_triage_without_a_configured_mailbox_opens_the_form_and_invents_nothing(self):
+        ws, _ = await self.connect()
+        await ws.send_json({"type": "message", "text": "Tem algum email suspeito?"})
+        await self.until(ws, lambda e: e.get("type") == "setup")
+        answer = await self.until(ws, lambda e: e.get("type") == "message" and e.get("role") == "assistant")
+        self.assertIn("ainda não está configurada", answer["text"])
+        self.assertEqual(Agent.instances[0].inputs, [])
+
     async def test_a_hostile_subject_is_shown_as_plain_text_inside_the_block(self):
         self.imap.folders["INBOX"]["messages"][2] = build(
             "[clique aqui](https://evil.example/x) **urgente**", sender="Fraude <f@exemplo.invalid>").as_bytes()

@@ -110,7 +110,7 @@ def parse_message(raw: bytes, max_chars=MAX_TEXT_CHARS):
     recipients = [a.lower() for _, a in getaddresses([str(msg.get("To") or ""), str(msg.get("Cc") or "")]) if "@" in a][:20]
     auto = {name.lower().replace("-", "_"): _clean(msg.get(name), 120).lower()
             for name in ("Auto-Submitted", "Precedence", "List-Id", "X-Autoreply", "X-Autorespond", "Return-Path",
-                         "X-Auto-Response-Suppress", "X-Assistente-Origem") if msg.get(name) is not None}
+                         "X-Auto-Response-Suppress", "X-Assistente-Origem", "Reply-To", "List-Unsubscribe") if msg.get(name) is not None}
 
     def visit(part, depth):
         state["parts"] += 1
